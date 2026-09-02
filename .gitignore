@@ -1,0 +1,42 @@
+# --- Node / TypeScript ---
+node_modules/
+dist/
+build/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+
+# --- Prisma ---
+apps/api/prisma/dev.db*
+
+# --- macOS ---
+.DS_Store
+
+# --- IDE ---
+.idea/
+.vscode/
+*.swp
+
+# --- Xcode / iOS ---
+xcuserdata/
+DerivedData/
+*.xcuserstate
+Pods/
+Carthage/
+*.hmap
+*.ipa
+*.dSYM.zip
+build/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# --- Docker volumes we might create ---
+.pgdata/
+.redisdata/
+.s3data/

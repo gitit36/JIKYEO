@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jikyeo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jikyeo
+      POSTGRES_USER: jikyeo
+      POSTGRES_PASSWORD: jikyeo
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jikyeo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: jikyeo-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  localstack:
+    image: localstack/localstack:3
+    container_name: jikyeo-localstack
+    restart: unless-stopped
+    environment:
+      SERVICES: s3
+      DEFAULT_REGION: ap-northeast-2
+      AWS_DEFAULT_REGION: ap-northeast-2
+    ports:
+      - "4566:4566"
+    volumes:
+      - s3data:/var/lib/localstack
+
+volumes:
+  pgdata:
+  redisdata:
+  s3data:

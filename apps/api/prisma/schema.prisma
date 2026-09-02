@@ -1,0 +1,525 @@
+// 지켜 / JIKYEO — Prisma schema
+// Follows ERD.md v0.9. Money is BigInt KRW (integer 원). All timestamps timestamptz.
+// Ledger is append-only. Money mutations never bypass LedgerService.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum AuthProvider {
+  apple
+  google
+  email
+}
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+enum CommitmentCategory {
+  wakeup
+  workout
+  study
+  read
+  meditate
+  screen
+  custom
+}
+
+enum CommitmentDirection {
+  do_action  @map("do")
+  avoid
+}
+
+enum ScheduleType {
+  one_time
+  daily
+  specific_days
+  x_per_week
+  custom
+}
+
+enum Strictness {
+  normal
+  hard
+}
+
+enum CommitmentStatus {
+  draft
+  payment_pending
+  active
+  completed
+  cancelled
+}
+
+enum OccurrenceStatus {
+  scheduled
+  active
+  evidence_submitted
+  reviewing
+  pass
+  uncertain
+  fail
+  void
+  system_hold
+}
+
+enum VerificationMethod {
+  photo
+  gps
+  timer
+  self
+  friend
+  health
+  screen_time
+  timelapse
+}
+
+enum FallbackType {
+  appeal
+  manual
+  additional_evidence
+}
+
+enum EvidenceType {
+  photo
+  video
+  location
+  timer
+  self
+  friend
+}
+
+enum VerifierType {
+  rule
+  ai
+  friend
+  human
+}
+
+enum VerificationOutcome {
+  pass
+  uncertain
+  fail
+}
+
+enum SettlementMode {
+  end_of_commitment
+  per_occurrence
+}
+
+enum StakeRecipientType {
+  platform
+}
+
+enum StakeStatus {
+  pending
+  funded
+  settling
+  settled
+  refunded
+}
+
+enum PaymentType {
+  charge
+  refund
+  cancel
+}
+
+enum PaymentStatus {
+  requested
+  succeeded
+  failed
+  partial
+}
+
+enum LedgerEntryType {
+  deposit
+  refund_earned
+  refund_paid
+  forfeit
+  reversal
+}
+
+enum SettlementResult {
+  refundable
+  forfeited
+  void
+}
+
+enum SettlementStatus {
+  pending
+  processed
+  failed
+}
+
+enum AppealStatus {
+  submitted
+  reviewing
+  approved
+  rejected
+}
+
+enum ObserverRole {
+  viewer
+  verifier
+}
+
+enum FriendshipStatus {
+  pending
+  accepted
+  blocked
+}
+
+enum NotificationType {
+  before_24h
+  before_1h
+  before_10m
+  deadline
+  result
+  refund
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  cancelled
+  failed
+}
+
+// ---------------------------------------------------------------------------
+// Core
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String        @id @default(uuid()) @db.Uuid
+  email         String?       @unique
+  authProvider  AuthProvider  @map("auth_provider")
+  authSubject   String        @map("auth_subject")
+  displayName   String        @map("display_name")
+  birthDate     DateTime?     @map("birth_date") @db.Date
+  locale        String        @default("ko-KR")
+  timezone      String        @default("Asia/Seoul")
+  status        UserStatus    @default(active)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+
+  commitments        Commitment[]
+  friendshipsSent    Friendship[]         @relation("FriendRequester")
+  friendshipsRecv    Friendship[]         @relation("FriendAddressee")
+  observers          CommitmentObserver[]
+  appeals            Appeal[]
+  auditLogs          AuditLog[]
+  evidenceSubmitted  Evidence[]
+
+  @@unique([authProvider, authSubject])
+  @@index([email])
+  @@map("users")
+}
+
+model Commitment {
+  id                  String              @id @default(uuid()) @db.Uuid
+  userId              String              @map("user_id") @db.Uuid
+  title               String
+  category            CommitmentCategory
+  direction           CommitmentDirection @default(do_action)
+  scheduleType        ScheduleType        @map("schedule_type")
+  scheduleJson        Json                @map("schedule_json")
+  startAt             DateTime            @map("start_at") @db.Timestamptz
+  endAt               DateTime            @map("end_at") @db.Timestamptz
+  timezone            String
+  strictness          Strictness          @default(normal)
+  extensionAllowed    Boolean             @default(false) @map("extension_allowed")
+  status              CommitmentStatus    @default(draft)
+  maxLossAmount       BigInt              @map("max_loss_amount")
+  currency            String              @default("KRW") @db.Char(3)
+  signedAt            DateTime?           @map("signed_at") @db.Timestamptz
+  signatureAssetId    String?             @map("signature_asset_id") @db.Uuid
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  user                User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  occurrences         Occurrence[]
+  verificationRule    VerificationRule?
+  stake               Stake?
+  observers           CommitmentObserver[]
+  notifications       NotificationSchedule[]
+  ledgerEntries       PaymentLedger[]
+
+  @@index([userId, status])
+  @@map("commitments")
+}
+
+model Occurrence {
+  id                  String            @id @default(uuid()) @db.Uuid
+  commitmentId        String            @map("commitment_id") @db.Uuid
+  sequenceNo          Int               @map("sequence_no")
+  windowStartAt       DateTime          @map("window_start_at") @db.Timestamptz
+  deadlineAt          DateTime          @map("deadline_at") @db.Timestamptz
+  status              OccurrenceStatus  @default(scheduled)
+  stakeAmount         BigInt            @map("stake_amount")
+  failureReasonCode   String?           @map("failure_reason_code")
+  decidedAt           DateTime?         @map("decided_at") @db.Timestamptz
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  commitment          Commitment              @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+  evidence            Evidence[]
+  verificationResults VerificationResult[]
+  settlements         Settlement[]
+  appeal              Appeal?
+  notifications       NotificationSchedule[]
+  ledgerEntries       PaymentLedger[]
+
+  @@unique([commitmentId, sequenceNo])
+  @@index([status, deadlineAt])
+  @@map("occurrences")
+}
+
+model VerificationRule {
+  id            String               @id @default(uuid()) @db.Uuid
+  commitmentId  String               @unique @map("commitment_id") @db.Uuid
+  method        VerificationMethod
+  ruleJson      Json                 @map("rule_json")
+  aiThreshold   Decimal?             @map("ai_threshold") @db.Decimal(4, 3)
+  fallbackType  FallbackType?        @map("fallback_type")
+  createdAt     DateTime             @default(now()) @map("created_at") @db.Timestamptz
+
+  commitment    Commitment           @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+
+  @@map("verification_rules")
+}
+
+model Evidence {
+  id                   String        @id @default(uuid()) @db.Uuid
+  occurrenceId         String        @map("occurrence_id") @db.Uuid
+  submittedByUserId    String        @map("submitted_by_user_id") @db.Uuid
+  evidenceType         EvidenceType  @map("evidence_type")
+  storageKey           String?       @map("storage_key")
+  capturedAt           DateTime?     @map("captured_at") @db.Timestamptz
+  receivedAt           DateTime      @default(now()) @map("received_at") @db.Timestamptz
+  metadataJson         Json          @default("{}") @map("metadata_json")
+  hash                 String?
+  retentionUntil       DateTime      @map("retention_until") @db.Timestamptz
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  occurrence           Occurrence    @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  submittedByUser      User          @relation(fields: [submittedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([occurrenceId])
+  @@index([hash])
+  @@map("evidence")
+}
+
+model VerificationResult {
+  id             String               @id @default(uuid()) @db.Uuid
+  occurrenceId   String               @map("occurrence_id") @db.Uuid
+  verifierType   VerifierType         @map("verifier_type")
+  result         VerificationOutcome
+  confidence     Decimal?             @db.Decimal(4, 3)
+  reasonCode     String               @map("reason_code")
+  reasonText     String               @map("reason_text")
+  modelVersion   String?              @map("model_version")
+  reviewerUserId String?              @map("reviewer_user_id") @db.Uuid
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz
+
+  occurrence     Occurrence           @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  @@index([occurrenceId])
+  @@map("verification_results")
+}
+
+model Stake {
+  id                    String              @id @default(uuid()) @db.Uuid
+  commitmentId          String              @unique @map("commitment_id") @db.Uuid
+  perOccurrenceAmount   BigInt              @map("per_occurrence_amount")
+  maxTotalAmount        BigInt              @map("max_total_amount")
+  currency              String              @default("KRW") @db.Char(3)
+  settlementMode        SettlementMode      @default(end_of_commitment) @map("settlement_mode")
+  recipientType         StakeRecipientType  @default(platform) @map("recipient_type")
+  status                StakeStatus         @default(pending)
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  commitment            Commitment          @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+  payments              Payment[]
+
+  @@map("stakes")
+}
+
+model Payment {
+  id                    String          @id @default(uuid()) @db.Uuid
+  userId                String          @map("user_id") @db.Uuid
+  stakeId               String?         @map("stake_id") @db.Uuid
+  provider              String
+  providerPaymentKey    String?         @map("provider_payment_key")
+  type                  PaymentType
+  amount                BigInt
+  currency              String          @default("KRW") @db.Char(3)
+  status                PaymentStatus   @default(requested)
+  failureCode           String?         @map("failure_code")
+  idempotencyKey        String          @unique @map("idempotency_key")
+  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  completedAt           DateTime?       @map("completed_at") @db.Timestamptz
+
+  stake                 Stake?          @relation(fields: [stakeId], references: [id], onDelete: Restrict)
+
+  @@index([userId, type, status])
+  @@map("payments")
+}
+
+// Append-only. No update, no delete (enforced in service + row-level trigger later).
+model PaymentLedger {
+  id             String           @id @default(uuid()) @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  commitmentId   String           @map("commitment_id") @db.Uuid
+  occurrenceId   String?          @map("occurrence_id") @db.Uuid
+  paymentId      String?          @map("payment_id") @db.Uuid
+  entryType      LedgerEntryType  @map("entry_type")
+  amount         BigInt
+  balanceAfter   BigInt?          @map("balance_after")
+  idempotencyKey String           @unique @map("idempotency_key")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  commitment     Commitment       @relation(fields: [commitmentId], references: [id], onDelete: Restrict)
+  occurrence     Occurrence?      @relation(fields: [occurrenceId], references: [id], onDelete: Restrict)
+
+  @@index([commitmentId, entryType])
+  @@index([occurrenceId])
+  @@map("payment_ledger")
+}
+
+model Settlement {
+  id            String            @id @default(uuid()) @db.Uuid
+  occurrenceId  String            @map("occurrence_id") @db.Uuid
+  result        SettlementResult
+  amount        BigInt
+  status        SettlementStatus  @default(pending)
+  processedAt   DateTime?         @map("processed_at") @db.Timestamptz
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  occurrence    Occurrence        @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  @@index([occurrenceId, status])
+  @@map("settlements")
+}
+
+model Appeal {
+  id             String        @id @default(uuid()) @db.Uuid
+  occurrenceId   String        @unique @map("occurrence_id") @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  reasonText     String        @map("reason_text")
+  status         AppealStatus  @default(submitted)
+  reviewerType   VerifierType  @default(human) @map("reviewer_type")
+  reviewerId     String?       @map("reviewer_id") @db.Uuid
+  decisionReason String?       @map("decision_reason")
+  submittedAt    DateTime      @default(now()) @map("submitted_at") @db.Timestamptz
+  decidedAt      DateTime?     @map("decided_at") @db.Timestamptz
+
+  occurrence     Occurrence    @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@map("appeals")
+}
+
+model CommitmentObserver {
+  id                String        @id @default(uuid()) @db.Uuid
+  commitmentId      String        @map("commitment_id") @db.Uuid
+  observerUserId    String?       @map("observer_user_id") @db.Uuid
+  externalContact   String?       @map("external_contact")
+  role              ObserverRole  @default(viewer)
+  notifyOnSuccess   Boolean       @default(true) @map("notify_on_success")
+  notifyOnFail      Boolean       @default(true) @map("notify_on_fail")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  commitment        Commitment    @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+  observerUser      User?         @relation(fields: [observerUserId], references: [id], onDelete: SetNull)
+
+  @@map("commitment_observers")
+}
+
+model Friendship {
+  id            String            @id @default(uuid()) @db.Uuid
+  requesterId   String            @map("requester_id") @db.Uuid
+  addresseeId   String            @map("addressee_id") @db.Uuid
+  status        FriendshipStatus  @default(pending)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  requester     User              @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee     User              @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@map("friendships")
+}
+
+model NotificationSchedule {
+  id             String              @id @default(uuid()) @db.Uuid
+  commitmentId   String              @map("commitment_id") @db.Uuid
+  occurrenceId   String?             @map("occurrence_id") @db.Uuid
+  type           NotificationType
+  scheduledAt    DateTime            @map("scheduled_at") @db.Timestamptz
+  status         NotificationStatus  @default(pending)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  commitment     Commitment          @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+  occurrence     Occurrence?         @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@map("notification_schedules")
+}
+
+model AuditLog {
+  id           String    @id @default(uuid()) @db.Uuid
+  actorType    String    @map("actor_type")
+  actorId      String?   @map("actor_id")
+  entityType   String    @map("entity_type")
+  entityId     String    @map("entity_id")
+  action       String
+  beforeJson   Json?     @map("before_json")
+  afterJson    Json?     @map("after_json")
+  ip           String?
+  deviceId     String?   @map("device_id")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user         User?     @relation(fields: [actorId], references: [id], onDelete: SetNull, map: "audit_logs_actor_fk")
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
+}
+
+// Generic idempotency store for HTTP endpoints and webhooks
+model IdempotencyKey {
+  key         String   @id
+  scope       String
+  requestHash String   @map("request_hash")
+  responseJson Json?   @map("response_json")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz
+
+  @@index([scope, expiresAt])
+  @@map("idempotency_keys")
+}
+
+// Reliable event publishing (used later by settlement/notification/audit fanout)
+model EventOutbox {
+  id           String    @id @default(uuid()) @db.Uuid
+  aggregate    String
+  aggregateId  String    @map("aggregate_id")
+  type         String
+  payloadJson  Json      @map("payload_json")
+  publishedAt  DateTime? @map("published_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([publishedAt, createdAt])
+  @@map("event_outbox")
+}

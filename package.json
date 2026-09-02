@@ -1,0 +1,20 @@
+{
+  "name": "jikyeo",
+  "version": "0.0.1",
+  "private": true,
+  "description": "지켜 / JIKYEO — Korean commitment-contract app monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "api:dev": "npm --workspace @jikyeo/api run start:dev",
+    "api:test": "npm --workspace @jikyeo/api test",
+    "api:migrate": "npm --workspace @jikyeo/api run prisma -- migrate dev",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}

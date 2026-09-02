@@ -1,0 +1,74 @@
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
+import { Response } from 'express';
+import { DomainError, DomainErrorCode } from './domain-errors';
+
+const CODE_TO_STATUS: Record<DomainErrorCode, number> = {
+  NOT_FOUND: HttpStatus.NOT_FOUND,
+  FORBIDDEN: HttpStatus.FORBIDDEN,
+  UNAUTHENTICATED: HttpStatus.UNAUTHORIZED,
+  VALIDATION: HttpStatus.BAD_REQUEST,
+  CONFLICT: HttpStatus.CONFLICT,
+  INVALID_STATE_TRANSITION: HttpStatus.CONFLICT,
+  IDEMPOTENCY_MISMATCH: HttpStatus.CONFLICT,
+  LOCK_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  PAYMENT_FAILED: HttpStatus.PAYMENT_REQUIRED,
+  PAYMENT_PROVIDER_ERROR: HttpStatus.BAD_GATEWAY,
+  QUOTE_EXPIRED: HttpStatus.GONE,
+  STAKE_LIMIT_EXCEEDED: HttpStatus.BAD_REQUEST,
+  GOAL_UNSAFE: HttpStatus.UNPROCESSABLE_ENTITY,
+  MINOR_STAKE_DISALLOWED: HttpStatus.UNPROCESSABLE_ENTITY,
+  SYSTEM_HOLD: HttpStatus.SERVICE_UNAVAILABLE,
+  INTERNAL: HttpStatus.INTERNAL_SERVER_ERROR,
+};
+
+@Catch()
+export class AllExceptionsFilter implements ExceptionFilter {
+  private readonly logger = new Logger('Exceptions');
+
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const ctx = host.switchToHttp();
+    const res = ctx.getResponse<Response>();
+
+    if (exception instanceof DomainError) {
+      const status = CODE_TO_STATUS[exception.code] ?? HttpStatus.BAD_REQUEST;
+      res.status(status).json({
+        error: {
+          code: exception.code,
+          message: exception.message,
+          details: exception.details ?? null,
+        },
+      });
+      return;
+    }
+
+    if (exception instanceof HttpException) {
+      const status = exception.getStatus();
+      const resp = exception.getResponse();
+      res.status(status).json({
+        error: {
+          code: 'HTTP_' + status,
+          message: typeof resp === 'string' ? resp : (resp as { message?: string }).message ?? 'Error',
+          details: typeof resp === 'object' ? resp : null,
+        },
+      });
+      return;
+    }
+
+    const err = exception as Error;
+    this.logger.error(err?.message ?? 'Unknown error', err?.stack);
+    res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+      error: {
+        code: 'INTERNAL',
+        message: 'Internal server error',
+        details: null,
+      },
+    });
+  }
+}
