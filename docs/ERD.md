@@ -45,6 +45,7 @@ erDiagram
 
     STAKE ||--o{ PAYMENT : funds
     PAYMENT ||--o{ PAYMENT_LEDGER : records
+    PAYMENT ||--o{ PAYMENT_WEBHOOK_EVENT : receives
     SETTLEMENT ||--o{ PAYMENT_LEDGER : posts
 
     SOCIAL_GROUP ||--o{ SOCIAL_MEMBER : contains
@@ -253,6 +254,9 @@ Commitment 1 → **0..1** Stake. MONEY 모드 Commitment에만 존재한다. SEL
 | settlement_mode | enum | end_of_commitment/per_occurrence |
 | recipient_type | enum | platform |
 | status | enum | pending/funded/settling/settled/refunded |
+| funded_at | timestamptz nullable | upfront charge 성공 시각 |
+| settled_at | timestamptz nullable | 모든 회차 정산 완료 시각 |
+| refunded_at | timestamptz nullable | aggregate refund 성공 시각 |
 | created_at | timestamptz | |
 
 ---
@@ -263,8 +267,11 @@ Commitment 1 → **0..1** Stake. MONEY 모드 Commitment에만 존재한다. SEL
 | id | UUID | PK |
 | user_id | UUID | FK |
 | stake_id | UUID nullable | FK |
+| commitment_id | UUID nullable | FK (조회용 비정규화) |
 | provider | varchar | PG |
 | provider_payment_key | varchar | PG payment key |
+| idempotency_key | varchar | unique. charge: `charge:{commitmentId}:{attempt}`, refund: `refund:{commitmentId}:{attempt}` |
+| attempt | int | 재시도 순번 |
 | type | enum | charge/refund/cancel |
 | amount | bigint | |
 | currency | char(3) | KRW |
@@ -272,6 +279,22 @@ Commitment 1 → **0..1** Stake. MONEY 모드 Commitment에만 존재한다. SEL
 | failure_code | varchar nullable | |
 | created_at | timestamptz | |
 | completed_at | timestamptz nullable | |
+
+---
+
+### PAYMENT_WEBHOOK_EVENT
+PG inbound webhook의 중복 처리 방지 기록.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| id | UUID | PK |
+| provider | varchar | |
+| event_id | varchar | `(provider, event_id)` unique |
+| payment_id | UUID nullable | FK |
+| event_type | varchar | |
+| payload | jsonb | 원문 |
+| received_at | timestamptz | |
+| processed_at | timestamptz nullable | |
 
 ---
 
@@ -296,11 +319,14 @@ Commitment 1 → **0..1** Stake. MONEY 모드 Commitment에만 존재한다. SEL
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | id | UUID | PK |
-| occurrence_id | UUID | FK |
+| occurrence_id | UUID | FK unique (회차당 1건) |
+| idempotency_key | varchar | unique. 중복 정산 차단 |
 | result | enum | refundable/forfeited/void |
 | amount | bigint | |
 | status | enum | pending/processed/failed |
 | processed_at | timestamptz nullable | |
+
+정산 규칙: PASS → refundable, FAIL → forfeited, VOID → refundable(void). UNCERTAIN / system_hold 회차에는 Settlement row를 만들지 않는다. 회차별 환불은 없고, 모든 회차가 종결되면 `upfront − Σforfeited`를 aggregate refund 1회로 지급한다.
 
 ---
 

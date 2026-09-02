@@ -33,6 +33,10 @@ export class FocusTimerService {
       include: { verificationRule: true },
     });
     if (!commitment) throw new NotFoundError('Commitment not found');
+    if (commitment.status !== 'active') {
+      // e.g. MONEY commitment still waiting for payment — not enforceable yet.
+      throw new ConflictError('Commitment is not active', { status: commitment.status });
+    }
     const rule = (commitment.verificationRule?.ruleJson as { required_seconds?: number }) ?? {};
     const requiredSeconds = rule.required_seconds ?? 0;
     if (requiredSeconds < 60) {

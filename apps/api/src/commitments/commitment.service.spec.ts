@@ -194,7 +194,13 @@ describe('CommitmentService.createAndActivate — MONEY mode', () => {
     expect(result.occurrenceCount).toBe(3);
     expect(result.maxLossKrw).toBe('15000');
     expect(result.enforcementMode).toBe('money');
+    // Phase 4: MONEY is NOT active until the upfront charge succeeds.
+    expect(result.status).toBe('payment_pending');
+    expect(result.paymentRequired).toBe(true);
     expect(db.commitments).toHaveLength(1);
+    expect(db.commitments[0].status).toBe('payment_pending');
+    expect(db.commitments[0].signatureCompleted).toBe(false);
+    expect(db.stakes[0].status).toBe('pending');
     expect(db.commitments[0].enforcementMode).toBe('money');
     expect(db.commitments[0].timezone).toBe('Asia/Seoul');
     expect(db.commitments[0].maxLossAmount).toBe(15000n);
@@ -399,7 +405,12 @@ describe('CommitmentService.createAndActivate — SELF mode', () => {
     expect(result.enforcementMode).toBe('self');
     expect(result.maxLossKrw).toBeNull();
     expect(result.occurrenceCount).toBe(3);
+    // SELF never enters the payment flow: active immediately, no Payment/Stake.
+    expect(result.status).toBe('active');
+    expect(result.paymentRequired).toBe(false);
     expect(db.commitments).toHaveLength(1);
+    expect(db.commitments[0].status).toBe('active');
+    expect(db.commitments[0].signatureCompleted).toBe(true);
     expect(db.commitments[0].enforcementMode).toBe('self');
     expect(db.commitments[0].maxLossAmount).toBeNull();
     expect(db.commitments[0].currency).toBeNull();

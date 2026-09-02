@@ -3,8 +3,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { DEFAULT_STAKE_POLICY_CONFIG, StakePolicyService } from './stake-policy.service';
 
-function makeService(tier: 'tier_1' | 'tier_2' | 'tier_3' = 'tier_1'): StakePolicyService {
+function makeService(tier: 'tier_1' | 'tier_2' | 'tier_3' = 'tier_1', forfeitedThisMonthKrw = 0): StakePolicyService {
   const stub = {
+    paymentLedger: {
+      aggregate: async () => ({ _sum: { amount: BigInt(forfeitedThisMonthKrw) } }),
+    },
     user: {
       findUnique: async () => ({
         id: 'u1',
@@ -65,6 +68,17 @@ describe('StakePolicyService', () => {
     const svc = makeService('tier_1');
     await expect(svc.assertWithinLimits('u1', 30_000, 150_001)).rejects.toMatchObject({
       code: 'STAKE_TIER_LIMIT_EXCEEDED',
+    });
+  });
+
+  it('rolling monthly cap: remaining = cap − settled forfeits, and a new commitment must fit', async () => {
+    const svc = makeService('tier_1', 250_000);
+    const r = await svc.forUser('u1');
+    expect(r.rollingMonthlyLossRemainingKrw).toBe(50_000);
+    await expect(svc.assertWithinLimits('u1', 10_000, 50_000)).resolves.toBeUndefined();
+    await expect(svc.assertWithinLimits('u1', 10_000, 60_000)).rejects.toMatchObject({
+      code: 'STAKE_TIER_LIMIT_EXCEEDED',
+      details: { kind: 'rollingMonthly', limitKrw: 50_000 },
     });
   });
 

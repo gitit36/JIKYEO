@@ -27,7 +27,16 @@ public final class APIClient {
         self.auth = auth
         self.session = session
         let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
+        // Server emits `toISOString()` (with fractional seconds). Foundation's
+        // plain `.iso8601` strategy rejects fractions, so accept both.
+        let withFraction = ISO8601DateFormatter()
+        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        d.dateDecodingStrategy = .custom { decoder in
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            if let date = withFraction.date(from: raw) ?? plain.date(from: raw) { return date }
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Bad ISO8601 date: \(raw)"))
+        }
         self.decoder = d
         let e = JSONEncoder()
         e.dateEncodingStrategy = .iso8601

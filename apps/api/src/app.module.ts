@@ -14,6 +14,7 @@ import { UsersModule } from './users/users.module';
 import { VerificationModule } from './verification/verification.module';
 import { EvidenceModule } from './evidence/evidence.module';
 import { DeadlineModule } from './deadline/deadline.module';
+import { SettlementModule } from './settlement/settlement.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { DeadlineModule } from './deadline/deadline.module';
     OccurrencesModule,
     EvidenceModule,
     DeadlineModule,
+    SettlementModule,
   ],
   controllers: [HealthController],
 })

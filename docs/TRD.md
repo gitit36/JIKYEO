@@ -220,12 +220,20 @@ POST /v1/friends/{id}/accept
 POST /v1/occurrences/{id}/friend-verification
 ```
 
-### Payment
+### Payment / Settlement (MONEY 모드 전용)
 ```http
+POST /v1/commitments/{id}/pay        # upfront charge = stake.maxTotalAmount; 성공 시 payment_pending → active
+POST /v1/commitments/{id}/sign       # 결제 성공 후 서명 리추얼 기록
+GET  /v1/commitments/{id}/money      # 파생 MoneyView (money status + 합계)
 GET  /v1/payments/{id}
 GET  /v1/settlements
-POST /v1/webhooks/payment
+POST /v1/commitments/{id}/settle     # on-demand 정산 / 환불 재시도 (idempotent)
+POST /v1/webhooks/payment            # 서명 검증 + (provider, eventId) 중복 방지
 ```
+
+Money status (파생값, `deriveMoneyStatus`):
+`payment_pending` · `payment_failed` · `funded` · `refund_scheduled` · `refunding` · `refunded` · `refund_delayed`
+→ 결제 중 / 결제 실패 / 약속금 걸림 / 환불 예정 / 환불 중 / 환불 완료 / 환불 지연
 
 ---
 
@@ -579,10 +587,15 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - PASS / UNCERTAIN / FAIL 결과 UI (mode-aware)
 - Home mode-aware 렌더링
 
-### Phase 4 — Payment/Settlement (예정)
-- 실제 PG 연동
-- 회차 정산 / 환불
-- Stake funded → settled
+### Phase 4 — Payment/Settlement (완료, MockPaymentProvider 기준)
+- MONEY activation gating: `payment_pending` → upfront charge(maxLoss) 성공 → `active`
+- PaymentService: charge / full·partial refund / webhook dedupe / idempotency / refund retry / reconcile hook
+- SettlementService: PASS·VOID → `refund_earned`, FAIL → `forfeit`, UNCERTAIN·system_hold → 정산 금지
+- 약속 종료 시 aggregate refund 1회: `refundTotal = upfrontCharge − forfeitedTotal`
+- Ledger append-only, 모든 금전 변동은 LedgerService 경유, `(entry_type, idempotency_key)` 유일
+- StakePolicy rolling monthly cap을 정산된 forfeit 합계로 실제 적용
+- iOS: 결제 단계(회차당/총 횟수/최대 손실/지금 결제할 금액), money status 칩, History money summary
+- 실제 한국 PG 연동은 provider/credentials 확정 후 (`KoreanPgPaymentProvider` 골격만 존재)
 
 ### Phase 5 — Appeal / Admin / Weekly Recap (예정)
 
@@ -594,9 +607,10 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 
 ## 17. 출시 전 기술 체크리스트
 
-- [ ] PG sandbox E2E (Phase 4)
-- [ ] 부분환불 검증 (Phase 4)
-- [ ] 중복 webhook 방지 (Phase 4)
+- [ ] PG sandbox E2E (실 PG provider 확정 후)
+- [x] 부분환불 검증 (MockPaymentProvider, aggregate refund = upfront − forfeit)
+- [x] 중복 webhook 방지 (`payment_webhook_events (provider, event_id)` unique)
+- [x] 중복 charge / 중복 정산 / 중복 환불 방지 (idempotency key)
 - [x] 장애 중 자동 FAIL 차단 (Verification/Deadline)
 - [x] AI UNCERTAIN 처리 (Mock provider, PASS/UNCERTAIN/FAIL)
 - [ ] Appeal reversal (Phase 5)

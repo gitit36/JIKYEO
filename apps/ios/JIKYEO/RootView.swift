@@ -9,7 +9,7 @@ struct RootView: View {
             #if DEBUG
             if let stage = DebugLaunch.stage, stage.hasPrefix("wizard-") {
                 CreateCommitmentWizardView(debugStage: stage).environmentObject(container)
-            } else if DebugLaunch.stage == "home-empty" || DebugLaunch.stage == "home-loaded" {
+            } else if let stage = DebugLaunch.stage, stage.hasPrefix("home-") || stage.hasPrefix("history-") {
                 MainTabView(debugStage: DebugLaunch.stage)
             } else if let stage = DebugLaunch.stage, stage.hasPrefix("proof-") {
                 ProofDebugView(stage: stage).environmentObject(container)
@@ -34,18 +34,27 @@ struct RootView: View {
 }
 
 struct MainTabView: View {
+    enum Tab: Hashable { case home, history, friends, settings }
     let debugStage: String?
-    init(debugStage: String? = nil) { self.debugStage = debugStage }
+    @State private var selected: Tab
+    init(debugStage: String? = nil) {
+        self.debugStage = debugStage
+        _selected = State(initialValue: (debugStage?.hasPrefix("history-") ?? false) ? .history : .home)
+    }
     var body: some View {
-        TabView {
+        TabView(selection: $selected) {
             HomeView(debugStage: debugStage)
                 .tabItem { Label("홈", systemImage: "house.fill") }
-            HistoryView()
+                .tag(Tab.home)
+            HistoryView(debugStage: debugStage)
                 .tabItem { Label("기록", systemImage: "clock.arrow.circlepath") }
+                .tag(Tab.history)
             FriendsView()
                 .tabItem { Label("친구", systemImage: "person.2.fill") }
+                .tag(Tab.friends)
             SettingsView()
                 .tabItem { Label("설정", systemImage: "gearshape.fill") }
+                .tag(Tab.settings)
         }
         .tint(DS.Color.primary)
     }

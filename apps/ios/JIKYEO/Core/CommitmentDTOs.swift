@@ -111,11 +111,85 @@ public struct CreateCommitmentRequest: Codable {
 
 public struct CreateCommitmentResponse: Codable {
     public let commitmentId: String
+    /// `active` for SELF/SOCIAL, `payment_pending` for MONEY until the charge succeeds.
     public let status: String
     public let enforcementMode: EnforcementMode
     public let occurrenceCount: Int
     /// `null` for SELF/SOCIAL, numeric string for MONEY.
     public let maxLossKrw: String?
+    /// True iff `POST /commitments/:id/pay` must succeed before the commitment is live.
+    public let paymentRequired: Bool?
+}
+
+// MARK: - Payment / money status (Phase 4, MONEY only)
+
+/// Derived money state of a MONEY commitment. Always computed server-side from
+/// Stake + Payment + ledger — never from behavioral PASS/FAIL — so the UI can
+/// never claim money was lost before settlement actually ran.
+public enum MoneyStatus: String, Codable {
+    case payment_pending      // 결제 중
+    case payment_failed       // 결제 실패
+    case funded               // 약속금 걸림
+    case refund_scheduled     // 환불 예정
+    case refund_in_progress   // 환불 중
+    case refund_delayed       // 환불 지연
+    case refunded             // 환불 완료
+    case settled_no_refund    // 정산 완료
+
+    public var label: String {
+        switch self {
+        case .payment_pending:    return "결제 중"
+        case .payment_failed:     return "결제 실패"
+        case .funded:             return "약속금 걸림"
+        case .refund_scheduled:   return "환불 예정"
+        case .refund_in_progress: return "환불 중"
+        case .refund_delayed:     return "환불 지연"
+        case .refunded:           return "환불 완료"
+        case .settled_no_refund:  return "정산 완료"
+        }
+    }
+}
+
+public struct MoneyView: Codable {
+    public let status: MoneyStatus
+    public let label: String
+    public let perOccurrenceKrw: String
+    public let upfrontKrw: String
+    public let refundableKrw: String
+    public let forfeitedKrw: String
+    public let refundPaidKrw: String
+    public let depositKrw: String
+}
+
+public struct PaymentView: Codable {
+    public let paymentId: String
+    public let commitmentId: String?
+    public let type: String        // charge | refund | cancel
+    public let status: String      // requested | succeeded | failed | partial
+    public let amountKrw: String
+    public let provider: String
+    public let failureCode: String?
+    public let attempt: Int
+}
+
+public struct PayCommitmentRequest: Encodable {
+    /// Dev/test only. Forces the mock PG to decline.
+    public let simulate: String?
+}
+
+public struct PayCommitmentResponse: Codable {
+    public let payment: PaymentView
+    public let money: MoneyView?
+}
+
+public struct MoneyStatusResponse: Codable {
+    public let money: MoneyView?
+}
+
+public struct SignCommitmentResponse: Codable {
+    public let commitmentId: String
+    public let status: String
+    public let signedAt: Date
 }
 
 public struct SafetyResponse: Codable {

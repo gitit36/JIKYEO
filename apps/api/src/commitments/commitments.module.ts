@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { PaymentsModule } from '../payments/payments.module';
 import { SafetyModule } from '../safety/safety.module';
 import { StakePolicyModule } from '../stake-policy/stake-policy.module';
 import { UsersModule } from '../users/users.module';
@@ -11,7 +12,7 @@ import { ScheduleService } from './schedule/schedule.service';
 import { CommitmentTemplatesController } from './templates/commitment-templates.controller';
 
 @Module({
-  imports: [AuthModule, SafetyModule, UsersModule, StakePolicyModule],
+  imports: [AuthModule, SafetyModule, UsersModule, StakePolicyModule, PaymentsModule],
   controllers: [CommitmentsController, CommitmentTemplatesController],
   providers: [ScheduleService, QuoteService, QuoteCacheService, CommitmentService],
   exports: [ScheduleService, QuoteService, QuoteCacheService, CommitmentService],

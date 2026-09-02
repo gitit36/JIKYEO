@@ -11,7 +11,7 @@ import { VerificationDecision, VerificationProvider } from './providers/verifica
  * Boundary invariants (SRD §SR-FR-007):
  *   - Every outcome is exactly one of pass / uncertain / fail.
  *   - This service NEVER settles money. It only records the behavioral
- *     result. Phase 4 settlement reads the result and decides financial
+ *     result. SettlementService reads the result and decides financial
  *     consequences.
  *   - System / infrastructure error paths must return `uncertain`, never
  *     `fail`, so a system outage cannot cost the user money.

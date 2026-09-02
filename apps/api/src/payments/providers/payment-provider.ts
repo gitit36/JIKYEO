@@ -35,6 +35,8 @@ export interface PaymentProviderResult {
 }
 
 export interface WebhookEvent {
+  /** Provider-assigned delivery id. `(provider, eventId)` is unique → dedupe. */
+  eventId: string;
   providerPaymentKey: string;
   type: 'charge' | 'refund' | 'cancel';
   status: PaymentProviderStatus;

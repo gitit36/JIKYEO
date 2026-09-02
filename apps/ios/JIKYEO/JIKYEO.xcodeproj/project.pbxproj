@@ -40,6 +40,7 @@
 		D5D25E89CF26E05358769294 /* ProofFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F6685E175A64C6C53BA311 /* ProofFlowView.swift */; };
 		D8DCE4981D430BC661543DE2 /* CommitmentTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F042E29D6A97F5DB89D5C19B /* CommitmentTemplate.swift */; };
 		D97E5F3AA4DC2364A6E30CB1 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7688AC9A26BFF8DC8A168253 /* HistoryView.swift */; };
+		DB8E07E13504437D6E9FDFE6 /* MoneyStatusChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3701543A493CCE2193FD22 /* MoneyStatusChip.swift */; };
 		DE0BF52AC597117E55CA8721 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27EA559AD70FF91099A7C7DE /* APIClient.swift */; };
 		DE3AE9B3EE11E0BCCEC6DF53 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC98049F94AE6C08CC430AEA /* Typography.swift */; };
 		DED02BC39994F0722A0410AC /* InputField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60771B39C89F5F8210E869CE /* InputField.swift */; };
@@ -80,6 +81,7 @@
 		A204BF2D4ACB95C6267833B2 /* JIKYEOApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JIKYEOApp.swift; sourceTree = "<group>"; };
 		A74EC51FC93405DF58DDA00B /* AppClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppClock.swift; sourceTree = "<group>"; };
 		A852DEEEE8CFF8E4BBEFC768 /* CommitmentAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitmentAPI.swift; sourceTree = "<group>"; };
+		AE3701543A493CCE2193FD22 /* MoneyStatusChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyStatusChip.swift; sourceTree = "<group>"; };
 		C091644AD30AE05D142CB337 /* DebugLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLaunch.swift; sourceTree = "<group>"; };
 		C2EA4A1C0D03483B2B41923E /* CreateCommitmentWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCommitmentWizardView.swift; sourceTree = "<group>"; };
 		C636604A23DBE445A96DC033 /* PhotoProofView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoProofView.swift; sourceTree = "<group>"; };
@@ -139,6 +141,7 @@
 				37D50BD86475B503B355C611 /* Copy.swift */,
 				E37091103DE446C892C84A08 /* CountdownText.swift */,
 				60771B39C89F5F8210E869CE /* InputField.swift */,
+				AE3701543A493CCE2193FD22 /* MoneyStatusChip.swift */,
 				2D49984BB5396F8314E5E868 /* MoneyText.swift */,
 				913B2F532C3ADC7A370A9FEF /* SegmentedControl.swift */,
 				2C42A0920D900711B7539E21 /* StatusChip.swift */,
@@ -330,6 +333,7 @@
 				B1E6E571503925E213E02534 /* HomeViewModel.swift in Sources */,
 				DED02BC39994F0722A0410AC /* InputField.swift in Sources */,
 				CAAC4450F1A67F84EEF3F29E /* JIKYEOApp.swift in Sources */,
+				DB8E07E13504437D6E9FDFE6 /* MoneyStatusChip.swift in Sources */,
 				2AE315159508CC98F0AEFC9F /* MoneyText.swift in Sources */,
 				9077F1ED47B99AC2FEE909F7 /* OnboardingRootView.swift in Sources */,
 				95E3BBF442CBE39568514C85 /* PhotoProofView.swift in Sources */,

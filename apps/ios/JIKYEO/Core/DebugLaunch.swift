@@ -12,8 +12,9 @@ import SwiftUI
 ///   Wizard        — wizard-goal, wizard-schedule, wizard-verification,
 ///                    wizard-proof, wizard-enforcement, wizard-stake,
 ///                    wizard-observer, wizard-review-money, wizard-review-self,
-///                    wizard-payment, wizard-signature,
+///                    wizard-payment, wizard-payment-failed, wizard-signature,
 ///                    wizard-done-money, wizard-done-self
+///   Money status  — history-money (기록 tab with every MoneyStatus)
 ///   Proof + Result — proof-photo, proof-gps, proof-timer, proof-self,
 ///                    result-pass-money, result-pass-self,
 ///                    result-uncertain, result-fail-money, result-fail-self
@@ -31,6 +32,11 @@ public enum DebugLaunch {
     }
     public static var mockedAtRiskKrw: Int64 {
         Int64(UserDefaults.standard.integer(forKey: "jikyeoDebugAtRiskKrw"))
+    }
+    /// `-jikyeoDebugAccessToken <jwt>`: real server session for live QA runs
+    /// (e.g. `wizard-payment-live`), instead of the offline mock token.
+    public static var accessToken: String? {
+        UserDefaults.standard.string(forKey: "jikyeoDebugAccessToken")
     }
 }
 #endif

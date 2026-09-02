@@ -53,7 +53,7 @@ struct CreateCommitmentWizardView: View {
                         model.step = model.enforcementMode == .money ? .payment : .signature
                     })
                 case .payment:
-                    PaymentStep(model: model, onNext: { model.step = .signature })
+                    PaymentStep(model: model, container: container)
                 case .signature:
                     SignatureStep(model: model, container: container)
                 case .done:
@@ -87,6 +87,7 @@ struct CreateCommitmentWizardView: View {
                 }
                 if debugStage == "wizard-review-money" {
                     model.enforcementMode = .money
+                    model.stakePerOccurrenceKrw = 10_000
                     model.step = .review
                     model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 3,
                         stakePerOccurrence: "10000", maxLoss: "30000",
@@ -100,24 +101,55 @@ struct CreateCommitmentWizardView: View {
                     model.step = .review
                     model.safety = SafetyResponse(decision: "safe", reasonCode: "OK", userMessage: "")
                 }
-                if debugStage == "wizard-payment"      {
+                if debugStage == "wizard-payment" || debugStage == "wizard-payment-failed" {
                     model.enforcementMode = .money
+                    model.stakePerOccurrenceKrw = 5_000
                     model.step = .payment
                     model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 3,
-                        stakePerOccurrence: "10000", maxLoss: "30000",
+                        stakePerOccurrence: "5000", maxLoss: "15000",
                         currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600))
+                    if debugStage == "wizard-payment-failed" {
+                        model.paymentState = .failed(message: "결제가 완료되지 않았어요. 카드 정보를 확인하고 다시 시도해주세요.")
+                        model.lastPayment = PaymentView(paymentId: "pay_demo", commitmentId: "c_demo", type: "charge",
+                            status: "failed", amountKrw: "15000", provider: "mock", failureCode: "MOCK_CARD_DECLINED", attempt: 1)
+                    }
+                }
+                if debugStage == "wizard-payment-live" || debugStage == "wizard-payment-live-fail" {
+                    // Real round-trip against the running API with a real token
+                    // (-jikyeoDebugAccessToken): quote → create (payment_pending)
+                    // → MockPaymentProvider charge → signature step.
+                    model.enforcementMode = .money
+                    model.verificationMethod = .self
+                    model.stakePerOccurrenceKrw = 5_000
+                    model.scheduleType = .specific_days
+                    model.days = [.MON, .WED, .FRI]
+                    let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = TimeZone(identifier: model.timezone)
+                    model.startDate = f.date(from: "2026-09-07")!
+                    model.endDate = f.date(from: "2026-09-13")!
+                    model.debugSimulatePaymentFailure = debugStage == "wizard-payment-live-fail"
+                    model.step = .payment
+                    Task {
+                        await model.refreshQuote(container: container)
+                        await model.createAndPay(container: container)
+                    }
                 }
                 if debugStage == "wizard-signature"    {
                     model.enforcementMode = .money
+                    model.stakePerOccurrenceKrw = 5_000
                     model.step = .signature
+                    model.paymentState = .succeeded
                     model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 3,
-                        stakePerOccurrence: "10000", maxLoss: "30000",
+                        stakePerOccurrence: "5000", maxLoss: "15000",
                         currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600))
+                    model.moneyView = MoneyView(status: .funded, label: "약속금 걸림", perOccurrenceKrw: "5000", upfrontKrw: "15000",
+                        refundableKrw: "0", forfeitedKrw: "0", refundPaidKrw: "0", depositKrw: "15000")
                 }
                 if debugStage == "wizard-done-money"   {
                     model.enforcementMode = .money
                     model.createdEnforcementMode = .money
-                    model.createdMaxLossKrw = 30_000
+                    model.createdMaxLossKrw = 15_000
+                    model.moneyView = MoneyView(status: .funded, label: "약속금 걸림", perOccurrenceKrw: "5000", upfrontKrw: "15000",
+                        refundableKrw: "0", forfeitedKrw: "0", refundPaidKrw: "0", depositKrw: "15000")
                     model.step = .done
                 }
                 if debugStage == "wizard-done-self"    {
@@ -130,12 +162,14 @@ struct CreateCommitmentWizardView: View {
             .background(DS.Color.surfaceBackground.ignoresSafeArea())
             .toolbar {
                 if model.step != .done {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            if model.step == .goal { dismiss() } else { model.goBack() }
-                        } label: {
-                            Image(systemName: model.step == .goal ? "xmark" : "chevron.left")
-                                .foregroundStyle(DS.Color.text)
+                    if model.canGoBack {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                if model.step == .goal { dismiss() } else { model.goBack() }
+                            } label: {
+                                Image(systemName: model.step == .goal ? "xmark" : "chevron.left")
+                                    .foregroundStyle(DS.Color.text)
+                            }
                         }
                     }
                     ToolbarItem(placement: .principal) {
@@ -162,11 +196,25 @@ fileprivate extension CreateCommitmentModel {
             case .money:  step = .stake
             }
         case .payment:
+            // Leaving an unpaid MONEY commitment behind: drop the client handle
+            // so a re-entry creates a fresh one (server keeps the old row in
+            // payment_pending; it never has money attached).
+            if paymentState != .succeeded { createdCommitmentId = nil; paymentState = .idle }
             step = .review
         case .signature:
-            step = enforcementMode == .money ? .payment : .review
+            // MONEY: money is already charged and the commitment is active —
+            // there is nothing to go back to. SELF: back to review.
+            if enforcementMode != .money { step = .review }
         case .done:
             break
+        }
+    }
+
+    var canGoBack: Bool {
+        switch step {
+        case .done: return false
+        case .signature: return enforcementMode != .money
+        default: return true
         }
     }
 }
@@ -841,7 +889,9 @@ private struct ReviewStep: View {
     var body: some View {
         WizardContainer(
             title: Copy.Wizard.step7Title,
-            primaryTitle: Copy.Wizard.step7CTA,
+            primaryTitle: model.enforcementMode == .money
+                ? Copy.Wizard.step7MoneyCTA(MoneyText.format(model.upfrontKrw))
+                : Copy.Wizard.step7CTA,
             primaryEnabled: model.enforcementMode != .money || (model.quote != nil && !model.isLoadingQuote),
             onPrimary: onNext
         ) {
@@ -856,20 +906,7 @@ private struct ReviewStep: View {
                     .multilineTextAlignment(.leading)
             }
             if model.enforcementMode == .money {
-                Card {
-                    VStack(spacing: DS.Space.xxs) {
-                        CardRow("한 번 놓치면", value: MoneyText.format(Int64(model.stakePerOccurrenceKrw)))
-                        CardRow("총 회차",     value: "\(model.occurrenceCount ?? model.estimatedOccurrences)번")
-                        Divider().padding(.vertical, DS.Space.xxs)
-                        HStack(alignment: .firstTextBaseline) {
-                            Text("이번 약속 최대")
-                                .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
-                            Spacer()
-                            MoneyText(model.maxLossKrw > 0 ? model.maxLossKrw : Int64(model.stakePerOccurrenceKrw * model.estimatedOccurrences),
-                                      intent: .atRisk, size: .large)
-                        }
-                    }
-                }
+                MoneyBreakdownCard(model: model)
             }
             Text(reviewTail)
                 .font(Typo.body)
@@ -930,26 +967,94 @@ private struct UnsafeGoalCard: View {
     }
 }
 
-// MARK: - Step · Payment placeholder (MONEY only)
-private struct PaymentStep: View {
+/// Shared MONEY breakdown: 회차당 약속금 · 총 횟수 · 최대 손실 · 지금 결제할 금액.
+/// All values come from the server quote; the client estimate is only a
+/// placeholder while the quote loads.
+private struct MoneyBreakdownCard: View {
     @ObservedObject var model: CreateCommitmentModel
-    let onNext: () -> Void
     var body: some View {
-        WizardContainer(title: Copy.Wizard.step8Title, primaryTitle: Copy.Wizard.step8CTA, primaryEnabled: true, onPrimary: onNext) {
-            Card {
-                VStack(alignment: .leading, spacing: DS.Space.sm) {
-                    Text("약속금").font(Typo.body).foregroundStyle(DS.Color.textSecondary)
-                    MoneyText(model.maxLossKrw > 0 ? model.maxLossKrw : Int64(model.stakePerOccurrenceKrw * model.estimatedOccurrences),
-                              intent: .atRisk, size: .hero)
-                    Text("약속이 끝나면 지킨 만큼 돌려받아요.")
+        Card {
+            VStack(spacing: DS.Space.xxs) {
+                CardRow(Copy.Wizard.step8RowPerOccurrence, value: MoneyText.format(Int64(model.stakePerOccurrenceKrw)))
+                CardRow(Copy.Wizard.step8RowCount, value: "\(model.occurrenceCount ?? model.estimatedOccurrences)번")
+                CardRow(Copy.Wizard.step8RowMaxLoss, value: MoneyText.format(model.upfrontKrw))
+                Divider().padding(.vertical, DS.Space.xxs)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(Copy.Wizard.step8RowUpfront)
                         .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                    Spacer()
+                    MoneyText(model.upfrontKrw, intent: .atRisk, size: .large)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Step · Payment (MONEY only) — MockPaymentProvider-backed
+private struct PaymentStep: View {
+    @ObservedObject var model: CreateCommitmentModel
+    let container: AppContainer
+    var body: some View {
+        WizardContainer(
+            title: Copy.Wizard.step8Title,
+            primaryTitle: primaryTitle,
+            primaryEnabled: model.paymentState != .charging && model.paymentState != .succeeded,
+            primaryLoading: model.paymentState == .charging,
+            onPrimary: { Task { await model.createAndPay(container: container) } }
+        ) {
+            MoneyBreakdownCard(model: model)
+            Text(Copy.Wizard.step8Explain)
+                .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+
+            switch model.paymentState {
+            case .charging:
+                HStack(spacing: DS.Space.sm) {
+                    ProgressView()
+                    Text(Copy.Wizard.step8Charging).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                }
+            case .failed(let message):
+                PaymentFailedCard(message: message, failureCode: model.lastPayment?.failureCode)
+            case .succeeded:
+                MoneyStatusChip(.funded)
+            case .idle:
+                EmptyView()
+            }
+
             #if DEBUG
+            Toggle(isOn: $model.debugSimulatePaymentFailure) {
+                Text(Copy.Wizard.step8DebugFail).font(Typo.caption).foregroundStyle(DS.Color.textMuted)
+            }
+            .tint(DS.Color.primary)
             Text(Copy.Wizard.step8SubDev)
                 .font(Typo.caption).foregroundStyle(DS.Color.textMuted)
             #endif
         }
+    }
+    private var primaryTitle: String {
+        if case .failed = model.paymentState { return Copy.Wizard.step8Retry }
+        return Copy.Wizard.step8CTA(MoneyText.format(model.upfrontKrw))
+    }
+}
+
+private struct PaymentFailedCard: View {
+    let message: String
+    let failureCode: String?
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.xs) {
+            HStack {
+                Text(Copy.Wizard.step8FailedTitle).font(Typo.bodyStrong).foregroundStyle(DS.Color.text)
+                Spacer()
+                MoneyStatusChip(.payment_failed)
+            }
+            Text(message).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+            Text("약속은 아직 시작되지 않았고, 결제된 금액도 없어요.")
+                .font(Typo.caption).foregroundStyle(DS.Color.textMuted)
+            if let code = failureCode {
+                Text(code).font(Typo.caption).foregroundStyle(DS.Color.textMuted)
+            }
+        }
+        .padding(DS.Space.md)
+        .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.moneyLost.opacity(0.08)))
     }
 }
 
@@ -965,9 +1070,21 @@ private struct SignatureStep: View {
             primaryEnabled: hasStrokes && model.isSubmittable && !model.isSubmitting,
             primaryLoading: model.isSubmitting,
             onPrimary: {
-                Task { await model.submit(container: container) }
+                // MONEY: commitment already exists and is funded → just record the ritual.
+                // SELF/SOCIAL: signature is the moment of creation + activation.
+                Task {
+                    if model.enforcementMode == .money { await model.sign(container: container) }
+                    else { await model.submit(container: container) }
+                }
             }
         ) {
+            if model.enforcementMode == .money {
+                HStack {
+                    MoneyStatusChip(model.moneyView?.status ?? .funded)
+                    MoneyText(model.upfrontKrw, intent: .atRisk, size: .body)
+                    Spacer()
+                }
+            }
             Text(Copy.Wizard.step9Hint)
                 .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
             SignatureCanvas(strokes: $strokes)
@@ -1026,9 +1143,14 @@ private struct DoneStep: View {
             if model.createdEnforcementMode == .money {
                 Card {
                     VStack(alignment: .leading, spacing: DS.Space.sm) {
-                        Text(Copy.Wizard.step10SubMoney).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                        HStack {
+                            Text(Copy.Wizard.step10SubMoney).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                            Spacer()
+                            MoneyStatusChip(model.moneyView?.status ?? .funded)
+                        }
                         MoneyText(model.createdMaxLossKrw, intent: .atRisk, size: .hero)
-                        Text("이 걸려 있어요.").font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                        Text("약속이 끝나면 지킨 회차만큼 한 번에 돌려받아요.")
+                            .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
                     }
                 }
             } else {

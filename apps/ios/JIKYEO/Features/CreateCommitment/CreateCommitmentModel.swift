@@ -79,6 +79,31 @@ public final class CreateCommitmentModel: ObservableObject {
     @Published public var createdEnforcementMode: EnforcementMode = .self
     @Published public var createdMaxLossKrw: Int64 = 0
 
+    // MARK: - Payment (MONEY only, Phase 4)
+    //
+    // MONEY commitments are created in `payment_pending` and only become
+    // `active` on the server once the upfront charge succeeds. The client
+    // never decides that; it just reflects `PaymentView`/`MoneyView`.
+    public enum PaymentState: Equatable {
+        case idle
+        case charging
+        case succeeded
+        case failed(message: String)
+    }
+    @Published public var paymentState: PaymentState = .idle
+    @Published public var moneyView: MoneyView?
+    @Published public var lastPayment: PaymentView?
+    #if DEBUG
+    /// Dev toggle on the payment screen: make the mock PG decline once.
+    @Published public var debugSimulatePaymentFailure = false
+    #endif
+
+    /// Amount charged upfront = server-quoted max loss. Falls back to the
+    /// client estimate only for display while the quote loads.
+    public var upfrontKrw: Int64 {
+        maxLossKrw > 0 ? maxLossKrw : Int64(stakePerOccurrenceKrw * estimatedOccurrences)
+    }
+
     public let timezone = TimeZone.current.identifier
 
     public init() {}
@@ -247,6 +272,8 @@ public final class CreateCommitmentModel: ObservableObject {
         }
     }
 
+    /// SELF/SOCIAL: signature → create (server activates immediately) → Done.
+    /// Never touches payment.
     public func submit(container: AppContainer) async {
         errorMessage = nil
         isSubmitting = true
@@ -262,6 +289,72 @@ public final class CreateCommitmentModel: ObservableObject {
             errorMessage = e.message
         } catch {
             errorMessage = "다시 시도해주세요."
+        }
+    }
+
+    /// MONEY: create the commitment (lands in `payment_pending`) if not yet
+    /// created, then charge the server-authoritative upfront amount through the
+    /// configured PaymentProvider. On success the server flips the commitment
+    /// to `active`; we move on to the signature ritual. On failure the
+    /// commitment stays `payment_pending` and the user can retry.
+    public func createAndPay(container: AppContainer) async {
+        guard enforcementMode == .money else { return }
+        errorMessage = nil
+        paymentState = .charging
+        do {
+            if createdCommitmentId == nil {
+                let result = try await container.commitmentAPI.create(buildCreateRequest())
+                createdCommitmentId = result.commitmentId
+                createdEnforcementMode = result.enforcementMode
+                createdMaxLossKrw = Int64(result.maxLossKrw ?? "0") ?? 0
+            }
+            guard let id = createdCommitmentId else { return }
+            #if DEBUG
+            let simulate = debugSimulatePaymentFailure
+            #else
+            let simulate = false
+            #endif
+            let res = try await container.paymentAPI.pay(commitmentId: id, simulateFailure: simulate)
+            lastPayment = res.payment
+            moneyView = res.money
+            if res.payment.status == "succeeded" {
+                paymentState = .succeeded
+                step = .signature
+            } else {
+                // `requested` = PG confirmation pending (webhook). Stay here and let the user refresh.
+                paymentState = .failed(message: "결제 확인을 기다리고 있어요. 잠시 후 다시 시도해주세요.")
+            }
+        } catch let e as APIError {
+            paymentState = .failed(message: e.code == "PAYMENT_FAILED"
+                ? "결제가 완료되지 않았어요. 카드 정보를 확인하고 다시 시도해주세요."
+                : e.message)
+            await refreshMoneyView(container: container)
+        } catch {
+            paymentState = .failed(message: "다시 시도해주세요.")
+        }
+    }
+
+    /// MONEY: record the signature ritual on the (already active) commitment.
+    public func sign(container: AppContainer) async {
+        guard let id = createdCommitmentId else { return }
+        errorMessage = nil
+        isSubmitting = true
+        defer { isSubmitting = false }
+        do {
+            _ = try await container.commitmentAPI.sign(commitmentId: id)
+            await refreshMoneyView(container: container)
+            step = .done
+        } catch let e as APIError {
+            errorMessage = e.message
+        } catch {
+            errorMessage = "다시 시도해주세요."
+        }
+    }
+
+    public func refreshMoneyView(container: AppContainer) async {
+        guard let id = createdCommitmentId else { return }
+        if let res = try? await container.paymentAPI.moneyStatus(commitmentId: id) {
+            moneyView = res.money
         }
     }
 

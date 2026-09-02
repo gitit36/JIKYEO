@@ -12,6 +12,7 @@ public final class AppContainer: ObservableObject {
     public let safetyAPI: SafetyAPI
     public let stakePolicyAPI: StakePolicyAPI
     public let evidenceAPI: EvidenceAPI
+    public let paymentAPI: PaymentAPI
     public let timerAPI: TimerAPI
 
     public init(environment: AppEnvironment = .live) {
@@ -26,6 +27,7 @@ public final class AppContainer: ObservableObject {
         self.safetyAPI = SafetyAPI(api: api)
         self.stakePolicyAPI = StakePolicyAPI(api: api)
         self.evidenceAPI = EvidenceAPI(api: api)
+        self.paymentAPI = PaymentAPI(api: api)
         self.timerAPI = TimerAPI(api: api)
     }
 }

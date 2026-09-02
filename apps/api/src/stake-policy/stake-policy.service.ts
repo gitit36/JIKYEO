@@ -1,5 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { StakeTier } from '@prisma/client';
+import { Clock, SystemClock } from '../common/clock/clock';
 import { DomainError } from '../common/errors/domain-errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
@@ -56,6 +57,7 @@ export class StakePolicyService {
     private readonly users: UsersService,
     @Optional() @Inject(STAKE_POLICY_CONFIG)
     private readonly config: Record<StakeTier, StakeTierConfig> = DEFAULT_STAKE_POLICY_CONFIG,
+    @Optional() private readonly clock: Clock = new SystemClock(),
   ) {}
 
   configFor(tier: StakeTier): StakeTierConfig {
@@ -70,16 +72,29 @@ export class StakePolicyService {
   async forUser(userId: string): Promise<StakePolicyResponse> {
     const tier = await this.tierOf(userId);
     const cfg = this.configFor(tier);
-    // Phase 3 has no real settlement yet, so nothing has been forfeited.
-    // Once Phase 4 lands, this becomes cap - sum(forfeit ledger this month).
+    const forfeited = await this.rollingMonthlyForfeitKrw(userId);
     return {
       currentTier: tier,
       maxPerOccurrenceKrw: cfg.maxPerOccurrenceKrw,
       maxPerCommitmentKrw: cfg.maxPerCommitmentKrw,
       rollingMonthlyLossCapKrw: cfg.rollingMonthlyLossCapKrw,
-      rollingMonthlyLossRemainingKrw: cfg.rollingMonthlyLossCapKrw,
+      rollingMonthlyLossRemainingKrw: Math.max(0, cfg.rollingMonthlyLossCapKrw - forfeited),
       suggestedAmountsKrw: cfg.suggestedAmountsKrw,
     };
+  }
+
+  /**
+   * Money actually forfeited by this user in the trailing 30 days, read from
+   * the append-only ledger (settled FAIL occurrences only — behavioral FAILs
+   * that have not settled do not count).
+   */
+  async rollingMonthlyForfeitKrw(userId: string): Promise<number> {
+    const since = new Date(this.clock.now().getTime() - 30 * 24 * 60 * 60 * 1000);
+    const agg = await this.prisma.paymentLedger.aggregate({
+      where: { userId, entryType: 'forfeit', createdAt: { gte: since } },
+      _sum: { amount: true },
+    });
+    return Number(agg._sum.amount ?? 0n);
   }
 
   /**
@@ -107,8 +122,16 @@ export class StakePolicyService {
         { limitKrw: cfg.maxPerCommitmentKrw, kind: 'perCommitment', tier },
       );
     }
-    // We intentionally do NOT check rolling monthly cap in Phase 3: that
-    // requires settlement data which does not exist yet. The cap becomes
-    // enforceable when Phase 4 wires the ledger.
+    // Rolling monthly cap: the new commitment's max loss must fit in what
+    // is left after the last 30 days of *settled* forfeits.
+    const forfeited = await this.rollingMonthlyForfeitKrw(userId);
+    if (forfeited + maxLossKrw > cfg.rollingMonthlyLossCapKrw) {
+      const remaining = Math.max(0, cfg.rollingMonthlyLossCapKrw - forfeited);
+      throw new DomainError(
+        'STAKE_TIER_LIMIT_EXCEEDED',
+        `이번 달에는 최대 ${remaining.toLocaleString('ko-KR')}원까지 더 걸 수 있어요.`,
+        { limitKrw: remaining, kind: 'rollingMonthly', tier },
+      );
+    }
   }
 }

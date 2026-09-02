@@ -50,6 +50,13 @@ export class CommitmentsController {
     return this.commitment.getOwnedDetail(req.userId, id);
   }
 
+  /** Signature ritual for MONEY commitments (after payment). Idempotent. */
+  @Post(':id/sign')
+  @HttpCode(200)
+  async sign(@Req() req: AuthedRequest, @Param('id') id: string): Promise<unknown> {
+    return this.commitment.sign(req.userId, id);
+  }
+
   @Delete(':id')
   @HttpCode(204)
   async cancel(@Req() req: AuthedRequest, @Param('id') id: string): Promise<void> {

@@ -25,10 +25,41 @@ public struct CommitmentAPI {
         /// `null` for SELF/SOCIAL.
         public let perOccurrenceKrw: String?
         public let occurrenceCount: Int
+        /// MONEY-only derived money state (결제 중 / 약속금 걸림 / 환불 예정 …). `nil` otherwise.
+        public let money: MoneyView?
     }
 
     public func listMine() async throws -> [MyCommitment] {
         try await api.get("commitments")
+    }
+
+    /// Signature ritual for a MONEY commitment after payment. Idempotent.
+    public func sign(commitmentId: String) async throws -> SignCommitmentResponse {
+        try await api.post("commitments/\(commitmentId)/sign")
+    }
+}
+
+/// MONEY-only payment lifecycle (`POST /commitments/:id/pay`, `GET /commitments/:id/money`,
+/// `POST /commitments/:id/settle`). Backed by the server's configured PaymentProvider
+/// (MockPaymentProvider in dev). Never called for SELF/SOCIAL commitments.
+public struct PaymentAPI {
+    private let api: APIClient
+    public init(api: APIClient) { self.api = api }
+
+    public func pay(commitmentId: String, simulateFailure: Bool = false) async throws -> PayCommitmentResponse {
+        try await api.post(
+            "commitments/\(commitmentId)/pay",
+            body: PayCommitmentRequest(simulate: simulateFailure ? "charge_fail" : nil)
+        )
+    }
+
+    public func moneyStatus(commitmentId: String) async throws -> MoneyStatusResponse {
+        try await api.get("commitments/\(commitmentId)/money")
+    }
+
+    /// Owner-triggered settlement pass / refund retry. Idempotent.
+    public func settle(commitmentId: String) async throws -> APIClient.Empty {
+        try await api.post("commitments/\(commitmentId)/settle")
     }
 }
 

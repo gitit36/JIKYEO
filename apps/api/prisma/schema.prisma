@@ -421,6 +421,11 @@ model Stake {
   settlementMode        SettlementMode      @default(end_of_commitment) @map("settlement_mode")
   recipientType         StakeRecipientType  @default(platform) @map("recipient_type")
   status                StakeStatus         @default(pending)
+  fundedAt              DateTime?           @map("funded_at") @db.Timestamptz
+  // Set when commitment-end settlement is computed (Stake -> settling).
+  settledAt             DateTime?           @map("settled_at") @db.Timestamptz
+  // Set when the aggregate refund is confirmed paid (Stake -> refunded).
+  refundedAt            DateTime?           @map("refunded_at") @db.Timestamptz
   createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz
 
   commitment            Commitment          @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
@@ -433,6 +438,8 @@ model Payment {
   id                    String          @id @default(uuid()) @db.Uuid
   userId                String          @map("user_id") @db.Uuid
   stakeId               String?         @map("stake_id") @db.Uuid
+  // Denormalised for fast "money status" lookups per commitment (MONEY only).
+  commitmentId          String?         @map("commitment_id") @db.Uuid
   provider              String
   providerPaymentKey    String?         @map("provider_payment_key")
   type                  PaymentType
@@ -440,14 +447,43 @@ model Payment {
   currency              String          @default("KRW") @db.Char(3)
   status                PaymentStatus   @default(requested)
   failureCode           String?         @map("failure_code")
+  // Refund retries increment this; the ledger `refund_paid` key stays fixed
+  // per commitment so retries can never double-post.
+  attempt               Int             @default(1)
   idempotencyKey        String          @unique @map("idempotency_key")
   createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz
   completedAt           DateTime?       @map("completed_at") @db.Timestamptz
 
   stake                 Stake?          @relation(fields: [stakeId], references: [id], onDelete: Restrict)
+  webhookEvents         PaymentWebhookEvent[]
 
   @@index([userId, type, status])
+  @@index([commitmentId, type, status])
+  @@index([providerPaymentKey])
   @@map("payments")
+}
+
+// Every inbound PG webhook is recorded exactly once. `(provider, eventId)` is
+// unique so a redelivered event is a no-op (SRD §5 webhook dedupe).
+model PaymentWebhookEvent {
+  id                 String    @id @default(uuid()) @db.Uuid
+  provider           String
+  eventId            String    @map("event_id")
+  providerPaymentKey String    @map("provider_payment_key")
+  paymentId          String?   @map("payment_id") @db.Uuid
+  eventType          String    @map("event_type")
+  eventStatus        String    @map("event_status")
+  amount             BigInt
+  payloadJson        Json      @map("payload_json")
+  receivedAt         DateTime  @default(now()) @map("received_at") @db.Timestamptz
+  processedAt        DateTime? @map("processed_at") @db.Timestamptz
+  outcome            String?
+
+  payment            Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, eventId])
+  @@index([providerPaymentKey])
+  @@map("payment_webhook_events")
 }
 
 // Append-only. No update, no delete (enforced in service + row-level trigger later).
@@ -477,6 +513,10 @@ model Settlement {
   result        SettlementResult
   amount        BigInt
   status        SettlementStatus  @default(pending)
+  // `settle:<occurrenceId>` for the initial settlement. A future appeal
+  // reversal would post a second row with a distinct key. The unique
+  // constraint is the hard guard against double settlement.
+  idempotencyKey String           @unique @map("idempotency_key")
   processedAt   DateTime?         @map("processed_at") @db.Timestamptz
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
 

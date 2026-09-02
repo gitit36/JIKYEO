@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Commitment, EnforcementMode, Prisma, VerificationMethod } from '@prisma/client';
+import { MoneyStatusService, MoneyView } from '../payments/money-status.service';
 import { Clock } from '../common/clock/clock';
 import { DomainError, ForbiddenError, NotFoundError, ValidationError } from '../common/errors/domain-errors';
 import { Money } from '../common/money/money';
@@ -20,6 +21,8 @@ interface ActivateResult {
   occurrenceCount: number;
   /** MONEY-only. `null` for SELF/SOCIAL. */
   maxLossKrw: string | null;
+  /** True iff the client must complete `POST /commitments/:id/pay` before the commitment is live. */
+  paymentRequired: boolean;
 }
 
 /**
@@ -46,6 +49,7 @@ export class CommitmentService {
     private readonly stakePolicy: StakePolicyService,
     private readonly clock: Clock,
     private readonly audit: AuditService,
+    @Optional() private readonly moneyStatus?: MoneyStatusService,
   ) {}
 
   async createAndActivate(userId: string, dto: CreateCommitmentDraftDto): Promise<ActivateResult> {
@@ -129,6 +133,11 @@ export class CommitmentService {
     }
 
     // 6. Persist in one transaction.
+    // MONEY commitments are NOT active yet: they wait in `payment_pending`
+    // until the upfront charge succeeds (PaymentService.chargeUpfront), and
+    // the signature ritual is recorded afterwards (`sign`). SELF/SOCIAL have
+    // no payment step and activate immediately with the signature.
+    const initialStatus: CommitmentState = dto.enforcementMode === 'money' ? 'payment_pending' : 'active';
     const commitmentId = await this.prisma.$transaction(async (tx) => {
       // MONEY: consume the single-use quote first. Unique-PK on jti serialises
       // concurrent reuse; SELF/SOCIAL skip this entirely.
@@ -158,11 +167,11 @@ export class CommitmentService {
           timezone: dto.timezone,
           strictness: 'normal',
           extensionAllowed: false,
-          status: 'active',
+          status: initialStatus,
           maxLossAmount: maxLoss ?? null,
           currency: dto.enforcementMode === 'money' ? 'KRW' : null,
-          signedAt: this.clock.now(),
-          signatureCompleted: true,
+          signedAt: initialStatus === 'active' ? this.clock.now() : null,
+          signatureCompleted: initialStatus === 'active',
           contractVersion: 'v1',
         },
       });
@@ -243,11 +252,32 @@ export class CommitmentService {
 
     return {
       commitmentId,
-      status: 'active',
+      status: initialStatus,
       enforcementMode: dto.enforcementMode,
       occurrenceCount: plans.length,
       maxLossKrw: maxLoss?.toString() ?? null,
+      paymentRequired: initialStatus === 'payment_pending',
     };
+  }
+
+  /**
+   * Records the signature ritual for a MONEY commitment after payment.
+   * Idempotent. Never changes money state; activation itself happens when
+   * the upfront charge succeeds.
+   */
+  async sign(userId: string, commitmentId: string): Promise<{ commitmentId: string; status: CommitmentState; signedAt: string }> {
+    const c = await this.getOwned(userId, commitmentId);
+    if (c.status === 'cancelled') {
+      throw new DomainError('INVALID_STATE_TRANSITION', '취소된 약속에는 서명할 수 없어요.');
+    }
+    const signedAt = c.signedAt ?? this.clock.now();
+    if (!c.signatureCompleted) {
+      await this.prisma.commitment.update({
+        where: { id: c.id },
+        data: { signedAt, signatureCompleted: true },
+      });
+    }
+    return { commitmentId: c.id, status: c.status as CommitmentState, signedAt: signedAt.toISOString() };
   }
 
   async cancel(userId: string, commitmentId: string): Promise<void> {
@@ -260,6 +290,9 @@ export class CommitmentService {
         data: { status: 'void' },
       });
     });
+    // A funded MONEY commitment that is cancelled has its remaining
+    // occurrences voided (→ refundable). The settlement sweep picks the
+    // commitment up and issues the aggregate refund; no money moves here.
     await this.audit.log({
       actorType: 'user',
       actorId: userId,
@@ -286,6 +319,7 @@ export class CommitmentService {
         _count: { select: { occurrences: true } },
       },
     });
+    const moneyViews = await this.moneyViewsFor(rows.filter((r) => r.enforcementMode === 'money').map((r) => r.id));
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
@@ -299,7 +333,14 @@ export class CommitmentService {
       verificationMethod: r.verificationRule?.method ?? null,
       perOccurrenceKrw: r.stake?.perOccurrenceAmount.toString() ?? null,
       occurrenceCount: r._count.occurrences,
+      // MONEY-only derived money state (결제 중 / 약속금 걸림 / 환불 예정 …). null otherwise.
+      money: moneyViews.get(r.id) ?? null,
     }));
+  }
+
+  private async moneyViewsFor(commitmentIds: string[]): Promise<Map<string, MoneyView>> {
+    if (!this.moneyStatus || commitmentIds.length === 0) return new Map();
+    return this.moneyStatus.forCommitments(commitmentIds);
   }
 
   async getOwnedDetail(userId: string, commitmentId: string): Promise<unknown> {
@@ -314,6 +355,7 @@ export class CommitmentService {
     });
     if (!c) throw new NotFoundError('Commitment not found');
     if (c.userId !== userId) throw new ForbiddenError();
+    const money = c.enforcementMode === 'money' ? (await this.moneyViewsFor([c.id])).get(c.id) ?? null : null;
     return {
       id: c.id,
       title: c.title,
@@ -321,6 +363,8 @@ export class CommitmentService {
       direction: c.direction,
       status: c.status,
       enforcementMode: c.enforcementMode,
+      signatureCompleted: c.signatureCompleted,
+      money,
       timezone: c.timezone,
       startAt: c.startAt.toISOString(),
       endAt: c.endAt.toISOString(),

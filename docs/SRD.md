@@ -203,13 +203,20 @@ Verification 결과가 FAIL로 확정되려면 아래를 만족해야 한다:
 4. 사용된 verifier가 FAIL을 산출
 5. 추가증거/grace 정책 종료
 
-### 금전 FAIL 확정 (MONEY 모드 전용, Phase 4)
+### 금전 FAIL 확정 (MONEY 모드 전용, Settlement)
 behavioral FAIL에 더해:
 6. Commitment가 MONEY 모드
 7. Stake row가 funded 상태
-8. settlement lock 획득
+8. Settlement row `(occurrence_id)` unique + `idempotency_key` 획득 (중복 정산 차단)
 
-Phase 3까지는 behavioral FAIL만 기록한다. 실제 금전 정산은 Phase 4에서 결과를 소비한다.
+Verification은 behavioral 결과만 기록한다. SettlementService가 별도로 이 결과를 소비한다:
+- PASS / VOID → `refund_earned` 적립 (환불 예정)
+- FAIL → `forfeit` 적립 (돌려받지 못한 금액)
+- UNCERTAIN / `system_hold` → 절대 정산하지 않음
+- 모든 회차 종결 시 aggregate refund 1회: `upfrontCharge − forfeitedTotal`. 회차마다 환불하지 않는다.
+- 환불 실패 → `refund_delayed`, 재시도는 idempotent.
+
+사용자 화면의 금전 상태(결제 중·약속금 걸림·환불 예정·환불 중·환불 완료·결제 실패·환불 지연)는 항상 정산/ledger에서 파생하며, behavioral FAIL 시점에 "돈을 잃었다"고 표현하지 않는다.
 
 ---
 

@@ -30,7 +30,7 @@ export class HealthMonitor {
  *     the orchestrator emits a `uncertain` outcome on provider failure,
  *     which stays in `uncertain` and requires human/appeal review.
  *
- * Phase 4 will wire BullMQ delayed jobs; for MVP the interval is enough
+ * A later hardening phase may wire BullMQ delayed jobs; for MVP the interval is enough
  * and avoids adding a Redis dependency.
  */
 @Injectable()
@@ -102,8 +102,8 @@ export class DeadlineService {
       }
 
       // Genuine candidate FAIL: past deadline, no evidence, platform healthy.
-      // Record a behavioral FAIL through the orchestrator so the ledger
-      // (Phase 4) has a proper VerificationResult to consume.
+      // Record a behavioral FAIL through the orchestrator so settlement
+      // has a proper VerificationResult to consume.
       await this.orchestrator.recordDeadlineFail(occ.id);
       failed += 1;
     }

@@ -1,13 +1,21 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { AppConfig } from '../config/app-config';
 import { LedgerService } from './ledger.service';
+import { MoneyStatusService } from './money-status.service';
+import { PaymentService } from './payment.service';
+import { PaymentsController, PaymentWebhookController } from './payments.controller';
 import { KoreanPgPaymentProvider } from './providers/kr-pg-payment-provider.stub';
 import { MockPaymentProvider } from './providers/mock-payment-provider';
 import { PaymentProvider } from './providers/payment-provider';
 
 @Module({
+  imports: [AuthModule],
+  controllers: [PaymentsController, PaymentWebhookController],
   providers: [
     LedgerService,
+    PaymentService,
+    MoneyStatusService,
     MockPaymentProvider,
     KoreanPgPaymentProvider,
     {
@@ -28,6 +36,6 @@ import { PaymentProvider } from './providers/payment-provider';
       },
     },
   ],
-  exports: [LedgerService, PaymentProvider],
+  exports: [LedgerService, PaymentService, MoneyStatusService, PaymentProvider],
 })
 export class PaymentsModule {}
