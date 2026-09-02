@@ -1,5 +1,5 @@
 # TRD — Technical Requirements Document
-> 버전: v0.9  
+> 버전: v1.0 (Phase 3 개정)  
 > 목적: MVP 구현을 위한 기술 아키텍처, API, 스택, 인프라, 배포/운영 기준을 정의한다.
 
 ---
@@ -164,29 +164,44 @@ POST /v1/auth/email/verify
 ### Commitment
 ```http
 GET  /v1/commitment-templates
-POST /v1/commitments/draft
-PUT  /v1/commitments/{id}
-POST /v1/commitments/{id}/quote
-POST /v1/commitments/{id}/pay
-POST /v1/commitments/{id}/sign
-POST /v1/commitments/{id}/activate
-GET  /v1/commitments/{id}
+POST /v1/commitments/quote            # MONEY 모드에서만 호출
+POST /v1/commitments                  # 생성 + 활성화 (SELF/SOCIAL/MONEY 분기)
 GET  /v1/commitments
+GET  /v1/commitments/{id}
 POST /v1/commitments/{id}/cancel
+```
+
+`POST /v1/commitments` 요청 payload의 핵심 필드:
+```jsonc
+{
+  "enforcementMode": "SELF | SOCIAL | MONEY",
+  "quoteId": "qt_..."        // MONEY 전용, 그 외에는 생략 (전송 시 서버가 거부)
+  // ... goal / schedule / verification / signature 등
+}
+```
+
+서버는 mode-별로 아래를 강제한다:
+- **SELF** → quoteId 금지, Stake row 미생성.
+- **SOCIAL** → quoteId 금지, verifier 관계 없이 활성화 거부(`FRIEND_NOT_SELECTED`).
+- **MONEY** → quoteId 필수, `consumed_quotes`에 소비 기록, Stake row 생성.
+
+### Stake Policy
+```http
+GET /v1/stake-policy         # 현재 사용자에게 적용되는 티어 정보 + 상한 + 추천 금액
 ```
 
 ### Occurrence
 ```http
 GET /v1/occurrences/today
 GET /v1/occurrences/{id}
+GET /v1/occurrences/{id}/result       # 최신 verification 결과
 POST /v1/occurrences/{id}/self-verify
 ```
 
 ### Evidence
 ```http
 POST /v1/occurrences/{id}/evidence/upload-url
-POST /v1/occurrences/{id}/evidence
-POST /v1/occurrences/{id}/gps-checkin
+POST /v1/occurrences/{id}/evidence        # multi-modal: photo/gps/timer/self
 POST /v1/occurrences/{id}/timer/start
 POST /v1/occurrences/{id}/timer/heartbeat
 POST /v1/occurrences/{id}/timer/finish
@@ -214,9 +229,9 @@ POST /v1/webhooks/payment
 
 ---
 
-## 5. Commitment Quote API
+## 5. Commitment Quote API (MONEY 모드 전용)
 
-결제 직전 서버가 authoritative quote를 생성한다.
+결제 직전 서버가 authoritative quote를 생성한다. 이 API는 오직 MONEY 모드 Commitment에만 호출된다. SELF/SOCIAL 모드는 quote를 생성하지도, 검증하지도 않는다.
 
 Request:
 ```json
@@ -227,22 +242,48 @@ Request:
     "start_date": "2026-09-07",
     "end_date": "2026-09-13"
   },
-  "stake_per_occurrence": 5000
+  "stake_per_occurrence": 10000
 }
 ```
 
 Response:
 ```json
 {
+  "quoteId": "qt_...",
   "occurrence_count": 3,
-  "stake_per_occurrence": 5000,
-  "max_loss": 15000,
+  "stake_per_occurrence": 10000,
+  "max_loss": 30000,
   "currency": "KRW",
   "quote_expires_at": "2026-09-02T14:00:00Z"
 }
 ```
 
-클라이언트 계산값을 신뢰하지 않는다.
+- Quote는 `QUOTE_SIGNING_SECRET`으로 HMAC 서명된 opaque 토큰(`qt_...`).
+- `QUOTE_SIGNING_SECRET`은 JWT 시크릿과 반드시 다른 값이어야 한다. 서버는 부팅 시 이 조건을 검증한다.
+- 각 quote는 서버가 발급하는 unique `jti`를 포함한다.
+- `consumed_quotes` 테이블 (`jti` PK)로 첫 사용에서만 소비된다. 재사용 시 서버는 `QUOTE_ALREADY_CONSUMED`로 거부한다.
+- 클라이언트 계산값을 신뢰하지 않는다.
+
+## 5b. Stake Policy API
+
+```http
+GET /v1/stake-policy
+```
+Response:
+```json
+{
+  "currentTier": "TIER_1",
+  "maxPerOccurrence": 30000,
+  "maxPerCommitment": 150000,
+  "rollingMonthlyLossCap": 300000,
+  "suggestedAmounts": [3000, 5000, 10000, 30000]
+}
+```
+
+- 값은 서버 설정에서 로드된다. 코드 하드코딩 금지.
+- 모든 신규 사용자는 TIER_1으로 시작한다.
+- 자동 티어 승격은 MVP에 없다.
+- Quote 발급 시 서버는 currentTier의 상한을 재검증한다. 클라이언트가 상한을 조작해도 서버가 거부한다.
 
 ---
 
@@ -272,10 +313,13 @@ Response:
 ## 7. GPS 검증
 
 ### iOS
-- CoreLocation
-- when-in-use
-- check-in 시 고정밀도 요청
-- 사용자 동의 없이 지속 추적 금지
+- CoreLocation, when-in-use.
+- 목적지 지정은 **MapKit 기반 target picker**를 통해서만 이뤄진다.
+- Target payload에는 반드시 `userSelected: true`가 포함되어야 한다. 서버는 이 flag가 없거나 좌표가 `(0,0)`이면 활성화를 거부한다 (`GPS_TARGET_NOT_SELECTED`).
+- 사용자가 자신의 현재 위치를 target으로 고를 수 있고, 지도 롱프레스로 임의 지점을 고를 수도 있으며, 텍스트 검색은 MVP 이후.
+- Check-in 시 고정밀도(`kCLLocationAccuracyBest`) 요청.
+- 사용자 동의 없이 지속 추적 금지.
+- DEBUG 빌드는 Simulator 환경을 위해 mock target(`userSelected: true`, 명시된 좌표)을 강제 주입 가능.
 
 ### 서버
 Haversine distance:
@@ -284,32 +328,32 @@ distance(user_latlng, target_latlng) <= radius_m
 ```
 
 검증:
-- accuracy_m <= threshold
-- captured_at within window
-- received_at <= deadline + allowed_network_grace
-- impossible jump heuristic
+- `accuracy_m <= threshold` (예: 100m). 초과 시 UNCERTAIN.
+- `captured_at within window`
+- `received_at <= deadline + allowed_network_grace`
+- impossible jump / mock-location 힌트 등 anomaly → UNCERTAIN (자동 monetary FAIL 금지).
+- 계산 결과와 target을 `verification_result`에 함께 저장.
 
 ---
 
 ## 8. Timer 검증
 
 ### 시작
-서버가 session token 발급.
+`POST /v1/occurrences/{id}/timer/start` → 서버가 `focus_timer_sessions.id` 발급 (session token).
 
 ### 진행
-- 30~60초 heartbeat
-- background 전환 기록
-- app termination 기록
+- 30~60초마다 `POST /v1/occurrences/{id}/timer/heartbeat` (session_id 포함).
+- 서버는 마지막 heartbeat 시각, 총 count, 관측 최대 gap을 갱신한다.
+- background 전환 및 app termination 이벤트를 heartbeat payload에 실어 보고한다.
 
 ### 종료
-- elapsed server time
-- heartbeat gap
-- policy violation
+`POST /v1/occurrences/{id}/timer/finish` → 서버가 elapsed(server), heartbeat count, max gap, background 전환 수를 계산.
 
 ### 결과
-- 규칙 충족 → PASS
-- 경계/네트워크 이슈 → UNCERTAIN
-- 명확한 중단 → FAIL
+- 규칙 충족 + `max_gap <= 90s` → **PASS**
+- 명확한 조기 종료 (`elapsed < planned - grace`) → **FAIL**
+- 네트워크 gap 큼 / background 잦음 / heartbeat 부족 → **UNCERTAIN**
+- 시스템 장애/서비스 미응답 → `system_hold`, monetary FAIL 절대 금지.
 
 ---
 
@@ -321,10 +365,15 @@ distance(user_latlng, target_latlng) <= radius_m
 - RRULE 또는 custom JSON
 
 ### Deadline worker
-- deadline 경과 occurrence 스캔
-- evidence 없음 → candidate FAIL
-- 시스템 상태 확인
-- grace 종료 후 FAIL 확정
+- 주기적으로 deadline 경과 active occurrence를 스캔한다.
+- Evidence 존재 or 검증 중 → `reviewing`으로 유지.
+- Evidence 없음 → candidate FAIL로 이동.
+- Candidate FAIL을 최종 FAIL로 확정하기 전에:
+  - 알려진 시스템 outage 없음
+  - Verification 인프라 정상
+  - grace 조건 없음
+- 시스템 장애/인프라 장애면 상태는 `system_hold` 또는 `uncertain`. **어떠한 경우에도 monetary FAIL을 만들지 않는다.**
+- MVP는 interval-based 스캔(예: 60초)으로 시작하고, BullMQ delayed job 도입은 이후 최적화.
 
 ### Notification scheduler
 - 24h/1h/10m/deadline
@@ -492,54 +541,72 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 
 ---
 
-## 16. MVP 구현 순서
+## 16. MVP 구현 순서 (실제 진행 반영)
 
-### Phase 1
+### Phase 1 — 재무 안전 기반
+- Ledger append-only
+- state machine
+- PaymentProvider / VerificationProvider 추상화
+- distributed lock
 - Auth
-- templates
-- Commitment draft
-- schedule
-- Home
+- design system
 
-### Phase 2
-- Photo evidence
-- AI verify
-- PASS/FAIL
+### Phase 2 — Onboarding + Commitment Creation
+- 온보딩
+- Templates
+- Wizard (Goal → Schedule → Verification → Proof Rule → Signature)
+- Server-authoritative quote (초기 버전)
+- Home / Today
 
-### Phase 3
-- Payment
-- Stake
-- Settlement/Refund
+### Phase 2.1 — Hardening
+- GPS target `userSelected` 강제
+- Signature 이미지 미보관 (ritual only)
+- `QUOTE_SIGNING_SECRET` 분리
+- Quote `jti` + single-use (`consumed_quotes`)
+- Home 오늘 at-risk 서버 authoritative
+- 스케줄/goal-safety 테스트 확장
 
-### Phase 4
-- GPS/Timer
-- Notifications
+### Phase 3 — 강제력 모드 + 실 증명 시스템 (현재)
+- Enforcement mode: SELF / SOCIAL / MONEY
+- Stake는 MONEY 전용 (0..1)
+- StakePolicy 서버 authoritative + `/v1/stake-policy`
+- Wizard에 Enforcement 단계 추가
+- Photo capture (AVFoundation), image hash, evidence upload
+- MapKit GPS target picker + CoreLocation proof + Haversine
+- Focus Timer server session + heartbeat
+- Self Verify
+- Deadline worker (system_hold-safe)
+- PASS / UNCERTAIN / FAIL 결과 UI (mode-aware)
+- Home mode-aware 렌더링
 
-### Phase 5
-- Appeal/Admin
-- Friend Verify
-- Weekly Recap
+### Phase 4 — Payment/Settlement (예정)
+- 실제 PG 연동
+- 회차 정산 / 환불
+- Stake funded → settled
 
-### Phase 6
-- Hardening
-- analytics
-- safety filter
-- app review preparation
+### Phase 5 — Appeal / Admin / Weekly Recap (예정)
+
+### Phase 6 — Social 완전판 + Friend Verify (예정)
+
+### Phase 7 — Hardening / analytics / safety / app review (예정)
 
 ---
 
 ## 17. 출시 전 기술 체크리스트
 
-- [ ] PG sandbox E2E
-- [ ] 부분환불 검증
-- [ ] 중복 webhook 방지
-- [ ] 장애 중 자동 FAIL 차단
-- [ ] AI UNCERTAIN 처리
-- [ ] Appeal reversal
+- [ ] PG sandbox E2E (Phase 4)
+- [ ] 부분환불 검증 (Phase 4)
+- [ ] 중복 webhook 방지 (Phase 4)
+- [x] 장애 중 자동 FAIL 차단 (Verification/Deadline)
+- [x] AI UNCERTAIN 처리 (Mock provider, PASS/UNCERTAIN/FAIL)
+- [ ] Appeal reversal (Phase 5)
 - [ ] Evidence auto-delete
-- [ ] max_loss server-side validation
-- [ ] timezone test
+- [x] Stake 상한 server-side validation (StakePolicy)
+- [x] `QUOTE_SIGNING_SECRET` 분리 및 single-use quote
+- [x] SELF/SOCIAL/MONEY 강제력 모드 분기
+- [x] GPS target `userSelected` 강제
+- [x] timezone freeze test
 - [ ] offline evidence retry
-- [ ] 위험 목표 filter
+- [x] 위험 목표 filter (Goal Safety classifier)
 - [ ] monitoring dashboard
-- [ ] admin audit log
+- [ ] admin audit log UI

@@ -1,5 +1,5 @@
 # SRD — System Requirements Document
-> 버전: v0.9  
+> 버전: v1.0 (Phase 3 개정)  
 > 목적: 시스템 관점의 기능/비기능 요구사항을 정의한다.
 
 ---
@@ -34,17 +34,35 @@
 - one-time, daily, specific-days, x-per-week를 지원해야 한다.
 - 사용자 지정 deadline과 timezone을 저장해야 한다.
 - 약속 확정 후 과거/현재 회차 조건은 임의 수정할 수 없어야 한다.
+- 사용자는 각 약속마다 강제력 모드(**SELF / SOCIAL / MONEY**) 중 하나를 지정한다.
+- SOCIAL 모드는 실제 verifier 관계가 존재해야 활성화될 수 있다. Release 빌드에서 verifier가 없으면 서버는 활성화를 거부한다 (`FRIEND_NOT_SELECTED`).
+- MONEY 모드는 아래 SR-FR-003, SR-FR-003b를 만족해야 활성화된다. SELF 모드는 quote/payment 없이 즉시 활성화될 수 있다.
 
-### SR-FR-003 약속금
+### SR-FR-003 약속금 (MONEY 모드 전용)
 - 회차당 금액과 전체 최대손실을 분리 저장해야 한다.
 - 결제 전 최대손실을 클라이언트와 서버 모두 검증해야 한다.
-- 서버가 금액 상한 정책을 강제해야 한다.
+- 서버가 티어별 금액 상한 정책을 강제해야 한다 (SR-FR-003b 참조).
+- SELF/SOCIAL 모드에서는 Stake row가 생성되지 않아야 한다. 0원 Stake row 형태로 우회 표현하는 것은 금지된다.
 
-### SR-FR-004 결제
+### SR-FR-003b StakePolicy (서버 authoritative)
+- 시스템은 사용자에게 부여된 티어(TIER_1 / TIER_2 / TIER_3)에 따른 아래 값을 강제해야 한다:
+  - `maxPerOccurrence`
+  - `maxPerCommitment`
+  - `rollingMonthlyLossCap`
+  - `suggestedAmounts`
+- 값은 설정 파일/DB로 구성 가능해야 하며, 코드에 하드코딩하지 않아야 한다.
+- 신규 사용자는 자동으로 TIER_1으로 시작한다.
+- 자동 티어 승격은 MVP에 포함되지 않는다. 승격은 admin fixture로만 수행한다.
+- 클라이언트가 상한을 조작해도 서버가 최종 거부해야 한다.
+
+### SR-FR-004 결제 (MONEY 모드 전용)
 - 약속 활성화 전 선결제가 성공해야 한다.
 - 중복 결제를 막기 위해 idempotency key를 사용해야 한다.
+- 서버 서명 quote를 사용해야 하며, 각 quote는 unique `jti`로 식별되고 한 번만 소비된다 (`consumed_quotes`).
+- Quote 서명 시크릿(`QUOTE_SIGNING_SECRET`)은 JWT 시크릿과 분리되어야 한다.
 - PG webhook을 검증해야 한다.
 - 환불/취소 실패 시 재시도해야 한다.
+- SELF/SOCIAL 모드에서는 결제 흐름이 실행되지 않아야 한다.
 
 ### SR-FR-005 Occurrence 생성
 - 반복 약속은 서버가 실행 회차를 생성해야 한다.
@@ -52,13 +70,21 @@
 
 ### SR-FR-006 Evidence
 - 사진, GPS, Timer, Self, Friend 증거를 저장할 수 있어야 한다.
-- 원본 촬영시각과 서버수신시각을 모두 저장해야 한다.
+- 사진은 앱 카메라 캡처가 원칙이며, 갤러리 업로드는 엄격 검증 흐름에서 비활성이다.
+- 사진 증거는 SHA-256 hash를 저장해 재사용을 탐지해야 한다.
+- 원본 촬영시각(client)과 서버 수신시각을 모두 저장해야 한다.
+- GPS 증거는 위·경도, 정확도, 대상 target의 좌표/반경, 서버 Haversine 거리 계산 결과를 함께 기록해야 한다.
+- Timer 증거는 서버 발급 session id, heartbeat gap, background 전환 횟수를 포함해야 한다.
 - 업로드 장애 시 재전송을 지원해야 한다.
+- Object storage abstraction을 사용해야 하며, 개발 환경은 로컬 mock storage로 대체할 수 있다.
 
 ### SR-FR-007 Verification
-- 결과는 PASS/UNCERTAIN/FAIL 3단계여야 한다.
+- 결과는 **PASS / UNCERTAIN / FAIL** 3단계여야 한다. Boolean으로 축약 금지.
+- 세 강제력 모드(SELF/SOCIAL/MONEY) 모두 동일한 판정 결과 스키마를 사용해야 한다.
+- Verification 모듈은 결과만 결정한다. **금전 정산은 절대 Verification 모듈에서 실행되지 않는다.** 정산은 별도 워커/Phase에서 결과를 소비한다.
 - UNCERTAIN은 자동으로 금전 실패를 확정해서는 안 된다.
-- verifier/model/version/reason을 기록해야 한다.
+- 시스템 장애 상황에서는 UNCERTAIN 또는 `system_hold`로 처리해야 하며 monetary FAIL을 만들지 않아야 한다.
+- verifier / model / version / reason_code / user_message / confidence(적용 가능 시)를 기록해야 한다.
 
 ### SR-FR-008 Friend Verify
 - 친구 검증자는 해당 실패금의 경제적 수익자가 될 수 없다.
@@ -82,9 +108,30 @@
 - 다음 주 추천
 
 ### SR-FR-012 Goal Safety
-- 위험 목표 입력 시 stake 비활성/차단
+- 위험 목표 입력 시 MONEY stake 비활성화 (`stake_disallowed`) 또는 목표 자체 차단(`unsafe`).
+- SELF/SOCIAL 모드로도 만들 수 없는 명백히 위험한 목표(자해, 약 복용 중단 등)는 완전 차단한다.
 - 정책 위반 분류 결과 저장
-- 사용자에게 일반적인 안전 문구 표시
+- 사용자에게 일반적인 안전 문구 표시 (공포 조장 금지)
+
+### SR-FR-013 Enforcement Mode
+- 각 Commitment는 `enforcement_mode`를 갖는다: SELF / SOCIAL / MONEY.
+- SELF: quote 없음, Stake row 없음, PaymentModule 미실행.
+- SOCIAL: quote 없음, Stake row 없음, 활성화 시 CommitmentObserver 관계 필수.
+- MONEY: quote 필수, Stake row 필수, `consumed_quotes` 소비 필수.
+- Verification 결과의 스키마는 세 모드 모두 동일하다.
+- 홈/오늘 UI는 오늘 회차 중 MONEY 회차만 at-risk 합산에 포함해야 한다. SELF/SOCIAL 회차는 at-risk 합계에 포함되지 않는다.
+
+### SR-FR-014 Deadline Processing
+- 서버는 주기적으로 `deadline_at`이 지난 active occurrence를 스캔한다.
+- 각 후보에 대해:
+  - Evidence가 이미 존재하거나 검증 중이면 → `reviewing`.
+  - Evidence가 없으면 → **candidate FAIL**.
+- Candidate FAIL을 최종 FAIL로 확정하기 전에 아래를 확인한다:
+  - 알려진 시스템 장애 없음
+  - Verification 인프라 정상
+  - 유예(grace) 조건 없음
+- 시스템 장애/인프라 장애일 경우 상태는 `system_hold` 또는 `uncertain`이 되어야 하며, 절대 monetary FAIL을 만들지 않아야 한다.
+- Deadline 이전에 제출된 evidence의 서버 처리 지연은 성공/실패 판정을 뒤집지 않아야 한다.
 
 ---
 
@@ -148,21 +195,30 @@
 - max_loss 서버 검증
 - 월 최대 손실 제한 지원
 
-### 실패 판정
-다음 조건을 모두 만족해야 금전 FAIL 확정 가능:
+### 실패 판정 (behavioral)
+Verification 결과가 FAIL로 확정되려면 아래를 만족해야 한다:
 1. occurrence가 active 또는 reviewing 상태였음
-2. deadline 경과
-3. 서비스 장애 아님
-4. verification 결과가 FAIL
-5. 추가증거/appeal grace 정책 종료
-6. settlement lock 획득
+2. deadline 경과 또는 명시적 FAIL evidence 제출
+3. 서비스 장애 아님 (그렇지 않으면 `system_hold` 또는 UNCERTAIN)
+4. 사용된 verifier가 FAIL을 산출
+5. 추가증거/grace 정책 종료
+
+### 금전 FAIL 확정 (MONEY 모드 전용, Phase 4)
+behavioral FAIL에 더해:
+6. Commitment가 MONEY 모드
+7. Stake row가 funded 상태
+8. settlement lock 획득
+
+Phase 3까지는 behavioral FAIL만 기록한다. 실제 금전 정산은 Phase 4에서 결과를 소비한다.
 
 ---
 
-## 5. Payment/Settlement 요구사항
+## 5. Payment/Settlement 요구사항 (MONEY 모드 전용)
+
+이 절은 MONEY 모드 Commitment에만 적용된다. SELF/SOCIAL Commitment는 결제/정산 로직을 갖지 않으며, `payment_ledger`, `settlement`, `payment` row가 생성되지 않는다.
 
 ### 시나리오
-- 약속 생성 → 전체 최대금액 charge
+- MONEY 약속 생성 → quote 소비 → 전체 최대금액 charge
 - occurrence PASS → refundable amount 누적
 - occurrence FAIL → forfeited amount 누적
 - 기간 종료 → refundable total 환불
