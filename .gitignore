@@ -40,3 +40,7 @@ pnpm-debug.log*
 .pgdata/
 .redisdata/
 .s3data/
+
+# --- Xcode release derived data / QA screenshots ---
+DerivedDataRelease/
+apps/ios/JIKYEO/PhaseScreens/
