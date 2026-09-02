@@ -1,14 +1,30 @@
 import SwiftUI
 
-/// Home / Today. PRD §5. Phase 1 shows the hero + empty state. Phase 3 wires
-/// today's occurrences + proof CTAs.
+/// Home / Today. PRD §13. Adapts to whether today has any MONEY commitments.
+/// When there are no MONEY items we deliberately do NOT show a "0원" hero —
+/// the summary drops the financial line entirely.
 struct HomeView: View {
+    let debugStage: String?
+    init(debugStage: String? = nil) { self.debugStage = debugStage }
+    @EnvironmentObject private var container: AppContainer
+    @StateObject private var model = HomeViewModel()
+    @State private var isCreating = false
+    @State private var proofFor: TodayOccurrenceModel?
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.lg) {
-                    Hero(atRiskKrw: 0)
-                    EmptyToday()
+                    Hero(count: model.todayCount, moneyCount: model.moneyCount, atRiskKrw: model.atRiskKrw)
+                    if model.items.isEmpty {
+                        EmptyToday(onCreate: { isCreating = true })
+                    } else {
+                        ForEach(model.items) { item in
+                            TodayCard(item: item) {
+                                proofFor = item
+                            }
+                        }
+                    }
                 }
                 .padding(.horizontal, DS.Space.lg)
                 .padding(.vertical, DS.Space.lg)
@@ -16,50 +32,125 @@ struct HomeView: View {
             .background(DS.Color.surfaceBackground.ignoresSafeArea())
             .navigationTitle("지켜")
             .navigationBarTitleDisplayMode(.inline)
+            .refreshable { await model.load(container: container) }
+            .task {
+                #if DEBUG
+                if debugStage == "home-loaded" { model.mockLoaded(); return }
+                if debugStage == "home-empty" { return }
+                #endif
+                await model.load(container: container)
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isCreating = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .tint(DS.Color.primary)
+                }
+            }
+            .sheet(isPresented: $isCreating, onDismiss: { Task { await model.load(container: container) } }) {
+                CreateCommitmentWizardView()
+                    .environmentObject(container)
+            }
+            .sheet(item: $proofFor, onDismiss: { Task { await model.load(container: container) } }) { occ in
+                ProofFlowView(occurrence: occ)
+                    .environmentObject(container)
+            }
         }
     }
 }
 
+/// Top summary. When today has zero money commitments we omit the money line
+/// entirely — no "0원" line, no muted-primary hero. See PRD §13.
 private struct Hero: View {
+    let count: Int
+    let moneyCount: Int
     let atRiskKrw: Int64
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.xs) {
-            Text(Copy.homeGreeting)
+            Text(Copy.Home.greeting)
                 .font(Typo.body)
                 .foregroundStyle(DS.Color.textSecondary)
-            HStack(alignment: .firstTextBaseline, spacing: DS.Space.xs) {
-                Text(Copy.homeAtRiskPrefix)
+            if count == 0 {
+                // Empty today gets its own EmptyToday card below.
+                Text(Copy.Home.noneToday)
+                    .font(Typo.heading)
+                    .foregroundStyle(DS.Color.text)
+            } else if moneyCount > 0 {
+                Text(Copy.Home.todayCountAndMoney(count))
+                    .font(Typo.heading)
+                    .foregroundStyle(DS.Color.text)
+                HStack(alignment: .firstTextBaseline, spacing: DS.Space.sm) {
+                    Text(Copy.Home.atRiskLabel)
+                        .font(Typo.body)
+                        .foregroundStyle(DS.Color.textSecondary)
+                    Spacer()
+                    MoneyText(atRiskKrw, intent: .atRisk, size: .hero)
+                }
+            } else {
+                Text(Copy.Home.todayCountOnly(count))
                     .font(Typo.heading)
                     .foregroundStyle(DS.Color.text)
             }
-            MoneyText(atRiskKrw, intent: atRiskKrw > 0 ? .atRisk : .neutral, size: .hero)
         }
     }
 }
 
 private struct EmptyToday: View {
+    let onCreate: () -> Void
     var body: some View {
         Card {
             VStack(alignment: .leading, spacing: DS.Space.md) {
-                Text(Copy.homeNoCommitments)
+                Text(Copy.Home.noneToday)
                     .font(Typo.bodyStrong)
                     .foregroundStyle(DS.Color.text)
-                Text("작은 약속부터 시작해봐요.")
+                Text(Copy.Home.noneMessage)
                     .font(Typo.body)
                     .foregroundStyle(DS.Color.textSecondary)
-                NavigationLink {
-                    CreateCommitmentEntry()
-                } label: {
-                    Text(Copy.homeCreateCTA)
-                        .font(Typo.button)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                        .background(
-                            RoundedRectangle(cornerRadius: DS.Radius.md)
-                                .fill(DS.Color.primary)
-                        )
+                PrimaryButton(Copy.Home.createCTA, action: onCreate)
+            }
+        }
+    }
+}
+
+private struct TodayCard: View {
+    let item: TodayOccurrenceModel
+    let onProof: () -> Void
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: DS.Space.sm) {
+                HStack {
+                    Text(item.commitmentTitle)
+                        .font(Typo.heading)
+                        .foregroundStyle(DS.Color.text)
+                    Spacer()
+                    StatusChip(item.chipKind)
+                }
+                HStack(spacing: DS.Space.sm) {
+                    Text(item.methodLabel)
+                        .font(Typo.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
+                    Text("·")
+                        .foregroundStyle(DS.Color.textMuted)
+                    CountdownText(deadline: item.deadlineAt)
+                }
+                if item.isMoneyCommitment && item.stakeKrw > 0 {
+                    HStack {
+                        MoneyText(item.stakeKrw, intent: .atRisk, size: .body)
+                        Text("걸림")
+                            .font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
+                        Spacer()
+                    }
+                }
+                if item.showsProofCTA {
+                    PrimaryButton(proofCtaLabel(for: item), action: onProof)
                 }
             }
         }
+    }
+    private func proofCtaLabel(for item: TodayOccurrenceModel) -> String {
+        item.verificationMethod == .timer ? Copy.Home.timerCTA : Copy.Home.proofCTA
     }
 }

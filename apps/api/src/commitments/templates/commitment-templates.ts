@@ -1,131 +1,184 @@
-import { CommitmentCategory, VerificationMethod } from '@prisma/client';
+import { CommitmentCategory, CommitmentDirection, ScheduleType, VerificationMethod } from '@prisma/client';
 
 /**
- * Data-driven commitment templates. The wizard renders required configuration
- * steps based on `requiredSteps`. Templates are static in MVP but the shape is
- * ready to be moved into a table later.
+ * Data-driven commitment templates.
+ *
+ * The wizard renders required configuration steps based on `requiredInputs`.
+ * Adding a new template later must not require touching the wizard code — new
+ * `InputKey` values may be introduced, and only then the wizard learns how to
+ * render them. Templates are static in MVP but the shape is table-ready.
  */
-export type WizardStepId =
-  | 'goal'
-  | 'schedule'
-  | 'verification'
-  | 'stake'
-  | 'observer'
-  | 'contract'
-  | 'payment'
-  | 'signature';
+
+export type InputKey =
+  // Schedule
+  | 'scheduleType'
+  | 'daysOfWeek'
+  | 'timesPerWeek'
+  | 'dateRange'
+  | 'windowStartLocalTime'
+  | 'proofDeadlineLocalTime'
+  // Verification-specific
+  | 'gpsTarget'
+  | 'gpsRadiusM'
+  | 'timerRequiredSeconds';
 
 export interface CommitmentTemplate {
   id: string;
   category: CommitmentCategory;
   title: string;
-  suggestedProof: {
-    method: VerificationMethod;
-    rule: Record<string, unknown>;
-  };
+  /** Short 1-line pitch shown in the picker. */
+  pitch: string;
+  direction: CommitmentDirection;
+  /** Schedule types that make sense for this goal. */
+  supportedScheduleTypes: ScheduleType[];
+  defaultScheduleType: ScheduleType;
+  /** Ordered list — first is the recommended method (visually emphasized). */
+  recommendedVerification: VerificationMethod[];
+  defaultVerification: VerificationMethod;
+  /** Static default proof rule; wizard may override user-controlled subfields. */
+  defaultProofRule: Record<string, unknown>;
   suggestedStakeKrw: number[];
-  requiredSteps: WizardStepId[];
+  defaultStakeKrw: number;
+  /** Inputs the wizard must present in addition to base steps. */
+  requiredInputs: InputKey[];
+  /** Copy shown on the "Proof Rule" step to explain what earns PASS. */
+  proofExplanationTemplate: string;
 }
 
-const BASE_STEPS: WizardStepId[] = [
-  'goal',
-  'schedule',
-  'verification',
-  'stake',
-  'observer',
-  'contract',
-  'payment',
-  'signature',
+const BASE_INPUTS: InputKey[] = [
+  'scheduleType',
+  'windowStartLocalTime',
+  'proofDeadlineLocalTime',
 ];
 
 export const COMMITMENT_TEMPLATES: CommitmentTemplate[] = [
   {
-    id: 'wakeup-7am',
+    id: 'wakeup',
     category: 'wakeup',
-    title: '오전 7시까지 일어나기',
-    suggestedProof: {
-      method: 'photo',
-      rule: { hint: '기상 후 아침 식탁 또는 창밖 사진' },
-    },
+    title: '일찍 일어나기',
+    pitch: '정한 시간까지 일어나서 사진으로 증명해요.',
+    direction: 'do_action',
+    supportedScheduleTypes: ['daily', 'specific_days'],
+    defaultScheduleType: 'daily',
+    recommendedVerification: ['photo', 'self'],
+    defaultVerification: 'photo',
+    defaultProofRule: { hint: '기상 후 아침 식탁 또는 창밖 사진' },
     suggestedStakeKrw: [3_000, 5_000, 10_000],
-    requiredSteps: BASE_STEPS,
+    defaultStakeKrw: 3_000,
+    requiredInputs: [...BASE_INPUTS, 'daysOfWeek'],
+    proofExplanationTemplate: '오전 {windowStartLocalTime}에 일어나서\n{proofDeadlineLocalTime}까지 사진을 찍어요.',
   },
   {
-    id: 'gym',
+    id: 'workout',
     category: 'workout',
-    title: '헬스장 가기',
-    suggestedProof: {
-      method: 'gps',
-      rule: { radius_m: 150 },
-    },
+    title: '운동하기',
+    pitch: '지정한 헬스장에 다녀와서 GPS로 증명해요.',
+    direction: 'do_action',
+    supportedScheduleTypes: ['specific_days', 'x_per_week'],
+    defaultScheduleType: 'specific_days',
+    recommendedVerification: ['gps', 'photo'],
+    defaultVerification: 'gps',
+    defaultProofRule: { radius_m: 150 },
     suggestedStakeKrw: [5_000, 10_000, 20_000],
-    requiredSteps: BASE_STEPS,
+    defaultStakeKrw: 5_000,
+    requiredInputs: [...BASE_INPUTS, 'daysOfWeek', 'gpsTarget', 'gpsRadiusM'],
+    proofExplanationTemplate: '{proofDeadlineLocalTime}까지 지정한 장소 {gpsRadiusM}m 안에 들어오면 돼요.',
   },
   {
-    id: 'study-60m',
+    id: 'study',
     category: 'study',
-    title: '60분 공부하기',
-    suggestedProof: {
-      method: 'timer',
-      rule: { required_seconds: 60 * 60 },
-    },
+    title: '공부하기',
+    pitch: '집중 타이머로 목표 시간을 채워요.',
+    direction: 'do_action',
+    supportedScheduleTypes: ['daily', 'specific_days', 'x_per_week'],
+    defaultScheduleType: 'daily',
+    recommendedVerification: ['timer', 'photo'],
+    defaultVerification: 'timer',
+    defaultProofRule: { required_seconds: 60 * 60 },
     suggestedStakeKrw: [3_000, 5_000, 10_000],
-    requiredSteps: BASE_STEPS,
+    defaultStakeKrw: 3_000,
+    requiredInputs: [...BASE_INPUTS, 'timerRequiredSeconds'],
+    proofExplanationTemplate: '{proofDeadlineLocalTime}까지 앱 타이머로 {timerRequiredMinutes}분을 채워요.',
   },
   {
-    id: 'read-20p',
+    id: 'read',
     category: 'read',
-    title: '책 20페이지 읽기',
-    suggestedProof: {
-      method: 'photo',
-      rule: { hint: '읽은 페이지 사진' },
-    },
+    title: '책 읽기',
+    pitch: '읽은 페이지 사진으로 증명해요.',
+    direction: 'do_action',
+    supportedScheduleTypes: ['daily', 'specific_days'],
+    defaultScheduleType: 'daily',
+    recommendedVerification: ['photo', 'timer'],
+    defaultVerification: 'photo',
+    defaultProofRule: { hint: '읽은 페이지 사진' },
     suggestedStakeKrw: [3_000, 5_000],
-    requiredSteps: BASE_STEPS,
+    defaultStakeKrw: 3_000,
+    requiredInputs: [...BASE_INPUTS],
+    proofExplanationTemplate: '{proofDeadlineLocalTime}까지 읽은 페이지 사진을 찍어요.',
   },
   {
-    id: 'meditate-20m',
+    id: 'meditate',
     category: 'meditate',
-    title: '20분 명상하기',
-    suggestedProof: {
-      method: 'timer',
-      rule: { required_seconds: 20 * 60 },
-    },
+    title: '명상하기',
+    pitch: '집중 타이머로 정한 시간만큼 명상해요.',
+    direction: 'do_action',
+    supportedScheduleTypes: ['daily', 'specific_days'],
+    defaultScheduleType: 'daily',
+    recommendedVerification: ['timer'],
+    defaultVerification: 'timer',
+    defaultProofRule: { required_seconds: 20 * 60 },
     suggestedStakeKrw: [3_000, 5_000],
-    requiredSteps: BASE_STEPS,
+    defaultStakeKrw: 3_000,
+    requiredInputs: [...BASE_INPUTS, 'timerRequiredSeconds'],
+    proofExplanationTemplate: '{proofDeadlineLocalTime}까지 앱 타이머로 {timerRequiredMinutes}분을 채워요.',
   },
   {
-    id: 'screen-30m-instagram',
+    id: 'screen',
     category: 'screen',
-    title: '인스타그램 30분 이하',
-    suggestedProof: {
-      method: 'self',
-      rule: { hint: '스크린타임 스크린샷' },
-    },
+    title: 'SNS 덜 보기',
+    pitch: '하루 사용시간을 직접 확인해요.',
+    direction: 'avoid',
+    supportedScheduleTypes: ['daily'],
+    defaultScheduleType: 'daily',
+    recommendedVerification: ['self', 'photo'],
+    defaultVerification: 'self',
+    defaultProofRule: { hint: '스크린타임 스크린샷' },
     suggestedStakeKrw: [3_000, 5_000],
-    requiredSteps: BASE_STEPS,
+    defaultStakeKrw: 3_000,
+    requiredInputs: [...BASE_INPUTS],
+    proofExplanationTemplate: '{proofDeadlineLocalTime}까지 오늘 사용시간을 직접 확인해요.',
   },
   {
     id: 'no-delivery',
     category: 'custom',
-    title: '배달음식 주문하지 않기',
-    suggestedProof: {
-      method: 'self',
-      rule: {},
-    },
+    title: '배달음식 줄이기',
+    pitch: '오늘 배달음식을 시키지 않았는지 확인해요.',
+    direction: 'avoid',
+    supportedScheduleTypes: ['daily', 'specific_days'],
+    defaultScheduleType: 'daily',
+    recommendedVerification: ['self', 'friend'],
+    defaultVerification: 'self',
+    defaultProofRule: {},
     suggestedStakeKrw: [5_000, 10_000],
-    requiredSteps: BASE_STEPS,
+    defaultStakeKrw: 5_000,
+    requiredInputs: [...BASE_INPUTS],
+    proofExplanationTemplate: '{proofDeadlineLocalTime}까지 오늘 배달음식을 시키지 않았는지 확인해요.',
   },
   {
     id: 'custom',
     category: 'custom',
     title: '직접 만들기',
-    suggestedProof: {
-      method: 'photo',
-      rule: {},
-    },
+    pitch: '내가 원하는 약속을 자유롭게 만들어요.',
+    direction: 'do_action',
+    supportedScheduleTypes: ['one_time', 'daily', 'specific_days', 'x_per_week'],
+    defaultScheduleType: 'daily',
+    recommendedVerification: ['photo', 'gps', 'timer', 'self'],
+    defaultVerification: 'photo',
+    defaultProofRule: {},
     suggestedStakeKrw: [3_000, 5_000, 10_000, 20_000],
-    requiredSteps: BASE_STEPS,
+    defaultStakeKrw: 5_000,
+    requiredInputs: [...BASE_INPUTS],
+    proofExplanationTemplate: '{proofDeadlineLocalTime}까지 약속을 지키고 증명해요.',
   },
 ];
 

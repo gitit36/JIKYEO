@@ -28,6 +28,22 @@ export class AppConfig {
     return this.required('JWT_SECRET');
   }
 
+  /**
+   * Signing secret for commitment quotes. Deliberately separate from the JWT
+   * secret so rotating one does not invalidate the other, and so an
+   * exfiltrated JWT secret cannot forge new quotes.
+   */
+  get quoteSigningSecret(): string {
+    const v = this.cfg.get<string>('QUOTE_SIGNING_SECRET');
+    if (!v || v.length === 0) {
+      throw new Error('Missing required env var: QUOTE_SIGNING_SECRET');
+    }
+    if (v === this.cfg.get<string>('JWT_SECRET')) {
+      throw new Error('QUOTE_SIGNING_SECRET must not equal JWT_SECRET');
+    }
+    return v;
+  }
+
   get jwtAccessTtlSeconds(): number {
     return Number(this.cfg.get<string>('JWT_ACCESS_TTL') ?? 900);
   }

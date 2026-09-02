@@ -3,10 +3,14 @@ import { AppConfig } from '../../config/app-config';
 import { Clock } from '../../common/clock/clock';
 import { DomainError, ValidationError } from '../../common/errors/domain-errors';
 import { Money } from '../../common/money/money';
+import { StakePolicyService } from '../../stake-policy/stake-policy.service';
 import { ScheduleService } from '../schedule/schedule.service';
 import { ScheduleInput } from '../schedule/schedule.types';
+import { QuoteCacheService } from './quote-cache.service';
 
 export interface QuoteInput {
+  /** Owning user id — required so the quote can be sized to the user's tier. */
+  userId: string;
   schedule: ScheduleInput;
   stakePerOccurrenceKrw: number;
   timezone: string;
@@ -32,9 +36,11 @@ export class QuoteService {
     private readonly schedule: ScheduleService,
     private readonly cfg: AppConfig,
     private readonly clock: Clock,
+    private readonly quoteCache: QuoteCacheService,
+    private readonly stakePolicy: StakePolicyService,
   ) {}
 
-  compute(input: QuoteInput): Quote {
+  async compute(input: QuoteInput): Promise<Quote> {
     const perOccurrence = Money.fromNumber(input.stakePerOccurrenceKrw);
     if (perOccurrence <= 0n) {
       throw new ValidationError('Stake must be greater than 0');
@@ -57,14 +63,30 @@ export class QuoteService {
       });
     }
 
+    // Server-authoritative tier gate. The client already knows its tier via
+    // /v1/stake-policy but the quote must not trust that echoed value.
+    await this.stakePolicy.assertWithinLimits(
+      input.userId,
+      input.stakePerOccurrenceKrw,
+      Number(maxLoss),
+    );
+
     const now = this.clock.now();
+    const quoteExpiresAt = new Date(now.getTime() + 10 * 60 * 1000);
+    const quoteId = this.quoteCache.sign({
+      jti: this.quoteCache.newJti(),
+      occurrenceCount,
+      stakePerOccurrence: perOccurrence.toString(),
+      maxLoss: maxLoss.toString(),
+      quoteExpiresAt: quoteExpiresAt.toISOString(),
+    });
     return {
-      quoteId: `qt_${now.getTime().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      quoteId,
       occurrenceCount,
       stakePerOccurrence: perOccurrence,
       maxLoss,
       currency: 'KRW',
-      quoteExpiresAt: new Date(now.getTime() + 10 * 60 * 1000),
+      quoteExpiresAt,
     };
   }
 }

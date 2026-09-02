@@ -7,7 +7,7 @@ public struct AppEnvironment {
 
     public static let live: AppEnvironment = {
         let base = Bundle.main.object(forInfoDictionaryKey: "APIBaseURL") as? String
-            ?? "http://localhost:3000/v1"
+            ?? "http://localhost:3001/v1"
         return AppEnvironment(
             apiBaseURL: URL(string: base)!,
             bundleId: Bundle.main.bundleIdentifier ?? "com.jikyeo.app"

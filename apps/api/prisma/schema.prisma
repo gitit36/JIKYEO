@@ -1,6 +1,12 @@
 // 지켜 / JIKYEO — Prisma schema
-// Follows ERD.md v0.9. Money is BigInt KRW (integer 원). All timestamps timestamptz.
+// Follows ERD.md v1.0 (Phase 3). Money is BigInt KRW (integer 원). All timestamps timestamptz.
 // Ledger is append-only. Money mutations never bypass LedgerService.
+//
+// Enforcement modes (Phase 3):
+//   SELF   — no Stake, no Quote, no Payment. Prove for yourself.
+//   SOCIAL — no Stake, no Quote, requires an observer row.
+//   MONEY  — Stake required, server-authoritative Quote consumed, PG payment later.
+// SELF/SOCIAL commitments never create a Stake row (no zero-value stakes).
 
 generator client {
   provider = "prisma-client-js"
@@ -63,6 +69,21 @@ enum CommitmentStatus {
   cancelled
 }
 
+// SELF: no money, no observer required. SOCIAL: no money, observer required.
+// MONEY: server-quote + stake + payment (Phase 4).
+enum EnforcementMode {
+  self
+  social
+  money
+}
+
+// StakePolicy tier. Values are configuration; only the assignment is stored.
+enum StakeTier {
+  tier_1
+  tier_2
+  tier_3
+}
+
 enum OccurrenceStatus {
   scheduled
   active
@@ -106,6 +127,17 @@ enum VerifierType {
   ai
   friend
   human
+  self
+  timer
+  gps
+  photo
+}
+
+enum FocusTimerStatus {
+  active
+  finished
+  aborted
+  expired
 }
 
 enum VerificationOutcome {
@@ -212,6 +244,8 @@ model User {
   locale        String        @default("ko-KR")
   timezone      String        @default("Asia/Seoul")
   status        UserStatus    @default(active)
+  // All new users start at TIER_1. Promotion is manual/admin-only in MVP.
+  stakeTier     StakeTier     @default(tier_1) @map("stake_tier")
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -222,6 +256,7 @@ model User {
   appeals            Appeal[]
   auditLogs          AuditLog[]
   evidenceSubmitted  Evidence[]
+  timerSessions      FocusTimerSession[]
 
   @@unique([authProvider, authSubject])
   @@index([email])
@@ -234,6 +269,8 @@ model Commitment {
   title               String
   category            CommitmentCategory
   direction           CommitmentDirection @default(do_action)
+  // Enforcement mode chosen by the user. Governs whether Stake/Quote/Payment exist.
+  enforcementMode     EnforcementMode     @default(self) @map("enforcement_mode")
   scheduleType        ScheduleType        @map("schedule_type")
   scheduleJson        Json                @map("schedule_json")
   startAt             DateTime            @map("start_at") @db.Timestamptz
@@ -242,10 +279,16 @@ model Commitment {
   strictness          Strictness          @default(normal)
   extensionAllowed    Boolean             @default(false) @map("extension_allowed")
   status              CommitmentStatus    @default(draft)
-  maxLossAmount       BigInt              @map("max_loss_amount")
-  currency            String              @default("KRW") @db.Char(3)
+  // MONEY-only fields. SELF/SOCIAL keep these NULL.
+  maxLossAmount       BigInt?             @map("max_loss_amount")
+  currency            String?             @db.Char(3)
   signedAt            DateTime?           @map("signed_at") @db.Timestamptz
-  signatureAssetId    String?             @map("signature_asset_id") @db.Uuid
+  signatureCompleted  Boolean             @default(false) @map("signature_completed")
+  contractVersion     String              @default("v1") @map("contract_version")
+  // NOTE: We intentionally do NOT store the raw signature drawing. The
+  // signature is a behavioral commitment ritual, not a legal signature.
+  // Only `signedAt`, `signatureCompleted`, and `contractVersion` are kept.
+  // The previously-mooted `signature_asset_id` column has been removed.
   createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -268,7 +311,8 @@ model Occurrence {
   windowStartAt       DateTime          @map("window_start_at") @db.Timestamptz
   deadlineAt          DateTime          @map("deadline_at") @db.Timestamptz
   status              OccurrenceStatus  @default(scheduled)
-  stakeAmount         BigInt            @map("stake_amount")
+  // MONEY-only. SELF/SOCIAL occurrences have NULL stakeAmount (never zero-value).
+  stakeAmount         BigInt?           @map("stake_amount")
   failureReasonCode   String?           @map("failure_reason_code")
   decidedAt           DateTime?         @map("decided_at") @db.Timestamptz
   createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz
@@ -276,6 +320,7 @@ model Occurrence {
   commitment          Commitment              @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
   evidence            Evidence[]
   verificationResults VerificationResult[]
+  timerSessions       FocusTimerSession[]
   settlements         Settlement[]
   appeal              Appeal?
   notifications       NotificationSchedule[]
@@ -324,11 +369,15 @@ model Evidence {
 model VerificationResult {
   id             String               @id @default(uuid()) @db.Uuid
   occurrenceId   String               @map("occurrence_id") @db.Uuid
+  evidenceId     String?              @map("evidence_id") @db.Uuid
   verifierType   VerifierType         @map("verifier_type")
   result         VerificationOutcome
   confidence     Decimal?             @db.Decimal(4, 3)
   reasonCode     String               @map("reason_code")
   reasonText     String               @map("reason_text")
+  // Short Korean sentence shown to the user on the result screen. Never
+  // mentions money for SELF commitments.
+  userMessage    String               @map("user_message")
   modelVersion   String?              @map("model_version")
   reviewerUserId String?              @map("reviewer_user_id") @db.Uuid
   createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz
@@ -337,6 +386,30 @@ model VerificationResult {
 
   @@index([occurrenceId])
   @@map("verification_results")
+}
+
+// Server-issued Focus Timer session. All timing values are server clocks;
+// the client is not authoritative. A completed run produces one Evidence
+// and one VerificationResult.
+model FocusTimerSession {
+  id                     String            @id @default(uuid()) @db.Uuid
+  occurrenceId           String            @map("occurrence_id") @db.Uuid
+  userId                 String            @map("user_id") @db.Uuid
+  plannedDurationSeconds Int               @map("planned_duration_seconds")
+  serverStartedAt        DateTime          @default(now()) @map("server_started_at") @db.Timestamptz
+  lastHeartbeatAt        DateTime?         @map("last_heartbeat_at") @db.Timestamptz
+  heartbeatCount         Int               @default(0) @map("heartbeat_count")
+  maxGapSeconds          Int               @default(0) @map("max_gap_seconds")
+  backgroundTransitions  Int               @default(0) @map("background_transitions")
+  status                 FocusTimerStatus  @default(active)
+  finishedAt             DateTime?         @map("finished_at") @db.Timestamptz
+  createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  occurrence             Occurrence        @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  user                   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([occurrenceId, status])
+  @@map("focus_timer_sessions")
 }
 
 model Stake {
@@ -480,7 +553,7 @@ model NotificationSchedule {
 model AuditLog {
   id           String    @id @default(uuid()) @db.Uuid
   actorType    String    @map("actor_type")
-  actorId      String?   @map("actor_id")
+  actorId      String?   @map("actor_id") @db.Uuid
   entityType   String    @map("entity_type")
   entityId     String    @map("entity_id")
   action       String
@@ -508,6 +581,18 @@ model IdempotencyKey {
 
   @@index([scope, expiresAt])
   @@map("idempotency_keys")
+}
+
+// Single-use quote consumption. Inserting a row is the atomic "consume" step:
+// if the `jti` PK collides, the quote has already been used.
+model ConsumedQuote {
+  jti           String   @id
+  userId        String   @map("user_id") @db.Uuid
+  commitmentId  String?  @map("commitment_id") @db.Uuid
+  consumedAt    DateTime @default(now()) @map("consumed_at") @db.Timestamptz
+
+  @@index([userId, consumedAt])
+  @@map("consumed_quotes")
 }
 
 // Reliable event publishing (used later by settlement/notification/audit fanout)

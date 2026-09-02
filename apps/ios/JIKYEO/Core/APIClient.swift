@@ -9,7 +9,7 @@ public struct APIError: Error, Equatable {
 /// Minimal typed HTTP client. Uses async/await, injects `Authorization` header
 /// from `AuthStore`, and parses backend error envelopes.
 public final class APIClient {
-    public struct Empty: Decodable {}
+    public struct Empty: Codable {}
 
     private struct ErrorEnvelope: Decodable {
         struct Body: Decodable { let code: String; let message: String }
@@ -55,7 +55,7 @@ public final class APIClient {
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token = auth.currentAccessToken {
+        if let token = await MainActor.run(body: { auth.currentAccessToken }) {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         if let body = body {

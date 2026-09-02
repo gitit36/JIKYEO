@@ -6,34 +6,178 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if auth.isSignedIn {
-                MainTabs()
+            #if DEBUG
+            if let stage = DebugLaunch.stage, stage.hasPrefix("wizard-") {
+                CreateCommitmentWizardView(debugStage: stage).environmentObject(container)
+            } else if DebugLaunch.stage == "home-empty" || DebugLaunch.stage == "home-loaded" {
+                MainTabView(debugStage: DebugLaunch.stage)
+            } else if let stage = DebugLaunch.stage, stage.hasPrefix("proof-") {
+                ProofDebugView(stage: stage).environmentObject(container)
+            } else if let stage = DebugLaunch.stage, stage.hasPrefix("result-") {
+                ResultDebugView(stage: stage).environmentObject(container)
+            } else if let stage = DebugLaunch.stage, ["hero","goal","how","notify","signin"].contains(stage) {
+                OnboardingRootView(debugStage: stage)
+            } else if auth.isSignedIn {
+                MainTabView(debugStage: nil)
             } else {
-                OnboardingRootView()
+                OnboardingRootView(debugStage: nil)
             }
+            #else
+            if auth.isSignedIn {
+                MainTabView(debugStage: nil)
+            } else {
+                OnboardingRootView(debugStage: nil)
+            }
+            #endif
         }
-        .animation(.easeInOut(duration: 0.2), value: auth.isSignedIn)
     }
 }
 
-/// App IA per PRD §5 and product brief.
-private struct MainTabs: View {
+struct MainTabView: View {
+    let debugStage: String?
+    init(debugStage: String? = nil) { self.debugStage = debugStage }
     var body: some View {
         TabView {
-            HomeView()
+            HomeView(debugStage: debugStage)
                 .tabItem { Label("홈", systemImage: "house.fill") }
-
-            CreateCommitmentEntry()
-                .tabItem { Label("만들기", systemImage: "plus.circle.fill") }
-
             HistoryView()
-                .tabItem { Label("히스토리", systemImage: "list.bullet.rectangle") }
-
+                .tabItem { Label("기록", systemImage: "clock.arrow.circlepath") }
             FriendsView()
                 .tabItem { Label("친구", systemImage: "person.2.fill") }
-
             SettingsView()
-                .tabItem { Label("설정", systemImage: "gearshape") }
+                .tabItem { Label("설정", systemImage: "gearshape.fill") }
+        }
+        .tint(DS.Color.primary)
+    }
+}
+
+#if DEBUG
+/// Debug harness that pushes a specific proof screen into ProofFlowView
+/// without needing a live occurrence in the database.
+struct ProofDebugView: View {
+    let stage: String
+    @EnvironmentObject private var container: AppContainer
+    var body: some View {
+        ProofFlowView(occurrence: fixture)
+            .environmentObject(container)
+    }
+    private var fixture: TodayOccurrenceModel {
+        let method: VerificationMethod = {
+            switch stage {
+            case "proof-photo": return .photo
+            case "proof-gps":   return .gps
+            case "proof-timer": return .timer
+            case "proof-self":  return .self
+            default: return .photo
+            }
+        }()
+        let mode: EnforcementMode = (method == .timer || method == .self) ? .self : .money
+        return TodayOccurrenceModel(
+            id: "debug-occ",
+            commitmentId: "debug-c",
+            commitmentTitle: method == .timer ? "60분 공부하기" : "헬스장 가기",
+            verificationMethod: method,
+            methodLabel: method.label,
+            enforcementMode: mode,
+            status: "scheduled",
+            deadlineAt: Date().addingTimeInterval(3600 * 2),
+            stakeKrw: mode == .money ? 10_000 : 0,
+            chipKind: .scheduled,
+            showsProofCTA: true
+        )
+    }
+}
+
+struct ResultDebugView: View {
+    let stage: String
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        let pack = fixture()
+        NavigationStack {
+            ProofResultView(
+                occurrence: pack.occ,
+                result: pack.result,
+                onClose: { dismiss() },
+                onRetry: { }
+            )
+            .background(DS.Color.surfaceBackground.ignoresSafeArea())
+        }
+    }
+    private struct FixturePack { let result: VerificationResultResponse; let occ: TodayOccurrenceModel }
+    private func fixture() -> FixturePack {
+        let (r, _, o) = _fixture()
+        return FixturePack(result: r, occ: o)
+    }
+    private func _fixture() -> (VerificationResultResponse, Bool, TodayOccurrenceModel) {
+        switch stage {
+        case "result-pass-money":
+            return (
+                VerificationResultResponse(occurrenceId: "o", resultId: "r", result: .pass,
+                                           reasonCode: "GPS_INSIDE_RADIUS", userMessage: "지정한 장소에 도착했어요.",
+                                           confidence: 0.98, isMoneyCommitment: true),
+                true,
+                TodayOccurrenceModel(id: "o", commitmentId: "c", commitmentTitle: "헬스장 가기",
+                                     verificationMethod: .gps, methodLabel: Copy.Wizard.methodGps,
+                                     enforcementMode: .money, status: "pass",
+                                     deadlineAt: Date(), stakeKrw: 10_000, chipKind: .pass, showsProofCTA: false)
+            )
+        case "result-pass-self":
+            return (
+                VerificationResultResponse(occurrenceId: "o", resultId: "r", result: .pass,
+                                           reasonCode: "SELF_KEPT", userMessage: "약속을 지켰어요.",
+                                           confidence: 1.0, isMoneyCommitment: false),
+                false,
+                TodayOccurrenceModel(id: "o", commitmentId: "c", commitmentTitle: "60분 공부하기",
+                                     verificationMethod: .timer, methodLabel: Copy.Wizard.methodTimer,
+                                     enforcementMode: .self, status: "pass",
+                                     deadlineAt: Date(), stakeKrw: 0, chipKind: .pass, showsProofCTA: false)
+            )
+        case "result-uncertain":
+            return (
+                VerificationResultResponse(occurrenceId: "o", resultId: "r", result: .uncertain,
+                                           reasonCode: "PHOTO_LOW_CONFIDENCE",
+                                           userMessage: "사진만으로는 확실하게 확인하기 어려워요.",
+                                           confidence: 0.4, isMoneyCommitment: true),
+                true,
+                TodayOccurrenceModel(id: "o", commitmentId: "c", commitmentTitle: "헬스장 가기",
+                                     verificationMethod: .photo, methodLabel: Copy.Wizard.methodPhoto,
+                                     enforcementMode: .money, status: "uncertain",
+                                     deadlineAt: Date(), stakeKrw: 5_000, chipKind: .uncertain, showsProofCTA: false)
+            )
+        case "result-fail-self":
+            return (
+                VerificationResultResponse(occurrenceId: "o", resultId: "r", result: .fail,
+                                           reasonCode: "SELF_MISSED", userMessage: "약속을 놓쳤어요.",
+                                           confidence: 1.0, isMoneyCommitment: false),
+                false,
+                TodayOccurrenceModel(id: "o", commitmentId: "c", commitmentTitle: "명상 20분",
+                                     verificationMethod: .self, methodLabel: Copy.Wizard.methodSelf,
+                                     enforcementMode: .self, status: "fail",
+                                     deadlineAt: Date(), stakeKrw: 0, chipKind: .fail, showsProofCTA: false)
+            )
+        case "result-fail-money":
+            return (
+                VerificationResultResponse(occurrenceId: "o", resultId: "r", result: .fail,
+                                           reasonCode: "GPS_OUTSIDE_RADIUS", userMessage: "지정한 장소에 도착하지 않았어요.",
+                                           confidence: 1.0, isMoneyCommitment: true),
+                true,
+                TodayOccurrenceModel(id: "o", commitmentId: "c", commitmentTitle: "헬스장 가기",
+                                     verificationMethod: .gps, methodLabel: Copy.Wizard.methodGps,
+                                     enforcementMode: .money, status: "fail",
+                                     deadlineAt: Date(), stakeKrw: 10_000, chipKind: .fail, showsProofCTA: false)
+            )
+        default:
+            return (
+                VerificationResultResponse(occurrenceId: "o", resultId: "r", result: .pass,
+                                           reasonCode: "OK", userMessage: "약속을 지켰어요.",
+                                           confidence: 1.0, isMoneyCommitment: false),
+                false,
+                TodayOccurrenceModel(id: "o", commitmentId: "c", commitmentTitle: "약속",
+                                     verificationMethod: .self, methodLabel: Copy.Wizard.methodSelf,
+                                     enforcementMode: .self, status: "pass",
+                                     deadlineAt: Date(), stakeKrw: 0, chipKind: .pass, showsProofCTA: false)
+            )
         }
     }
 }
+#endif
