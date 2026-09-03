@@ -12,7 +12,7 @@ const FINAL_STATES: ReadonlySet<OccurrenceStatus> = new Set<OccurrenceStatus>(['
 
 export interface SettlementReport {
   commitmentId: string;
-  skipped: 'not_money' | 'not_funded' | null;
+  skipped: 'not_money' | 'not_funded' | 'not_active' | null;
   occurrencesSettled: number;
   occurrencesPending: number;
   completed: boolean;
@@ -55,6 +55,47 @@ export class SettlementService {
     private readonly cfg: AppConfig,
   ) {}
 
+  async listForUser(userId: string): Promise<Array<{
+    settlementId: string;
+    commitmentId: string;
+    occurrenceId: string;
+    sequenceNo: number;
+    result: string;
+    amountKrw: string;
+    status: string;
+    processedAt: string | null;
+  }>> {
+    const mine = await this.prisma.commitment.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    const ids = mine.map((c) => c.id);
+    if (ids.length === 0) return [];
+    const occs = await this.prisma.occurrence.findMany({
+      where: { commitmentId: { in: ids } },
+      select: { id: true, commitmentId: true, sequenceNo: true },
+    });
+    const occById = new Map(occs.map((o) => [o.id, o]));
+    const rows = await this.prisma.settlement.findMany({
+      where: { occurrenceId: { in: occs.map((o) => o.id) } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    return rows.map((s) => {
+      const o = occById.get(s.occurrenceId)!;
+      return {
+        settlementId: s.id,
+        commitmentId: o.commitmentId,
+        occurrenceId: s.occurrenceId,
+        sequenceNo: o.sequenceNo,
+        result: s.result,
+        amountKrw: s.amount.toString(),
+        status: s.status,
+        processedAt: s.processedAt?.toISOString() ?? null,
+      };
+    });
+  }
+
   async settleCommitment(commitmentId: string): Promise<SettlementReport> {
     const c = await this.prisma.commitment.findUnique({
       where: { id: commitmentId },
@@ -74,6 +115,9 @@ export class SettlementService {
     // No deposit → nothing to settle. A payment_pending commitment can never
     // forfeit money it was never charged.
     if (c.stake.status === 'pending') return { ...base, skipped: 'not_funded' };
+    // Funded but unsigned (signature_pending) is not enforceable and must
+    // not settle. Unsigned-payment expiry/cancel is a Phase 5 blocker.
+    if (c.status !== 'active' && c.status !== 'completed') return { ...base, skipped: 'not_active' };
 
     let settled = 0;
     let pending = 0;

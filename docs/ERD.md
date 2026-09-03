@@ -91,7 +91,7 @@ erDiagram
 | timezone | varchar | 생성 시 고정 |
 | strictness | enum | normal/hard |
 | extension_allowed | boolean | 연장 허용 |
-| status | enum | draft/payment_pending/active/completed/cancelled |
+| status | enum | draft/payment_pending/signature_pending/active/completed/cancelled |
 | max_loss_amount | bigint nullable | 전체 최대 손실 — MONEY 전용, SELF/SOCIAL은 NULL |
 | currency | char(3) nullable | KRW — MONEY 전용 |
 | signed_at | timestamptz | 서명 완료 시각 |
@@ -504,13 +504,17 @@ active → cancelled (future occurrences only)
 draft
   ↓ (quote issued and consumed)
 payment_pending
-  ↓ payment success
+  ↓ payment success (Stake funded + deposit)
+signature_pending
+  ↓ /sign
 active
   ↓
 completed
 
-draft/payment_pending → cancelled
+draft/payment_pending/signature_pending → cancelled
 active → cancelled (future occurrences only)
+
+결제 성공만으로 active가 되지 않는다. 서명 전 결제 만료/취소는 Phase 5 blocker (실 PG 출시 전 필수).
 ```
 
 ### Occurrence

@@ -111,7 +111,7 @@ public struct CreateCommitmentRequest: Codable {
 
 public struct CreateCommitmentResponse: Codable {
     public let commitmentId: String
-    /// `active` for SELF/SOCIAL, `payment_pending` for MONEY until the charge succeeds.
+    /// `active` for SELF/SOCIAL. MONEY: `payment_pending` until charge, then `signature_pending` until `/sign`.
     public let status: String
     public let enforcementMode: EnforcementMode
     public let occurrenceCount: Int

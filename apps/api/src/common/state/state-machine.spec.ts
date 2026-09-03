@@ -6,12 +6,14 @@ import { stakeSM } from './stake.state';
 describe('commitmentSM', () => {
   it('allows the happy path', () => {
     expect(() => commitmentSM.assert('draft', 'payment_pending')).not.toThrow();
-    expect(() => commitmentSM.assert('payment_pending', 'active')).not.toThrow();
+    expect(() => commitmentSM.assert('payment_pending', 'signature_pending')).not.toThrow();
+    expect(() => commitmentSM.assert('signature_pending', 'active')).not.toThrow();
     expect(() => commitmentSM.assert('active', 'completed')).not.toThrow();
   });
 
   it('rejects impossible transitions', () => {
     expect(() => commitmentSM.assert('draft', 'completed')).toThrow(InvalidStateTransitionError);
+    expect(() => commitmentSM.assert('payment_pending', 'active')).toThrow(InvalidStateTransitionError);
     expect(() => commitmentSM.assert('completed', 'active')).toThrow(InvalidStateTransitionError);
   });
 });

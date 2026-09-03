@@ -44,6 +44,18 @@ export interface WebhookEvent {
   raw: unknown;
 }
 
+/**
+ * The PG accepted the operation but the HTTP response was lost.
+ * `providerPaymentKey` is the stable external identity — retries MUST
+ * reuse it (via the same idempotencyKey) rather than opening a new charge.
+ */
+export class LostProviderResponseError extends Error {
+  constructor(readonly providerPaymentKey: string) {
+    super('PROVIDER_RESPONSE_LOST');
+    this.name = 'LostProviderResponseError';
+  }
+}
+
 export abstract class PaymentProvider {
   abstract readonly name: string;
 

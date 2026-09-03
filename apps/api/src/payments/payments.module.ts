@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { StakePolicyModule } from '../stake-policy/stake-policy.module';
 import { AppConfig } from '../config/app-config';
 import { LedgerService } from './ledger.service';
 import { MoneyStatusService } from './money-status.service';
@@ -10,7 +11,7 @@ import { MockPaymentProvider } from './providers/mock-payment-provider';
 import { PaymentProvider } from './providers/payment-provider';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, StakePolicyModule],
   controllers: [PaymentsController, PaymentWebhookController],
   providers: [
     LedgerService,

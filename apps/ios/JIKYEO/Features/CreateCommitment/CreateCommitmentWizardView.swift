@@ -158,6 +158,9 @@ struct CreateCommitmentWizardView: View {
                     model.step = .done
                 }
                 #endif
+                if debugStage == nil || debugStage == "wizard-resume-signature" {
+                    Task { await model.resumeUnsignedIfNeeded(container: container) }
+                }
             }
             .background(DS.Color.surfaceBackground.ignoresSafeArea())
             .toolbar {

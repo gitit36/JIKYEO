@@ -4,7 +4,8 @@ import { Clock } from '../common/clock/clock';
 import { DomainError, ForbiddenError, NotFoundError } from '../common/errors/domain-errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from './ledger.service';
-import { PaymentProvider, PaymentProviderResult, WebhookEvent } from './providers/payment-provider';
+import { LostProviderResponseError, PaymentProvider, PaymentProviderResult, WebhookEvent } from './providers/payment-provider';
+import { StakePolicyService } from '../stake-policy/stake-policy.service';
 
 export interface PaymentView {
   paymentId: string;
@@ -35,8 +36,9 @@ export const ledgerKeys = {
  * Owns the Payment lifecycle for MONEY commitments (SRD §5, TRD §10):
  *
  *   charge  → Payment(charge, requested) → PG → succeeded: ledger `deposit`,
- *             Stake pending→funded, Commitment payment_pending→active.
- *             failed: Payment failed; Commitment stays payment_pending.
+ *             Stake pending→funded, Commitment payment_pending→signature_pending.
+ *             failed: Payment failed; reservation released; stays payment_pending.
+ *             Payment success alone never activates — `/sign` does.
  *   refund  → Payment(refund, requested) → PG → succeeded: ledger `refund_paid`,
  *             Stake settling→refunded. failed: Payment failed (retryable).
  *   webhook → verified, deduped on (provider, eventId), then applied through
@@ -58,6 +60,7 @@ export class PaymentService {
     private readonly provider: PaymentProvider,
     private readonly ledger: LedgerService,
     private readonly clock: Clock,
+    private readonly stakePolicy: StakePolicyService,
   ) {}
 
   // ---------------------------------------------------------------- charge
@@ -71,7 +74,7 @@ export class PaymentService {
   async chargeUpfront(
     userId: string,
     commitmentId: string,
-    opts: { simulate?: 'charge_fail' } = {},
+    opts: { simulate?: 'charge_fail' | 'charge_lost' } = {},
   ): Promise<PaymentView> {
     const c = await this.prisma.commitment.findUnique({
       where: { id: commitmentId },
@@ -97,50 +100,75 @@ export class PaymentService {
       throw new DomainError('PAYMENT_ALREADY_COMPLETED', '이미 결제가 완료된 약속이에요.');
     }
     const inFlight = charges.find((p) => p.status === 'requested');
-    if (inFlight) return toView(inFlight);
+    if (inFlight) {
+      return this.finishCharge(inFlight, userId, c.stake.id, c.stake.maxTotalAmount, c.title, opts.simulate);
+    }
 
     const attempt = (charges[0]?.attempt ?? 0) + 1;
     const amount = c.stake.maxTotalAmount;
     let payment: Payment;
     try {
-      payment = await this.prisma.payment.create({
-        data: {
-          userId,
-          stakeId: c.stake.id,
-          commitmentId: c.id,
-          provider: this.provider.name,
-          type: 'charge',
-          amount,
-          currency: 'KRW',
-          status: 'requested',
-          attempt,
-          idempotencyKey: `charge:${c.id}:${attempt}`,
-        },
+      payment = await this.prisma.$transaction(async (tx) => {
+        await lockUserPayments(tx, userId);
+        await this.stakePolicy.assertPaymentFitsCap(userId, c.id, amount, tx);
+        return tx.payment.create({
+          data: {
+            userId,
+            stakeId: c.stake!.id,
+            commitmentId: c.id,
+            provider: this.provider.name,
+            type: 'charge',
+            amount,
+            currency: 'KRW',
+            status: 'requested',
+            attempt,
+            idempotencyKey: `charge:${c.id}:${attempt}`,
+          },
+        });
       });
     } catch (e) {
       if ((e as { code?: string }).code === 'P2002') {
-        // A concurrent request created this attempt first. Return it instead
-        // of charging again — the PG is called at most once per attempt.
         const winner = await this.prisma.payment.findUnique({ where: { idempotencyKey: `charge:${c.id}:${attempt}` } });
-        if (winner) return toView(winner);
+        if (winner) return this.finishCharge(winner, userId, c.stake.id, amount, c.title, opts.simulate);
       }
       throw e;
     }
 
+    return this.finishCharge(payment, userId, c.stake.id, amount, c.title, opts.simulate);
+  }
+
+  /**
+   * Drive one charge attempt to a terminal (or still-unknown) outcome.
+   * Always reuses `payment.idempotencyKey` so a lost response cannot open a
+   * second PG operation.
+   */
+  private async finishCharge(
+    payment: Payment,
+    userId: string,
+    stakeId: string,
+    amount: bigint,
+    title: string,
+    simulate?: 'charge_fail' | 'charge_lost',
+  ): Promise<PaymentView> {
+    if (payment.status !== 'requested') return toView(payment);
     let result: PaymentProviderResult;
     try {
       result = await this.provider.charge({
         idempotencyKey: payment.idempotencyKey,
         userId,
-        stakeId: c.stake.id,
+        stakeId,
         amount,
         currency: 'KRW',
-        description: `JIKYEO 약속금 (${c.title})`,
-        metadata: opts.simulate ? { simulate: opts.simulate } : undefined,
+        description: `JIKYEO 약속금 (${title})`,
+        metadata: simulate ? { simulate } : undefined,
       });
     } catch (e) {
-      // Provider unreachable: leave the payment `requested` so a webhook or
-      // reconciliation can finish it. The commitment stays payment_pending.
+      if (e instanceof LostProviderResponseError) {
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: { providerPaymentKey: e.providerPaymentKey },
+        });
+      }
       this.logger.warn(`charge provider error for ${payment.id}: ${(e as Error).message}`);
       throw new DomainError('PAYMENT_PROVIDER_ERROR', '결제사 연결에 문제가 있어요. 잠시 후 다시 시도해주세요.');
     }
@@ -211,7 +239,7 @@ export class PaymentService {
       );
       await tx.commitment.updateMany({
         where: { id: payment.commitmentId, status: 'payment_pending' },
-        data: { status: 'active' },
+        data: { status: 'signature_pending' },
       });
       return saved;
     });
@@ -241,7 +269,9 @@ export class PaymentService {
     const done = refunds.find((p) => p.status === 'succeeded');
     if (done) return toView(done);
     const inFlight = refunds.find((p) => p.status === 'requested');
-    if (inFlight) return toView(inFlight);
+    if (inFlight) {
+      return this.finishRefund(inFlight, charge.providerPaymentKey, amount, reason);
+    }
 
     const attempt = (refunds[0]?.attempt ?? 0) + 1;
     const payment = await this.prisma.payment.create({
@@ -258,22 +288,35 @@ export class PaymentService {
         idempotencyKey: `refund:${commitmentId}:${attempt}`,
       },
     });
+    return this.finishRefund(payment, charge.providerPaymentKey, amount, reason);
+  }
 
+  private async finishRefund(
+    payment: Payment,
+    providerPaymentKey: string,
+    amount: bigint,
+    reason: string,
+  ): Promise<PaymentView> {
+    if (payment.status !== 'requested') return toView(payment);
     let result: PaymentProviderResult;
     try {
       result = await this.provider.refund({
         idempotencyKey: payment.idempotencyKey,
-        providerPaymentKey: charge.providerPaymentKey,
+        providerPaymentKey,
         amount,
         reason,
       });
     } catch (e) {
+      if (e instanceof LostProviderResponseError) {
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: { providerPaymentKey: e.providerPaymentKey },
+        });
+      }
       this.logger.warn(`refund provider error for ${payment.id}: ${(e as Error).message}`);
-      // Leave `requested`; webhook/reconciliation resolves it. Status shows 환불 중.
-      return toView(payment);
+      return toView({ ...payment, providerPaymentKey: (e as LostProviderResponseError).providerPaymentKey ?? payment.providerPaymentKey });
     }
-    const updated = await this.applyRefundResult(payment.id, result.status, result.failureCode ?? null);
-    return toView(updated);
+    return toView(await this.applyRefundResult(payment.id, result.status, result.failureCode ?? null));
   }
 
   async applyRefundResult(
@@ -423,17 +466,29 @@ export class PaymentService {
   async reconcileStale(olderThanMs = 5 * 60_000): Promise<{ checked: number; resolved: number }> {
     const cutoff = new Date(this.clock.now().getTime() - olderThanMs);
     const stale = await this.prisma.payment.findMany({
-      where: { status: 'requested', createdAt: { lt: cutoff }, providerPaymentKey: { not: null } },
+      where: { status: 'requested', createdAt: { lt: cutoff } },
     });
     let resolved = 0;
     for (const p of stale) {
-      const status = await this.provider.getStatus(p.providerPaymentKey!);
+      const key = p.providerPaymentKey;
+      if (!key) continue;
+      const status = await this.provider.getStatus(key);
       const after = p.type === 'charge'
         ? await this.applyChargeResult(p.id, status.status, status.providerPaymentKey, status.failureCode ?? null)
         : await this.applyRefundResult(p.id, status.status, status.failureCode ?? null);
       if (after.status !== 'requested') resolved += 1;
     }
     return { checked: stale.length, resolved };
+  }
+}
+
+/** Serialise cap-check + reservation insert per user (PG advisory lock). */
+async function lockUserPayments(tx: { $executeRaw?: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> }, userId: string): Promise<void> {
+  if (typeof tx.$executeRaw !== 'function') return;
+  try {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId})::bigint)`;
+  } catch {
+    // In-memory test DB has no advisory locks; $transaction serialisation covers it.
   }
 }
 

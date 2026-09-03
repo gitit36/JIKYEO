@@ -18,22 +18,7 @@ export class SettlementController {
   /** Per-occurrence settlement rows for the caller's MONEY commitments. */
   @Get('settlements')
   async mine(@Req() req: AuthedRequest): Promise<unknown> {
-    const rows = await this.prisma.settlement.findMany({
-      where: { occurrence: { commitment: { userId: req.userId } } },
-      include: { occurrence: { select: { commitmentId: true, sequenceNo: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    });
-    return rows.map((s) => ({
-      settlementId: s.id,
-      commitmentId: s.occurrence.commitmentId,
-      occurrenceId: s.occurrenceId,
-      sequenceNo: s.occurrence.sequenceNo,
-      result: s.result,
-      amountKrw: s.amount.toString(),
-      status: s.status,
-      processedAt: s.processedAt?.toISOString() ?? null,
-    }));
+    return this.settlement.listForUser(req.userId);
   }
 
   /**

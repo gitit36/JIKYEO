@@ -1,4 +1,5 @@
 import { FrozenClock } from '../common/clock/clock';
+import { CommitmentService } from '../commitments/commitment.service';
 import { LedgerService } from '../payments/ledger.service';
 import { MoneyStatusService } from '../payments/money-status.service';
 import { PaymentService } from '../payments/payment.service';
@@ -11,7 +12,7 @@ import { SettlementService } from './settlement.service';
 /**
  * Phase 4 — MONEY lifecycle with MockPaymentProvider, end to end:
  *
- *   payment_pending ──charge──▶ active/funded ──verdicts──▶ settlement ──▶ one aggregate refund
+ *   payment_pending ──charge──▶ signature_pending/funded ──sign──▶ active ──verdicts──▶ settlement
  *
  * Invariants pinned here (SRD §5, TRD §10):
  *   - MONEY never activates without a successful charge.
@@ -31,17 +32,26 @@ function make() {
   const clock = new FrozenClock(NOW);
   const provider = new MockPaymentProvider();
   const ledger = new LedgerService(prisma);
-  const payments = new PaymentService(prisma, provider, ledger, clock);
+  const users = { findById: async (id: string) => ({ id, stakeTier: 'tier_1' }) } as any;
+  const policy = new StakePolicyService(prisma, users, DEFAULT_STAKE_POLICY_CONFIG, clock);
+  const payments = new PaymentService(prisma, provider, ledger, clock, policy);
   const cfg = { nodeEnv: 'test' } as any;
   const settlement = new SettlementService(prisma, ledger, payments, clock, cfg);
   const money = new MoneyStatusService(prisma, ledger);
-  return { db, clock, provider, ledger, payments, settlement, money };
+  const commitments = new CommitmentService(prisma, {} as any, {} as any, {} as any, users, policy, clock, { log: async () => undefined } as any, money);
+  return { db, clock, provider, ledger, payments, settlement, money, policy, commitments };
 }
 
 async function fundedThreeByFive(ctx = make()) {
   await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 5_000n, count: 3 });
   await ctx.payments.chargeUpfront(USER, C);
   return ctx;
+}
+
+async function activeThreeByFive(ctx = make()) {
+  const funded = await fundedThreeByFive(ctx);
+  await funded.commitments.sign(USER, C);
+  return funded;
 }
 
 async function verdicts(ctx: ReturnType<typeof make>, statuses: string[]): Promise<void> {
@@ -82,7 +92,7 @@ describe('Phase 4 — MONEY activation gating', () => {
     expect(ctx.db.settlement.rows).toHaveLength(0);
   });
 
-  it('a failed charge can be retried and then activates the commitment', async () => {
+  it('a failed charge can be retried; success funds the stake but does not activate', async () => {
     const ctx = make();
     await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 5_000n, count: 3 });
     await expect(ctx.payments.chargeUpfront(USER, C, { simulate: 'charge_fail' })).rejects.toMatchObject({ code: 'PAYMENT_FAILED' });
@@ -93,10 +103,44 @@ describe('Phase 4 — MONEY activation gating', () => {
     expect(view.amountKrw).toBe('15000');
 
     const c = await ctx.db.commitment.findUnique({ where: { id: C }, include: { stake: true } });
-    expect(c!.status).toBe('active');
+    expect(c!.status).toBe('signature_pending');
     expect(c!.stake.status).toBe('funded');
+    expect(c!.signatureCompleted).toBe(false);
     expect(ledgerRows(ctx, 'deposit').map((r) => r.amount)).toEqual([15_000n]);
     expect((await ctx.money.forCommitment(C))!.status).toBe('funded');
+  });
+
+  it('payment success alone does not activate; /sign after funding is required and idempotent', async () => {
+    const ctx = await fundedThreeByFive();
+    const before = await ctx.db.commitment.findUnique({ where: { id: C } });
+    expect(before!.status).toBe('signature_pending');
+    expect(before!.signatureCompleted).toBe(false);
+
+    const first = await ctx.commitments.sign(USER, C);
+    expect(first.status).toBe('active');
+    const second = await ctx.commitments.sign(USER, C);
+    expect(second.status).toBe('active');
+    expect(second.signedAt).toBe(first.signedAt);
+
+    const after = await ctx.db.commitment.findUnique({ where: { id: C } });
+    expect(after!.status).toBe('active');
+    expect(after!.signatureCompleted).toBe(true);
+  });
+
+  it('signing before funding is rejected', async () => {
+    const ctx = make();
+    await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 5_000n, count: 3 });
+    await expect(ctx.commitments.sign(USER, C)).rejects.toMatchObject({ code: 'INVALID_STATE_TRANSITION' });
+    expect((await ctx.db.commitment.findUnique({ where: { id: C } }))!.status).toBe('payment_pending');
+  });
+
+  it('signature_pending is excluded from settlement (and therefore Today/Timer/deadline/verification gates)', async () => {
+    const ctx = await fundedThreeByFive(); // funded but NOT yet signed → signature_pending
+    await verdicts(ctx, ['pass', 'fail', 'pass']);
+    const report = await ctx.settlement.settleCommitment(C);
+    expect(report.skipped).toBe('not_active');
+    expect(ctx.db.settlement.rows).toHaveLength(0);
+    expect(ledgerRows(ctx, 'forfeit')).toHaveLength(0);
   });
 
   it('charges the server-authoritative maxLoss (stake.maxTotalAmount), not a client value', async () => {
@@ -187,7 +231,7 @@ describe('Phase 4 — payment idempotency', () => {
 
 describe('Phase 4 — settlement (3 × 5,000 = 15,000 upfront)', () => {
   it('PASS / FAIL / PASS → 10,000 refundable, 5,000 forfeited', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
     const report = await ctx.settlement.settleCommitment(C);
 
@@ -199,7 +243,7 @@ describe('Phase 4 — settlement (3 × 5,000 = 15,000 upfront)', () => {
   });
 
   it('commitment-end aggregate refund is exactly one 10,000 refund', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
     const report = await ctx.settlement.settleCommitment(C);
 
@@ -220,7 +264,7 @@ describe('Phase 4 — settlement (3 × 5,000 = 15,000 upfront)', () => {
   });
 
   it('all PASS → 15,000 refund', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['pass', 'pass', 'pass']);
     const report = await ctx.settlement.settleCommitment(C);
     expect(report.refund).toMatchObject({ status: 'succeeded', amountKrw: '15000' });
@@ -230,7 +274,7 @@ describe('Phase 4 — settlement (3 × 5,000 = 15,000 upfront)', () => {
   });
 
   it('all FAIL → 0 refund (no refund payment, stake settled, ledger balanced)', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['fail', 'fail', 'fail']);
     const report = await ctx.settlement.settleCommitment(C);
     expect(report.completed).toBe(true);
@@ -239,12 +283,18 @@ describe('Phase 4 — settlement (3 × 5,000 = 15,000 upfront)', () => {
     expect(ctx.provider.calls.refund).toBe(0);
     const stake = await ctx.db.stake.findUnique({ where: { commitmentId: C } });
     expect(stake!.status).toBe('settled');
-    expect((await ctx.money.forCommitment(C))!.status).toBe('settled_no_refund');
+    expect((await ctx.money.forCommitment(C))!).toMatchObject({
+      status: 'settled_no_refund',
+      label: '정산 완료',
+      refundableKrw: '0',
+      forfeitedKrw: '15000',
+      refundPaidKrw: '0',
+    });
     await expectClosedLedgerBalanced(ctx);
   });
 
   it('VOID counts as refundable (cancelled remainder is returned)', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['fail', 'void', 'void']);
     const report = await ctx.settlement.settleCommitment(C);
     expect(report.refund).toMatchObject({ status: 'succeeded', amountKrw: '10000' });
@@ -252,7 +302,7 @@ describe('Phase 4 — settlement (3 × 5,000 = 15,000 upfront)', () => {
   });
 
   it('UNCERTAIN cannot settle — commitment stays open, no refund, money still 약속금 걸림', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['pass', 'uncertain', 'pass']);
     const report = await ctx.settlement.settleCommitment(C);
 
@@ -269,7 +319,7 @@ describe('Phase 4 — settlement (3 × 5,000 = 15,000 upfront)', () => {
   });
 
   it('system_hold cannot settle — a platform outage never costs the user money', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['pass', 'system_hold', 'fail']);
     const report = await ctx.settlement.settleCommitment(C);
     expect(report.completed).toBe(false);
@@ -288,7 +338,7 @@ describe('Phase 4 — settlement (3 × 5,000 = 15,000 upfront)', () => {
   });
 
   it('re-running settlement never double-settles or double-refunds', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
     await ctx.settlement.settleCommitment(C);
     await ctx.settlement.settleCommitment(C);
@@ -302,7 +352,7 @@ describe('Phase 4 — settlement (3 × 5,000 = 15,000 upfront)', () => {
   });
 
   it('concurrent settlement passes are serialised by the unique settlement key', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
     await Promise.all([ctx.settlement.settleCommitment(C), ctx.settlement.settleCommitment(C)]);
     expect(ctx.db.settlement.rows).toHaveLength(3);
@@ -315,7 +365,7 @@ describe('Phase 4 — settlement (3 × 5,000 = 15,000 upfront)', () => {
 
 describe('Phase 4 — refund retry', () => {
   it('a failed refund shows 환불 지연, retry succeeds, and the ledger posts refund_paid exactly once', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
     ctx.provider.failNextRefund = true;
 
@@ -342,7 +392,7 @@ describe('Phase 4 — refund retry', () => {
   });
 
   it('refund webhook confirming an in-flight refund is applied once and deduped afterwards', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
     await ctx.settlement.settleCommitment(C);
     const chargeKey = ctx.db.payment.rows[0].providerPaymentKey as string;
@@ -366,7 +416,7 @@ describe('Phase 4 — ledger invariants', () => {
       ['void', 'void', 'void'],
     ];
     for (const s of scenarios) {
-      const ctx = await fundedThreeByFive();
+      const ctx = await activeThreeByFive();
       await verdicts(ctx, s);
       await ctx.settlement.settleCommitment(C);
       const totals = await ctx.ledger.totalsForCommitment(C);
@@ -380,7 +430,7 @@ describe('Phase 4 — ledger invariants', () => {
   });
 
   it('every ledger entry carries a unique idempotency key (append-only, no duplicates)', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
     await ctx.settlement.settleCommitment(C);
     const keys = ctx.db.paymentLedger.rows.map((r) => r.idempotencyKey);
@@ -392,7 +442,11 @@ describe('Phase 4 — ledger invariants', () => {
 describe('Phase 4 — StakePolicy still enforced', () => {
   function policyFor(tier: 'tier_1' | 'tier_2' | 'tier_3') {
     const users = { findById: async (id: string) => ({ id, stakeTier: tier }) } as any;
-    const prisma = { paymentLedger: { aggregate: async () => ({ _sum: { amount: 0n } }) } } as any;
+    const prisma = {
+      paymentLedger: { findMany: async () => [], aggregate: async () => ({ _sum: { amount: 0n } }) },
+      commitment: { findMany: async () => [] },
+      payment: { findMany: async () => [] },
+    } as any;
     return new StakePolicyService(prisma, users, DEFAULT_STAKE_POLICY_CONFIG);
   }
 
@@ -404,7 +458,7 @@ describe('Phase 4 — StakePolicy still enforced', () => {
   });
 
   it('settled forfeits reduce the rolling monthly loss budget; unsettled behavioral FAILs do not', async () => {
-    const ctx = await fundedThreeByFive();
+    const ctx = await activeThreeByFive();
     const users = { findById: async (id: string) => ({ id, stakeTier: 'tier_1' }) } as any;
     // In-memory ledger rows are stamped 2026-01-01; evaluate the 30-day window from just after that.
     const policy = new StakePolicyService(
@@ -415,9 +469,11 @@ describe('Phase 4 — StakePolicy still enforced', () => {
     );
 
     await verdicts(ctx, ['pass', 'fail', 'pass']);
-    expect((await policy.forUser(USER)).rollingMonthlyLossRemainingKrw).toBe(300_000);
+    // Funded non-final: reserve full 15,000. Unsettled FAIL does not count as realized.
+    expect((await policy.forUser(USER)).rollingMonthlyLossRemainingKrw).toBe(285_000);
 
     await ctx.settlement.settleCommitment(C);
+    // Completed: reservation released, only the 5,000 settled forfeit remains.
     expect((await policy.forUser(USER)).rollingMonthlyLossRemainingKrw).toBe(295_000);
   });
 
@@ -427,5 +483,94 @@ describe('Phase 4 — StakePolicy still enforced', () => {
     const charge = ctx.db.payment.rows.find((p) => p.type === 'charge');
     expect(charge!.amount).toBe(stake!.maxTotalAmount);
     expect(Number(stake!.maxTotalAmount)).toBeLessThanOrEqual(DEFAULT_STAKE_POLICY_CONFIG.tier_1.maxPerCommitmentKrw);
+  });
+
+  it('concurrent charges cannot bypass the rolling cap; a commitment is never reserved and realized together', async () => {
+    const ctx = make();
+    await ctx.db.seedMoneyCommitment({ id: 'a', userId: USER, perOccurrence: 200_000n, count: 1 });
+    await ctx.db.seedMoneyCommitment({ id: 'b', userId: USER, perOccurrence: 200_000n, count: 1 });
+    const results = await Promise.allSettled([
+      ctx.payments.chargeUpfront(USER, 'a'),
+      ctx.payments.chargeUpfront(USER, 'b'),
+    ]);
+    const ok = results.filter((r) => r.status === 'fulfilled');
+    const denied = results.filter((r) => r.status === 'rejected');
+    expect(ok).toHaveLength(1);
+    expect(denied).toHaveLength(1);
+    expect((denied[0] as PromiseRejectedResult).reason).toMatchObject({ code: 'STAKE_TIER_LIMIT_EXCEEDED' });
+    expect(ctx.db.payment.rows.filter((p) => p.status === 'succeeded')).toHaveLength(1);
+    expect(ctx.db.payment.rows.filter((p) => p.status === 'requested')).toHaveLength(0);
+    const exp = await ctx.policy.rollingExposure(USER);
+    expect(exp.reservedKrw).toBe(200_000);
+    expect(exp.realizedForfeitKrw).toBe(0);
+  });
+});
+
+describe('Phase 4.1 — unknown provider outcomes', () => {
+  it('lost charge response: retry/reconcile yields one PG charge and one deposit', async () => {
+    const ctx = make();
+    await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 5_000n, count: 3 });
+    await expect(ctx.payments.chargeUpfront(USER, C, { simulate: 'charge_lost' })).rejects.toMatchObject({
+      code: 'PAYMENT_PROVIDER_ERROR',
+    });
+    const pending = ctx.db.payment.rows[0];
+    expect(pending.status).toBe('requested');
+    expect(pending.providerPaymentKey).toBeTruthy();
+    expect(ctx.provider.calls.charge).toBe(1);
+    expect(ledgerRows(ctx, 'deposit')).toHaveLength(0);
+    expect((await ctx.db.commitment.findUnique({ where: { id: C } }))!.status).toBe('payment_pending');
+
+    const view = await ctx.payments.chargeUpfront(USER, C);
+    expect(view.status).toBe('succeeded');
+    expect(view.paymentId).toBe(pending.id);
+    expect(view.attempt).toBe(1);
+    expect(ctx.provider.calls.charge).toBe(1);
+    expect(ctx.db.payment.rows.filter((p) => p.type === 'charge')).toHaveLength(1);
+    expect(ledgerRows(ctx, 'deposit')).toHaveLength(1);
+    expect((await ctx.db.commitment.findUnique({ where: { id: C } }))!.status).toBe('signature_pending');
+  });
+
+  it('lost refund response: retry yields one PG refund and one refund_paid', async () => {
+    const ctx = await activeThreeByFive();
+    await verdicts(ctx, ['pass', 'fail', 'pass']);
+    ctx.provider.loseNextRefund = true;
+    const first = await ctx.settlement.settleCommitment(C);
+    expect(first.refund?.status).toBe('requested');
+    expect(ctx.provider.calls.refund).toBe(1);
+    expect(ledgerRows(ctx, 'refund_paid')).toHaveLength(0);
+
+    const second = await ctx.settlement.retryRefund(C);
+    expect(second.refund).toMatchObject({ status: 'succeeded', attempt: 1, amountKrw: '10000' });
+    expect(ctx.provider.calls.refund).toBe(1);
+    expect(ctx.db.payment.rows.filter((p) => p.type === 'refund')).toHaveLength(1);
+    expect(ledgerRows(ctx, 'refund_paid')).toHaveLength(1);
+    await expectClosedLedgerBalanced(ctx);
+  });
+});
+
+describe('Phase 4.1 — authorization', () => {
+  it('payment, money, sign, settle, and settlements list deny the other user', async () => {
+    const ctx = await fundedThreeByFive();
+    await expect(ctx.payments.chargeUpfront('u2', C)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(ctx.money.forOwnedCommitment('u2', C)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(ctx.commitments.sign('u2', C)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(ctx.payments.getOwned('u2', ctx.db.payment.rows[0].id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    await ctx.db.seedMoneyCommitment({ id: 'other', userId: 'u2', perOccurrence: 5_000n, count: 1 });
+    await ctx.payments.chargeUpfront('u2', 'other');
+    await ctx.db.activateSigned('other');
+    await ctx.db.setOccurrenceStatus('other_o1', 'fail');
+    await ctx.settlement.settleCommitment('other');
+
+    await ctx.db.activateSigned(C);
+    await verdicts(ctx, ['fail', 'fail', 'fail']);
+    await ctx.settlement.settleCommitment(C);
+
+    const mine = await ctx.settlement.listForUser(USER);
+    const theirs = await ctx.settlement.listForUser('u2');
+    expect(mine.every((s) => s.commitmentId === C)).toBe(true);
+    expect(theirs.every((s) => s.commitmentId === 'other')).toBe(true);
+    expect(mine).toHaveLength(3);
+    expect(theirs).toHaveLength(1);
   });
 });

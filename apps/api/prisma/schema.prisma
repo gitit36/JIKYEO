@@ -64,6 +64,7 @@ enum Strictness {
 enum CommitmentStatus {
   draft
   payment_pending
+  signature_pending
   active
   completed
   cancelled

@@ -56,7 +56,8 @@
 - 클라이언트가 상한을 조작해도 서버가 최종 거부해야 한다.
 
 ### SR-FR-004 결제 (MONEY 모드 전용)
-- 약속 활성화 전 선결제가 성공해야 한다.
+- 선결제 성공은 Stake funded + `signature_pending`까지만 만든다. `/sign`이 끝나야 `active`가 된다. 결제 성공만으로 활성화하지 않는다.
+- 서명 전 결제 만료/취소는 Phase 5 blocker이며 실 PG 출시 전 완료해야 한다.
 - 중복 결제를 막기 위해 idempotency key를 사용해야 한다.
 - 서버 서명 quote를 사용해야 하며, 각 quote는 unique `jti`로 식별되고 한 번만 소비된다 (`consumed_quotes`).
 - Quote 서명 시크릿(`QUOTE_SIGNING_SECRET`)은 JWT 시크릿과 분리되어야 한다.

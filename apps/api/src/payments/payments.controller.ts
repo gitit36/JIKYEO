@@ -24,7 +24,8 @@ export class PaymentsController {
 
   /**
    * Charge the upfront max-loss for a payment_pending MONEY commitment.
-   * Idempotent per commitment. On success the commitment becomes `active`.
+   * Idempotent per commitment. On success: Stake funded, commitment
+   * `signature_pending`. Activation happens only at `/sign`.
    */
   @Post('commitments/:id/pay')
   @HttpCode(200)

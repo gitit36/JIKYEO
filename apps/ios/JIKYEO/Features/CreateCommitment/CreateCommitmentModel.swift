@@ -81,9 +81,22 @@ public final class CreateCommitmentModel: ObservableObject {
 
     // MARK: - Payment (MONEY only, Phase 4)
     //
-    // MONEY commitments are created in `payment_pending` and only become
-    // `active` on the server once the upfront charge succeeds. The client
-    // never decides that; it just reflects `PaymentView`/`MoneyView`.
+    // MONEY: payment_pending → charge success → signature_pending → /sign → active.
+    // Payment success alone must not activate. Persist the unsigned id so
+    // relaunch can resume the Signature step.
+    private static let unsignedKey = "jikyeo.unsignedMoneyCommitmentId"
+
+    public static func pendingUnsignedId() -> String? {
+        UserDefaults.standard.string(forKey: unsignedKey)
+    }
+
+    public static func persistUnsigned(_ id: String) {
+        UserDefaults.standard.set(id, forKey: unsignedKey)
+    }
+
+    public static func clearUnsigned() {
+        UserDefaults.standard.removeObject(forKey: unsignedKey)
+    }
     public enum PaymentState: Equatable {
         case idle
         case charging
@@ -292,11 +305,8 @@ public final class CreateCommitmentModel: ObservableObject {
         }
     }
 
-    /// MONEY: create the commitment (lands in `payment_pending`) if not yet
-    /// created, then charge the server-authoritative upfront amount through the
-    /// configured PaymentProvider. On success the server flips the commitment
-    /// to `active`; we move on to the signature ritual. On failure the
-    /// commitment stays `payment_pending` and the user can retry.
+    /// MONEY: create (`payment_pending`) then charge. Success → `signature_pending`.
+    /// Failure keeps `payment_pending` so the user can retry.
     public func createAndPay(container: AppContainer) async {
         guard enforcementMode == .money else { return }
         errorMessage = nil
@@ -319,6 +329,7 @@ public final class CreateCommitmentModel: ObservableObject {
             moneyView = res.money
             if res.payment.status == "succeeded" {
                 paymentState = .succeeded
+                CreateCommitmentModel.persistUnsigned(id)
                 step = .signature
             } else {
                 // `requested` = PG confirmation pending (webhook). Stay here and let the user refresh.
@@ -334,7 +345,7 @@ public final class CreateCommitmentModel: ObservableObject {
         }
     }
 
-    /// MONEY: record the signature ritual on the (already active) commitment.
+    /// MONEY: record the signature ritual; server transitions signature_pending → active.
     public func sign(container: AppContainer) async {
         guard let id = createdCommitmentId else { return }
         errorMessage = nil
@@ -342,6 +353,7 @@ public final class CreateCommitmentModel: ObservableObject {
         defer { isSubmitting = false }
         do {
             _ = try await container.commitmentAPI.sign(commitmentId: id)
+            CreateCommitmentModel.clearUnsigned()
             await refreshMoneyView(container: container)
             step = .done
         } catch let e as APIError {
@@ -349,6 +361,22 @@ public final class CreateCommitmentModel: ObservableObject {
         } catch {
             errorMessage = "다시 시도해주세요."
         }
+    }
+
+    /// After relaunch, resume Signature if a funded-but-unsigned MONEY commitment exists.
+    public func resumeUnsignedIfNeeded(container: AppContainer) async {
+        let items = (try? await container.commitmentAPI.listMine()) ?? []
+        let pending = items.first(where: { $0.status == "signature_pending" })
+            ?? items.first(where: { $0.id == CreateCommitmentModel.pendingUnsignedId() && $0.status != "active" && $0.status != "completed" && $0.status != "cancelled" })
+        guard let pending else { return }
+        createdCommitmentId = pending.id
+        createdEnforcementMode = pending.enforcementMode
+        createdMaxLossKrw = Int64(pending.maxLossKrw ?? "0") ?? 0
+        enforcementMode = .money
+        paymentState = .succeeded
+        moneyView = pending.money
+        CreateCommitmentModel.persistUnsigned(pending.id)
+        step = .signature
     }
 
     public func refreshMoneyView(container: AppContainer) async {

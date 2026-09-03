@@ -6,8 +6,21 @@ import { DEFAULT_STAKE_POLICY_CONFIG, StakePolicyService } from './stake-policy.
 function makeService(tier: 'tier_1' | 'tier_2' | 'tier_3' = 'tier_1', forfeitedThisMonthKrw = 0): StakePolicyService {
   const stub = {
     paymentLedger: {
+      findMany: async () =>
+        forfeitedThisMonthKrw > 0
+          ? [{ commitmentId: 'done1', amount: BigInt(forfeitedThisMonthKrw) }]
+          : [],
       aggregate: async () => ({ _sum: { amount: BigInt(forfeitedThisMonthKrw) } }),
     },
+    commitment: {
+      findMany: async (args: { where?: { id?: { in?: string[] } } } = {}) => {
+        if (args.where?.id?.in?.includes('done1') || forfeitedThisMonthKrw > 0) {
+          return [{ id: 'done1', status: 'completed', enforcementMode: 'money', stake: null }];
+        }
+        return [];
+      },
+    },
+    payment: { findMany: async () => [] },
     user: {
       findUnique: async () => ({
         id: 'u1',

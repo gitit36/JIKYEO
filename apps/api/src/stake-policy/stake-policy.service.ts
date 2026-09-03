@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { StakeTier } from '@prisma/client';
 import { Clock, SystemClock } from '../common/clock/clock';
 import { DomainError } from '../common/errors/domain-errors';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { StakePolicyResponse, StakeTierConfig } from './stake-policy.types';
@@ -72,29 +73,99 @@ export class StakePolicyService {
   async forUser(userId: string): Promise<StakePolicyResponse> {
     const tier = await this.tierOf(userId);
     const cfg = this.configFor(tier);
-    const forfeited = await this.rollingMonthlyForfeitKrw(userId);
+    const { reservedKrw, realizedForfeitKrw } = await this.rollingExposure(userId);
     return {
       currentTier: tier,
       maxPerOccurrenceKrw: cfg.maxPerOccurrenceKrw,
       maxPerCommitmentKrw: cfg.maxPerCommitmentKrw,
       rollingMonthlyLossCapKrw: cfg.rollingMonthlyLossCapKrw,
-      rollingMonthlyLossRemainingKrw: Math.max(0, cfg.rollingMonthlyLossCapKrw - forfeited),
+      rollingMonthlyLossRemainingKrw: Math.max(0, cfg.rollingMonthlyLossCapKrw - reservedKrw - realizedForfeitKrw),
       suggestedAmountsKrw: cfg.suggestedAmountsKrw,
     };
   }
 
   /**
-   * Money actually forfeited by this user in the trailing 30 days, read from
-   * the append-only ledger (settled FAIL occurrences only — behavioral FAILs
-   * that have not settled do not count).
+   * A commitment consumes the rolling cap exactly once:
+   *   - funded / settling / unknown-in-flight MONEY → reserve full maxTotalAmount
+   *   - completed / cancelled → count only settled forfeit inside the window
+   * Never both.
    */
-  async rollingMonthlyForfeitKrw(userId: string): Promise<number> {
+  async rollingExposure(
+    userId: string,
+    tx?: PrismaService | Prisma.TransactionClient,
+    excludeCommitmentId?: string,
+  ): Promise<{ reservedKrw: number; realizedForfeitKrw: number }> {
+    const db = tx ?? this.prisma;
     const since = new Date(this.clock.now().getTime() - 30 * 24 * 60 * 60 * 1000);
-    const agg = await this.prisma.paymentLedger.aggregate({
-      where: { userId, entryType: 'forfeit', createdAt: { gte: since } },
-      _sum: { amount: true },
-    });
-    return Number(agg._sum.amount ?? 0n);
+    const [commitments, inFlight, forfeits] = await Promise.all([
+      db.commitment.findMany({
+        where: { userId, enforcementMode: 'money' },
+        include: { stake: true },
+      }),
+      db.payment.findMany({
+        where: { userId, type: 'charge', status: 'requested' },
+        select: { commitmentId: true },
+      }),
+      db.paymentLedger.findMany({
+        where: { userId, entryType: 'forfeit', createdAt: { gte: since } },
+        select: { commitmentId: true, amount: true },
+      }),
+    ]);
+    const requestedIds = new Set(inFlight.map((p) => p.commitmentId).filter(Boolean) as string[]);
+    let reservedKrw = 0;
+    const reservedIds = new Set<string>();
+    for (const c of commitments) {
+      if (c.id === excludeCommitmentId) continue;
+      if (c.status === 'completed' || c.status === 'cancelled') continue;
+      const stake = c.stake;
+      if (!stake) continue;
+      const reserved =
+        stake.status === 'funded' ||
+        stake.status === 'settling' ||
+        requestedIds.has(c.id);
+      if (!reserved) continue;
+      reservedKrw += Number(stake.maxTotalAmount);
+      reservedIds.add(c.id);
+    }
+    let realizedForfeitKrw = 0;
+    const completedIds = new Set(
+      commitments.filter((c) => c.status === 'completed' || c.status === 'cancelled').map((c) => c.id),
+    );
+    for (const r of forfeits) {
+      if (reservedIds.has(r.commitmentId)) continue;
+      if (!completedIds.has(r.commitmentId)) continue;
+      realizedForfeitKrw += Number(r.amount);
+    }
+    return { reservedKrw, realizedForfeitKrw };
+  }
+
+  /** @deprecated use rollingExposure().realizedForfeitKrw */
+  async rollingMonthlyForfeitKrw(userId: string): Promise<number> {
+    return (await this.rollingExposure(userId)).realizedForfeitKrw;
+  }
+
+  /**
+   * Atomically-called at charge time (caller holds the per-user lock).
+   * Rejects when reserved + realized + candidate > tier cap.
+   */
+  async assertPaymentFitsCap(
+    userId: string,
+    candidateCommitmentId: string,
+    candidateMaxTotalKrw: bigint,
+    tx?: PrismaService | Prisma.TransactionClient,
+  ): Promise<void> {
+    const tier = await this.tierOf(userId);
+    const cfg = this.configFor(tier);
+    const { reservedKrw, realizedForfeitKrw } = await this.rollingExposure(userId, tx, candidateCommitmentId);
+    const candidate = Number(candidateMaxTotalKrw);
+    if (reservedKrw + realizedForfeitKrw + candidate > cfg.rollingMonthlyLossCapKrw) {
+      const remaining = Math.max(0, cfg.rollingMonthlyLossCapKrw - reservedKrw - realizedForfeitKrw);
+      throw new DomainError(
+        'STAKE_TIER_LIMIT_EXCEEDED',
+        `이번 달에는 최대 ${remaining.toLocaleString('ko-KR')}원까지 더 걸 수 있어요.`,
+        { limitKrw: remaining, kind: 'rollingMonthly', tier },
+      );
+    }
   }
 
   /**
@@ -122,11 +193,9 @@ export class StakePolicyService {
         { limitKrw: cfg.maxPerCommitmentKrw, kind: 'perCommitment', tier },
       );
     }
-    // Rolling monthly cap: the new commitment's max loss must fit in what
-    // is left after the last 30 days of *settled* forfeits.
-    const forfeited = await this.rollingMonthlyForfeitKrw(userId);
-    if (forfeited + maxLossKrw > cfg.rollingMonthlyLossCapKrw) {
-      const remaining = Math.max(0, cfg.rollingMonthlyLossCapKrw - forfeited);
+    const { reservedKrw, realizedForfeitKrw } = await this.rollingExposure(userId);
+    if (reservedKrw + realizedForfeitKrw + maxLossKrw > cfg.rollingMonthlyLossCapKrw) {
+      const remaining = Math.max(0, cfg.rollingMonthlyLossCapKrw - reservedKrw - realizedForfeitKrw);
       throw new DomainError(
         'STAKE_TIER_LIMIT_EXCEEDED',
         `이번 달에는 최대 ${remaining.toLocaleString('ko-KR')}원까지 더 걸 수 있어요.`,

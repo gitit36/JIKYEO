@@ -261,23 +261,42 @@ export class CommitmentService {
   }
 
   /**
-   * Records the signature ritual for a MONEY commitment after payment.
-   * Idempotent. Never changes money state; activation itself happens when
-   * the upfront charge succeeds.
+   * Records the signature ritual. MONEY: requires a funded Stake; transitions
+   * `signature_pending → active`. Idempotent once active. Signing before
+   * funding is rejected. SELF/SOCIAL are already active at create time.
    */
   async sign(userId: string, commitmentId: string): Promise<{ commitmentId: string; status: CommitmentState; signedAt: string }> {
-    const c = await this.getOwned(userId, commitmentId);
+    const c = await this.prisma.commitment.findUnique({
+      where: { id: commitmentId },
+      include: { stake: true },
+    });
+    if (!c) throw new NotFoundError('Commitment not found');
+    if (c.userId !== userId) throw new ForbiddenError();
     if (c.status === 'cancelled') {
       throw new DomainError('INVALID_STATE_TRANSITION', '취소된 약속에는 서명할 수 없어요.');
     }
-    const signedAt = c.signedAt ?? this.clock.now();
-    if (!c.signatureCompleted) {
-      await this.prisma.commitment.update({
-        where: { id: c.id },
-        data: { signedAt, signatureCompleted: true },
-      });
+    if (c.enforcementMode === 'money') {
+      if (!c.stake || c.stake.status === 'pending') {
+        throw new DomainError('INVALID_STATE_TRANSITION', '결제가 끝나야 서명할 수 있어요.');
+      }
     }
-    return { commitmentId: c.id, status: c.status as CommitmentState, signedAt: signedAt.toISOString() };
+    if (c.status === 'active' && c.signatureCompleted && c.signedAt) {
+      return { commitmentId: c.id, status: 'active', signedAt: c.signedAt.toISOString() };
+    }
+    const signedAt = c.signedAt ?? this.clock.now();
+    const next: CommitmentState = c.status === 'signature_pending' ? 'active' : (c.status as CommitmentState);
+    if (c.status === 'signature_pending') {
+      commitmentSM.assert('signature_pending', 'active');
+    }
+    await this.prisma.commitment.update({
+      where: { id: c.id },
+      data: {
+        signedAt,
+        signatureCompleted: true,
+        ...(next !== c.status ? { status: next } : {}),
+      },
+    });
+    return { commitmentId: c.id, status: next, signedAt: signedAt.toISOString() };
   }
 
   async cancel(userId: string, commitmentId: string): Promise<void> {

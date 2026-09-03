@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
   ChargeInput,
+  LostProviderResponseError,
   PaymentProvider,
   PaymentProviderResult,
   RefundInput,
@@ -35,6 +36,9 @@ export class MockPaymentProvider extends PaymentProvider {
   readonly calls = { charge: 0, refund: 0 };
   /** Test hook: the next refund call fails transiently (MOCK_PG_TIMEOUT). */
   failNextRefund = false;
+  /** Test hook: next charge/refund succeeds at the PG then drops the HTTP response. */
+  loseNextCharge = false;
+  loseNextRefund = false;
 
   async charge(input: ChargeInput): Promise<PaymentProviderResult> {
     const cached = this.idempotency.get(input.idempotencyKey);
@@ -51,7 +55,7 @@ export class MockPaymentProvider extends PaymentProvider {
       return failed;
     }
 
-    const providerPaymentKey = `mockpg-${randomUUID()}`;
+    const providerPaymentKey = `mockpg-${input.idempotencyKey}`;
     this.ledger.set(providerPaymentKey, {
       amountCharged: input.amount,
       amountRefunded: 0n,
@@ -62,6 +66,10 @@ export class MockPaymentProvider extends PaymentProvider {
       status: 'succeeded',
     };
     this.idempotency.set(input.idempotencyKey, result);
+    if (this.loseNextCharge || input.metadata?.simulate === 'charge_lost') {
+      this.loseNextCharge = false;
+      throw new LostProviderResponseError(providerPaymentKey);
+    }
     return result;
   }
 
@@ -95,10 +103,15 @@ export class MockPaymentProvider extends PaymentProvider {
     }
     entry.amountRefunded += input.amount;
     entry.status = entry.amountRefunded === entry.amountCharged ? 'succeeded' : 'partial';
-    return this.remember(input.idempotencyKey, {
+    const ok = this.remember(input.idempotencyKey, {
       providerPaymentKey: input.providerPaymentKey,
       status: 'succeeded',
     });
+    if (this.loseNextRefund || input.reason.includes('simulate:refund_lost')) {
+      this.loseNextRefund = false;
+      throw new LostProviderResponseError(input.providerPaymentKey);
+    }
+    return ok;
   }
 
   async cancel(input: RefundInput): Promise<PaymentProviderResult> {

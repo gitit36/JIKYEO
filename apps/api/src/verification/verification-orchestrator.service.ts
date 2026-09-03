@@ -171,6 +171,9 @@ export class VerificationOrchestrator {
       },
     });
     if (!occ) throw new DomainError('NOT_FOUND', 'Occurrence not found');
+    if (occ.commitment.status !== 'active') {
+      throw new DomainError('OCCURRENCE_NOT_ACTIVE', '아직 시작되지 않은 약속이에요.');
+    }
     return occ;
   }
 

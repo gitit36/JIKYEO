@@ -147,8 +147,9 @@ private struct CommitmentHistoryCard: View {
 
     private var statusLabel: String {
         switch item.status {
-        case "payment_pending": return "결제 대기"
-        case "active":          return "진행 중"
+        case "payment_pending":    return "결제 대기"
+        case "signature_pending":  return "서명 대기"
+        case "active":             return "진행 중"
         case "completed":       return "끝난 약속"
         case "cancelled":       return "취소됨"
         default:                return item.status
@@ -175,13 +176,21 @@ private struct MoneySummary: View {
                 if krw(money.forfeitedKrw) > 0 {
                     CardRow("돌려받지 못한 금액", value: MoneyText.format(krw(money.forfeitedKrw)))
                 }
+            case .refunded where krw(money.refundPaidKrw) == 0:
+                Text("환불 0원 · 돌려받지 못한 약속금 \(MoneyText.format(krw(money.forfeitedKrw)))")
+                    .font(Typo.caption)
+                    .foregroundStyle(DS.Color.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             case .refunded:
                 CardRow("환불된 금액", value: MoneyText.format(krw(money.refundPaidKrw)))
                 if krw(money.forfeitedKrw) > 0 {
                     CardRow("돌려받지 못한 금액", value: MoneyText.format(krw(money.forfeitedKrw)))
                 }
             case .settled_no_refund:
-                CardRow("돌려받지 못한 금액", value: MoneyText.format(krw(money.forfeitedKrw)))
+                Text("환불 0원 · 돌려받지 못한 약속금 \(MoneyText.format(krw(money.forfeitedKrw)))")
+                    .font(Typo.caption)
+                    .foregroundStyle(DS.Color.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

@@ -39,6 +39,10 @@ struct HomeView: View {
                 if debugStage == "home-empty" { return }
                 #endif
                 await model.load(container: container)
+                if let items = try? await container.commitmentAPI.listMine(),
+                   items.contains(where: { $0.status == "signature_pending" }) {
+                    isCreating = true
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {

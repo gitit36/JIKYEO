@@ -142,6 +142,18 @@ class Table {
 }
 
 export class InMemoryMoneyDb {
+  private txTail: Promise<unknown> = Promise.resolve();
+
+  async $executeRaw(): Promise<number> { return 0; }
+  async $executeRawUnsafe(): Promise<number> { return 0; }
+
+  /** Serialise transactions so concurrent cap/charge tests cannot race the reservation insert. */
+  async $transaction<T>(fn: (tx: InMemoryMoneyDb) => Promise<T>): Promise<T> {
+    const run = this.txTail.then(() => fn(this));
+    this.txTail = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
   readonly stake = new Table('stake', [['commitmentId']]);
   readonly occurrence = new Table('occ', [['commitmentId', 'sequenceNo']]);
   readonly payment = new Table('pay', [['idempotencyKey']]);
@@ -161,10 +173,6 @@ export class InMemoryMoneyDb {
     },
   });
 
-  async $transaction<T>(fn: (tx: InMemoryMoneyDb) => Promise<T>): Promise<T> {
-    return fn(this);
-  }
-
   // ------------------------------------------------------------- fixtures
 
   /**
@@ -176,7 +184,7 @@ export class InMemoryMoneyDb {
     userId: string;
     perOccurrence: bigint;
     count: number;
-    status?: 'payment_pending' | 'active';
+    status?: 'payment_pending' | 'signature_pending' | 'active';
   }): Promise<void> {
     const maxLoss = opts.perOccurrence * BigInt(opts.count);
     await this.commitment.create({
@@ -239,5 +247,12 @@ export class InMemoryMoneyDb {
 
   async setOccurrenceStatus(occurrenceId: string, status: string): Promise<void> {
     await this.occurrence.update({ where: { id: occurrenceId }, data: { status } });
+  }
+
+  async activateSigned(commitmentId: string): Promise<void> {
+    await this.commitment.update({
+      where: { id: commitmentId },
+      data: { status: 'active', signatureCompleted: true, signedAt: new Date(2026, 0, 1) },
+    });
   }
 }

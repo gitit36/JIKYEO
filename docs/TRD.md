@@ -222,8 +222,8 @@ POST /v1/occurrences/{id}/friend-verification
 
 ### Payment / Settlement (MONEY 모드 전용)
 ```http
-POST /v1/commitments/{id}/pay        # upfront charge = stake.maxTotalAmount; 성공 시 payment_pending → active
-POST /v1/commitments/{id}/sign       # 결제 성공 후 서명 리추얼 기록
+POST /v1/commitments/{id}/pay        # upfront charge = stake.maxTotalAmount; 성공 시 payment_pending → signature_pending (active 아님)
+POST /v1/commitments/{id}/sign       # 결제+funding 필수, idempotent. signature_pending → active
 GET  /v1/commitments/{id}/money      # 파생 MoneyView (money status + 합계)
 GET  /v1/payments/{id}
 GET  /v1/settlements
@@ -588,7 +588,9 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - Home mode-aware 렌더링
 
 ### Phase 4 — Payment/Settlement (완료, MockPaymentProvider 기준)
-- MONEY activation gating: `payment_pending` → upfront charge(maxLoss) 성공 → `active`
+- MONEY activation gating: `payment_pending` → charge 성공 → `signature_pending` → `/sign` → `active`. 결제 성공만으로 활성화하지 않음.
+- Rolling loss cap: 미종료 funded/unknown 건은 maxTotal 전액 reserve, 종료 건은 실현 forfeit만. 동일 Commitment를 이중 계산하지 않음.
+- 서명 전 결제 만료/취소는 Phase 5 blocker — 실 PG 출시 전 완료 필수.
 - PaymentService: charge / full·partial refund / webhook dedupe / idempotency / refund retry / reconcile hook
 - SettlementService: PASS·VOID → `refund_earned`, FAIL → `forfeit`, UNCERTAIN·system_hold → 정산 금지
 - 약속 종료 시 aggregate refund 1회: `refundTotal = upfrontCharge − forfeitedTotal`
@@ -598,6 +600,10 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - 실제 한국 PG 연동은 provider/credentials 확정 후 (`KoreanPgPaymentProvider` 골격만 존재)
 
 ### Phase 5 — Appeal / Admin / Weekly Recap (예정)
+- **Blocker (실 PG 출시 전 필수):** 서명되지 않은 funded 결제의 만료/취소/자동 환불
+- Appeal → settlement `reversal`
+- Admin / `refund_delayed` ops
+- Weekly Recap
 
 ### Phase 6 — Social 완전판 + Friend Verify (예정)
 
