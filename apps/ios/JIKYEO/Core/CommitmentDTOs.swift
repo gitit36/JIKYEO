@@ -58,6 +58,8 @@ public struct SchedulePayload: Codable {
 public struct QuoteRequest: Codable {
     public let schedule: SchedulePayload
     public let stakePerOccurrenceKrw: Int
+    public let stakeTotalKrw: Int
+    public let contractStrictness: String
     public let timezone: String
 }
 
@@ -65,9 +67,34 @@ public struct QuoteResponse: Codable {
     public let quoteId: String
     public let occurrenceCount: Int
     public let stakePerOccurrence: String
+    public let stakeTotal: String
     public let maxLoss: String
+    public let contractStrictness: String
+    public let allowedFailCount: Int
     public let currency: String
     public let quoteExpiresAt: Date
+
+    public init(
+        quoteId: String,
+        occurrenceCount: Int,
+        stakePerOccurrence: String,
+        maxLoss: String,
+        currency: String,
+        quoteExpiresAt: Date,
+        stakeTotal: String? = nil,
+        contractStrictness: String = "realistic",
+        allowedFailCount: Int = 0
+    ) {
+        self.quoteId = quoteId
+        self.occurrenceCount = occurrenceCount
+        self.stakePerOccurrence = stakePerOccurrence
+        self.stakeTotal = stakeTotal ?? stakePerOccurrence
+        self.maxLoss = maxLoss
+        self.contractStrictness = contractStrictness
+        self.allowedFailCount = allowedFailCount
+        self.currency = currency
+        self.quoteExpiresAt = quoteExpiresAt
+    }
 }
 
 public struct GpsTargetPayload: Codable {
@@ -104,6 +131,8 @@ public struct CreateCommitmentRequest: Codable {
     public let verification: VerificationPayload
     /// MONEY-only. Never send for SELF/SOCIAL — the server rejects strays.
     public let stakePerOccurrenceKrw: Int?
+    public let stakeTotalKrw: Int?
+    public let contractStrictness: String?
     /// MONEY-only. Never send for SELF/SOCIAL.
     public let quoteId: String?
     public let observer: ObserverPayload?

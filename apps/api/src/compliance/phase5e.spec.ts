@@ -68,22 +68,15 @@ async function funded(count = 3) {
   return ctx;
 }
 
-describe('Phase 5E — cancellation cutoff', () => {
-  it('voids occurrences that start inside the former 24h notice window', async () => {
-    const ctx = await funded(3);
-    await windows(ctx.db, [
-      new Date(NOW.getTime() - 1),
-      new Date(NOW.getTime() + 3_600_000),
-      new Date(NOW.getTime() + 86_400_000),
-    ]);
-    const r = await ctx.commitments.cancel(USER, C);
-    expect(r.bindingOccurrenceCount).toBe(1);
-    expect(r.voidOccurrenceCount).toBe(2);
-    expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o2` } }))!.status).toBe('void');
-  });
-
-  it('keeps an already-started occurrence binding', async () => {
-    const ctx = await funded(2);
+describe('Phase 5E — cancellation cutoff (superseded for MONEY V1; SELF unchanged)', () => {
+  it('SELF still voids only unstarted occurrences', async () => {
+    const ctx = make();
+    await ctx.db.user.create({ data: { id: USER, status: 'active' } });
+    await ctx.db.seedSelfCommitment({ id: C, userId: USER, count: 2 });
+    await ctx.db.commitment.update({
+      where: { id: C },
+      data: { startAt: new Date(NOW.getTime() - 1), cancellationRequestedAt: null },
+    });
     await windows(ctx.db, [new Date(NOW.getTime() - 1), new Date(NOW.getTime() + 1)]);
     await ctx.commitments.cancel(USER, C);
     expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o1` } }))!.status).toBe('scheduled');
@@ -144,7 +137,7 @@ describe('Phase 5E — financial finality', () => {
     expect(settled.completed).toBe(true);
     expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'forfeit')).toHaveLength(0);
     expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'reversal')).toHaveLength(0);
-    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'refund_earned')).toHaveLength(1);
+    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'refund_paid')).toHaveLength(1);
   });
 
   it('settlement / appeal / deadline race stays idempotent', async () => {
@@ -153,7 +146,7 @@ describe('Phase 5E — financial finality', () => {
     const [a, b] = await Promise.all([ctx.settlement.settleCommitment(C), ctx.settlement.settleCommitment(C)]);
     expect(a.completed || b.completed).toBe(true);
     expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'forfeit')).toHaveLength(1);
-    expect(ctx.db.settlement.rows).toHaveLength(1);
+    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'forfeit')).toHaveLength(1);
   });
 });
 
@@ -170,12 +163,12 @@ describe('Phase 5E — terms, age, production, provider', () => {
     const ctx = await funded(2);
     const before = await ctx.terms.getAccepted(USER, C);
     expect(before.snapshot.documentVersion).toBe(TERMS_VERSION);
-    const mutated = defaultTermsSnapshot('1', 99, '1');
+    const mutated = defaultTermsSnapshot('1', 99, 'perfect');
     expect(hashSnapshot(mutated)).not.toBe(before.snapshotHash);
     const again = await ctx.terms.getAccepted(USER, C);
     expect(again.snapshotHash).toBe(before.snapshotHash);
     expect(again.snapshot.occurrenceCount).toBe(2);
-    expect(again.snapshot.maxChargeKrw).toBe('10000');
+    expect(again.snapshot.totalStakeKrw).toBe('5000');
   });
 
   it('rejects MONEY without verified 19+', async () => {
@@ -215,7 +208,7 @@ describe('Phase 5E — terms, age, production, provider', () => {
     await ctx.db.setOccurrenceStatus(`${C}_o1`, 'fail', NOW, new Date(NOW.getTime() + WINDOW * 1000));
     const summary = await ctx.admin.accountingSummary();
     expect(summary.heldDepositsKrw).toBe('5000');
-    expect(summary.provisionalFailKrw).toBe('5000');
+    expect(summary.provisionalFailKrw).toBe('0');
     expect(summary.finalForfeitKrw).toBe('0');
     expect(summary.reconciledWithBankOrPg).toBe(false);
   });

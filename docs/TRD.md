@@ -50,7 +50,7 @@
 
 ### Payment
 - 국내 PG 1차 선정 필요
-- 결제/취소/부분환불 API 지원 필수
+- 결제/전액취소·전액환불/거래조회 API 지원 필수. MONEY V1은 부분환불을 요구하지 않는다.
 - webhook 필수
 - idempotency 지원
 
@@ -424,19 +424,13 @@ distance(user_latlng, target_latlng) <= radius_m
 - webhook success
 - commitment activate
 
-### 정산
-각 occurrence:
-- PASS → refundable ledger
-- FAIL → forfeited ledger
-- VOID → refundable ledger
+### 정산 (MONEY V1)
+계약 결과만 정산한다. 회차 PASS/FAIL은 행동 상태다.
 
-기간 종료:
-```text
-refund_total = total_deposit - forfeited_total
-```
-
-refund_total > 0:
-- PG 부분환불/취소
+- SUCCESS / 시작 전·시스템 취소 → 전액 refund 1회
+- FAIL / 시작 후 자진 포기 → 전액 forfeit 1회, PG 환불 호출 없음
+- 부분환불 provider 호출은 V1 경로에서 금지
+- 레거시 회차 비례 정산(`end_of_commitment`)은 신규 생성에서 격리 (비출시)
 
 ### Appeal reversal
 FAIL → VOID/PASS 시:
@@ -619,11 +613,11 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - Rolling loss cap: 미종료 funded/unknown 건은 maxTotal 전액 reserve, 종료 건은 실현 forfeit만. 동일 Commitment를 이중 계산하지 않음.
 - 서명 전 취소/만료/전액 환불, JobLease maintenance, admin money ops (Phase 5A)
 - PaymentService: charge / full·partial refund / webhook dedupe / idempotency / refund retry / reconcile hook
-- SettlementService: PASS·VOID → `refund_earned`, FAIL → `forfeit`, UNCERTAIN·system_hold → 정산 금지
-- 약속 종료 시 aggregate refund 1회: `refundTotal = upfrontCharge − forfeitedTotal`
+- SettlementService V1: 계약 SUCCESS → 전액 `refund_paid`, 계약 FAIL → 전액 `forfeit`. 회차 `refund_earned` 없음.
+- 레거시 pro-rata(`end_of_commitment`)는 신규 생성에서 격리.
 - Ledger append-only, 모든 금전 변동은 LedgerService 경유, `(entry_type, idempotency_key)` 유일
 - StakePolicy rolling monthly cap을 정산된 forfeit 합계로 실제 적용
-- iOS: 결제 단계(회차당/총 횟수/최대 손실/지금 결제할 금액), money status 칩, History money summary
+- iOS: 결제 단계(약속금 1건/총 횟수/엄격도/지금 결제할 금액), money status 칩, History money summary
 - 실제 한국 PG 연동은 provider/credentials 확정 후 (`KoreanPgPaymentProvider` 골격만 존재)
 
 ### Phase 5A — Unsigned recovery / money ops (완료, MockPaymentProvider)
@@ -653,7 +647,12 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - 결제 전 terms snapshot, 서버 19+ 게이트, 운영 MONEY fail-closed. Provider=KCP, method=CARD/KAKAOPAY 분리.
 - Admin accounting export. Launch gates는 서면 증거 없이 체크하지 않음.
 
-### Phase 5F — remaining (예정)
+### Phase 5F — MONEY V1 contract (완료, 실 KCP 없음)
+- `1 Commitment = 1 Stake = 1 charge = 1 outcome`. 부분환불 없음. 엄격도+Grace는 서버 계산.
+- 시작 전/시스템 취소 전액 환불, 시작 후 자진 포기 전액 forfeit. x_per_week 기간 내 보충.
+- 신규 생성은 `contract_v1`만. 레거시 회차 비례는 격리.
+
+### Phase 5F remaining (예정)
 - 실 KCP 네트워크/자격증명, StoreKit entitlement, 실 APNs, 실 vision, admin web UI, 소셜
 
 ### Phase 6 — Social 완전판 + Friend Verify (예정)
@@ -665,7 +664,7 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 ## 17. 출시 전 기술 체크리스트
 
 - [ ] PG sandbox E2E (실 PG provider 확정 후)
-- [x] 부분환불 검증 (MockPaymentProvider, aggregate refund = upfront − forfeit)
+- [x] MONEY V1 전액 환불/전액 몰수 (MockPaymentProvider). 부분환불은 V1 비요구.
 - [x] 중복 webhook 방지 (`payment_webhook_events (provider, event_id)` unique)
 - [x] 중복 charge / 중복 정산 / 중복 환불 방지 (idempotency key)
 - [x] 장애 중 자동 FAIL 차단 (Verification/Deadline)

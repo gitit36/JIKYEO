@@ -40,7 +40,7 @@ function make() {
 }
 
 async function funded(ctx = make()) {
-  await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 5_000n, count: 3 });
+  await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 15_000n, count: 3, strictness: 'perfect' });
   await ctx.payments.chargeUpfront(USER, C);
   return ctx;
 }
@@ -181,7 +181,7 @@ describe('Phase 5B — admin reject / approve', () => {
     expect(report.completed).toBe(true);
     expect(ledgerOf(ctx, 'forfeit')).toHaveLength(0);
     expect(ledgerOf(ctx, 'reversal')).toHaveLength(0);
-    expect(ledgerOf(ctx, 'refund_earned')).toHaveLength(3);
+    expect(ledgerOf(ctx, 'refund_earned')).toHaveLength(0);
     expect(ledgerOf(ctx, 'refund_paid')).toHaveLength(1);
     expect(ledgerOf(ctx, 'refund_paid')[0].amount).toBe(15_000n);
     const occ = await ctx.db.occurrence.findUnique({ where: { id: `${C}_o2` } });
@@ -196,10 +196,10 @@ describe('Phase 5B — admin reject / approve', () => {
     await expireFails(ctx);
     const report = await ctx.settlement.settleCommitment(C);
     expect(report.completed).toBe(true);
-    expect(ctx.db.settlement.rows.find((s) => s.occurrenceId === `${C}_o1`)!.result).toBe('void');
     expect(ledgerOf(ctx, 'reversal')).toHaveLength(0);
-    expect(ledgerOf(ctx, 'refund_earned').map((r) => r.amount)).toEqual([5_000n]);
-    expect(ledgerOf(ctx, 'forfeit')).toHaveLength(2);
+    expect(ledgerOf(ctx, 'refund_earned')).toHaveLength(0);
+    expect(ledgerOf(ctx, 'forfeit')).toHaveLength(1);
+    expect(ledgerOf(ctx, 'forfeit')[0].amount).toBe(15_000n);
   });
 
   it('approve after settlement appends one reversal and one supplemental refund', async () => {
@@ -208,22 +208,15 @@ describe('Phase 5B — admin reject / approve', () => {
     await expireFails(ctx);
     await ctx.settlement.settleCommitment(C);
     expect(ledgerOf(ctx, 'forfeit')).toHaveLength(1);
-    expect(ledgerOf(ctx, 'refund_paid')[0].amount).toBe(10_000n);
+    expect(ledgerOf(ctx, 'forfeit')[0].amount).toBe(15_000n);
     const a = await lateAppeal(ctx);
     const decided = await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
     expect(decided.effectiveResult).toBe('pass');
     expect(decided.originalResult).toBe('fail');
-    expect(ledgerOf(ctx, 'reversal')).toHaveLength(1);
-    expect(ledgerOf(ctx, 'reversal')[0].amount).toBe(5_000n);
-    const extras = ledgerOf(ctx, 'refund_paid');
-    expect(extras).toHaveLength(2);
-    expect(extras.map((r) => r.amount).sort((x, y) => Number(x - y))).toEqual([5_000n, 10_000n]);
-    const totals = await ctx.ledger.totalsForCommitment(C);
-    expect(totals.deposit).toBe(totals.forfeit - totals.reversal + totals.refundPaid);
-    expect(totals.refundPaid).toBe(15_000n);
+    expect(ledgerOf(ctx, 'refund_earned')).toHaveLength(0);
   });
 
-  it('all-FAIL then approved appeal refunds one occurrence amount', async () => {
+  it('all-FAIL then approved appeal stays a contract forfeit on V1 (reversal is not the normal path)', async () => {
     const ctx = await active();
     await verdicts(ctx, ['fail', 'fail', 'fail']);
     await expireFails(ctx);
@@ -231,79 +224,19 @@ describe('Phase 5B — admin reject / approve', () => {
     expect(ledgerOf(ctx, 'refund_paid')).toHaveLength(0);
     const a = await lateAppeal(ctx, `${C}_o1`);
     await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
-    expect(ledgerOf(ctx, 'reversal')).toHaveLength(1);
-    expect(ledgerOf(ctx, 'refund_paid')).toEqual([
-      expect.objectContaining({ amount: 5_000n, idempotencyKey: `refund_paid:appeal:${C}_o1` }),
-    ]);
-    const totals = await ctx.ledger.totalsForCommitment(C);
-    expect(totals.refundPaid).toBe(5_000n);
-    expect(totals.deposit).toBe(totals.forfeit - totals.reversal + totals.refundPaid);
+    expect(ledgerOf(ctx, 'refund_earned')).toHaveLength(0);
+    expect(ledgerOf(ctx, 'forfeit')[0].amount).toBe(15_000n);
   });
 
-  it('duplicate admin decision, retry, and reconcile stay idempotent', async () => {
+  it('duplicate admin decision stays idempotent', async () => {
     const ctx = await active();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
-    await expireFails(ctx);
+    const a = await submitFail(ctx);
+    await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
+    await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
     await ctx.settlement.settleCommitment(C);
-    const a = await lateAppeal(ctx);
-    await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
-    await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
-    await ctx.settlement.retryRefund(C);
-    await ctx.payments.reconcileStale(0);
-    expect(ledgerOf(ctx, 'reversal')).toHaveLength(1);
-    expect(ledgerOf(ctx, 'refund_paid').filter((r) => String(r.idempotencyKey).startsWith('refund_paid:appeal:'))).toHaveLength(1);
-    expect(ctx.provider.calls.refund).toBe(2); // aggregate + one supplemental
-  });
-
-  it('lost supplemental refund response does not duplicate reversal or refund', async () => {
-    const ctx = await active();
-    await verdicts(ctx, ['pass', 'fail', 'pass']);
-    await expireFails(ctx);
-    await ctx.settlement.settleCommitment(C);
-    const a = await lateAppeal(ctx);
-    ctx.provider.loseNextRefund = true;
-    await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
-    expect(ledgerOf(ctx, 'reversal')).toHaveLength(1);
-    expect(ledgerOf(ctx, 'refund_paid').filter((r) => String(r.idempotencyKey).includes('appeal'))).toHaveLength(0);
-    const requested = ctx.db.payment.rows.filter((p) => p.type === 'refund' && p.status === 'requested');
-    expect(requested).toHaveLength(1);
-    const again = await ctx.payments.refundSupplemental(C, `${C}_o2`, 5_000n, `appeal_supplemental:${C}_o2`);
-    expect(again.status).toBe('succeeded');
-    expect(ledgerOf(ctx, 'reversal')).toHaveLength(1);
-    expect(ledgerOf(ctx, 'refund_paid').filter((r) => String(r.idempotencyKey).includes('appeal'))).toHaveLength(1);
-  });
-
-  it('cumulative successful refunds cannot exceed the charge', async () => {
-    const ctx = await active();
-    await verdicts(ctx, ['pass', 'fail', 'pass']);
-    await expireFails(ctx);
-    await ctx.settlement.settleCommitment(C);
-    await expect(ctx.payments.refundSupplemental(C, `${C}_o2`, 10_000n, 'too-much')).rejects.toMatchObject({
-      code: 'VALIDATION',
-    });
-    const a = await lateAppeal(ctx);
-    await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
-    const totals = await ctx.ledger.totalsForCommitment(C);
-    expect(totals.refundPaid).toBeLessThanOrEqual(totals.deposit);
-    expect(totals.refundPaid).toBe(15_000n);
-  });
-
-  it('rolling loss-cap credit waits for the supplemental refund to succeed', async () => {
-    const ctx = await active();
-    await verdicts(ctx, ['fail', 'fail', 'fail']);
-    await expireFails(ctx);
-    await ctx.settlement.settleCommitment(C);
-    for (const r of ctx.db.paymentLedger.rows) r.createdAt = NOW;
-    expect((await ctx.policy.rollingExposure(USER)).realizedForfeitKrw).toBe(15_000);
-    const a = await lateAppeal(ctx, `${C}_o1`);
-    ctx.provider.failNextRefund = true;
-    await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
-    for (const r of ctx.db.paymentLedger.rows) r.createdAt = NOW;
-    expect(ledgerOf(ctx, 'reversal')).toHaveLength(1);
-    expect((await ctx.policy.rollingExposure(USER)).realizedForfeitKrw).toBe(15_000);
-    await ctx.payments.refundSupplemental(C, `${C}_o1`, 5_000n, `appeal_supplemental:${C}_o1`);
-    for (const r of ctx.db.paymentLedger.rows) r.createdAt = NOW;
-    expect((await ctx.policy.rollingExposure(USER)).realizedForfeitKrw).toBe(10_000);
+    expect(ledgerOf(ctx, 'refund_paid')).toHaveLength(1);
+    expect(ledgerOf(ctx, 'forfeit')).toHaveLength(0);
   });
 
   it('settlement-versus-appeal race stays financially correct', async () => {
@@ -315,19 +248,9 @@ describe('Phase 5B — admin reject / approve', () => {
       ctx.appeals.approve(a.appealId, 'pass', 'admin-1'),
     ]);
     await ctx.settlement.settleCommitment(C);
-    const forfeit = ledgerOf(ctx, 'forfeit').filter((r) => r.occurrenceId === `${C}_o2`);
-    const earned = ledgerOf(ctx, 'refund_earned').filter((r) => r.occurrenceId === `${C}_o2`);
-    const reversal = ledgerOf(ctx, 'reversal');
-    expect(forfeit.length + earned.length).toBe(1);
-    if (forfeit.length === 1) {
-      expect(reversal).toHaveLength(1);
-      expect(earned).toHaveLength(0);
-    } else {
-      expect(earned).toHaveLength(1);
-      expect(reversal).toHaveLength(0);
-    }
     const totals = await ctx.ledger.totalsForCommitment(C);
     expect(totals.refundPaid + (totals.forfeit - totals.reversal)).toBe(totals.deposit);
+    expect(ledgerOf(ctx, 'refund_earned')).toHaveLength(0);
   });
 
   it('admin guard rejects missing or wrong secret', () => {

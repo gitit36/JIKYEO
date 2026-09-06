@@ -337,8 +337,8 @@ export class InMemoryMoneyDb {
   // ------------------------------------------------------------- fixtures
 
   /**
-   * Seed a MONEY commitment in `payment_pending` with a pending Stake and
-   * `count` scheduled occurrences of `perOccurrence` KRW each.
+   * Seed a MONEY V1 commitment: one Stake = one charge. `perOccurrence` is
+   * treated as the commitment-level total (not multiplied).
    */
   async seedMoneyCommitment(opts: {
     id: string;
@@ -346,8 +346,15 @@ export class InMemoryMoneyDb {
     perOccurrence: bigint;
     count: number;
     status?: 'payment_pending' | 'signature_pending' | 'active';
+    strictness?: 'perfect' | 'realistic' | 'flexible';
+    allowedFailCount?: number;
+    startAt?: Date;
+    settlementMode?: 'contract_v1' | 'end_of_commitment';
   }): Promise<void> {
-    const maxLoss = opts.perOccurrence * BigInt(opts.count);
+    const maxLoss = opts.perOccurrence;
+    const mode = opts.strictness ?? 'perfect';
+    const allowed = opts.allowedFailCount ?? 0;
+    const startAt = opts.startAt ?? new Date('2026-12-01T00:00:00Z');
     await this.commitment.create({
       data: {
         id: opts.id,
@@ -359,16 +366,21 @@ export class InMemoryMoneyDb {
         currency: 'KRW',
         signatureCompleted: false,
         signedAt: null,
+        startAt,
+        endAt: new Date(startAt.getTime() + 14 * 86_400_000),
+        contractStrictness: mode,
+        allowedFailCount: allowed,
+        contractOutcome: 'pending',
       },
     });
     await this.stake.create({
       data: {
         id: `stake_${opts.id}`,
         commitmentId: opts.id,
-        perOccurrenceAmount: opts.perOccurrence,
+        perOccurrenceAmount: maxLoss,
         maxTotalAmount: maxLoss,
         currency: 'KRW',
-        settlementMode: 'end_of_commitment',
+        settlementMode: opts.settlementMode ?? 'contract_v1',
         recipientType: 'platform',
         status: 'pending',
       },
@@ -380,11 +392,13 @@ export class InMemoryMoneyDb {
           commitmentId: opts.id,
           sequenceNo: i + 1,
           status: 'scheduled',
-          stakeAmount: opts.perOccurrence,
+          stakeAmount: null,
+          windowStartAt: new Date(startAt.getTime() + i * 86_400_000),
+          deadlineAt: new Date(startAt.getTime() + i * 86_400_000 + 3_600_000),
         },
       });
     }
-    const snap = defaultTermsSnapshot(opts.perOccurrence.toString(), opts.count, maxLoss.toString());
+    const snap = defaultTermsSnapshot(maxLoss.toString(), opts.count, mode, allowed);
     await this.commitmentContract.create({
       data: {
         id: `contract_${opts.id}`,
@@ -409,6 +423,8 @@ export class InMemoryMoneyDb {
         maxLossAmount: null,
         currency: null,
         signatureCompleted: true,
+        startAt: new Date('2026-09-14T00:00:00Z'),
+        endAt: new Date('2026-09-21T00:00:00Z'),
       },
     });
     for (let i = 0; i < opts.count; i += 1) {

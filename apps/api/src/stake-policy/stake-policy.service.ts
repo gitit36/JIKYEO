@@ -202,7 +202,7 @@ export class StakePolicyService {
     if (perOccurrenceKrw > cfg.maxPerOccurrenceKrw) {
       throw new DomainError(
         'STAKE_TIER_LIMIT_EXCEEDED',
-        `회차당 약속금은 최대 ${cfg.maxPerOccurrenceKrw.toLocaleString('ko-KR')}원까지 걸 수 있어요.`,
+        `약속금은 최대 ${cfg.maxPerOccurrenceKrw.toLocaleString('ko-KR')}원까지 걸 수 있어요.`,
         { limitKrw: cfg.maxPerOccurrenceKrw, kind: 'perOccurrence', tier },
       );
     }

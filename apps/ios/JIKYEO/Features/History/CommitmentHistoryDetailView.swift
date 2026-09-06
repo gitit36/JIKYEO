@@ -106,10 +106,12 @@ struct CommitmentHistoryDetailView: View {
     private var confirmMessage: String {
         let mode = detail?.enforcementMode ?? preview.enforcementMode
         guard mode == .money, let p = cancelPreview else { return Copy.Cancel.selfConfirm }
-        let bind = p.bindingOccurrenceCount ?? 0
-        let voids = p.voidOccurrenceCount ?? 0
-        let amt = p.futureRefundableAmountKrw ?? "0"
-        return "\(Copy.Cancel.moneyNotice)\n\(Copy.Cancel.moneyBinding(bind))\n\(Copy.Cancel.moneyRefund(voids, Self.formatKrw(amt)))"
+        let refundable = Int64(p.futureRefundableAmountKrw ?? "0") ?? 0
+        let stake = p.bindingAmountKrw ?? p.futureRefundableAmountKrw ?? "0"
+        if refundable == 0 {
+            return "\(Copy.Cancel.moneyStarted)\n\(Copy.Cancel.moneyAbandon(Self.formatKrw(stake)))"
+        }
+        return "\(Copy.Cancel.moneyPreStart)\n지금 그만두면 약속금 \(Self.formatKrw(p.futureRefundableAmountKrw ?? "0"))원은 전액 환불돼요."
     }
 
     private static func formatWhen(_ date: Date) -> String {
@@ -343,9 +345,26 @@ struct ComplianceDebugView: View {
                     } else if stage == "fail-provisional" {
                         Text(Copy.Appeal.provisional).font(Typo.title)
                         Text(Copy.Appeal.deadline("9월 21일 21:00")).font(Typo.body)
+                    } else if stage == "v1-grace-alive" {
+                        Text(Copy.Wizard.graceUsed(1)).font(Typo.title)
+                        Text(Copy.Wizard.stillKeep("30,000")).font(Typo.body)
+                        Text(Copy.Wizard.reviewRefund("30,000")).font(Typo.body)
+                    } else if stage == "v1-grace-exceeded" {
+                        Text(Copy.Appeal.provisional).font(Typo.title)
+                        Text("아직 환불하거나 몰수하지 않았어요.").font(Typo.body)
+                        Text(Copy.Wizard.reviewFail).font(Typo.body)
+                    } else if stage == "v1-cancel-pre" {
+                        Text(Copy.Cancel.moneyPreStart).font(Typo.title)
+                        Text("지금 그만두면 약속금 30,000원은 전액 환불돼요.").font(Typo.body)
+                    } else if stage == "v1-cancel-post" {
+                        Text(Copy.Cancel.moneyStarted).font(Typo.title)
+                        Text(Copy.Cancel.moneyAbandon("30,000")).font(Typo.body)
+                    } else if stage == "v1-makeup" {
+                        Text("이번 주 헬스장 3회").font(Typo.title)
+                        Text("월요일은 놓쳤지만 화·목·토에 지켰어요.").font(Typo.body)
+                        Text("주 3회 조건은 충족됐고, 여유는 쓰지 않았어요.").font(Typo.body)
                     } else {
                         Text(Copy.Cancel.moneyNotice).font(Typo.title)
-                        Text(Copy.Cancel.moneyBinding(1)).font(Typo.body)
                     }
                 }
                 .padding(DS.Space.lg)
@@ -366,16 +385,11 @@ struct CancelDebugView: View {
                         Text(Copy.Cancel.selfConfirm).font(Typo.body)
                         Text(Copy.Cancel.remaining(1)).font(Typo.caption)
                     } else if stage == "cancel-money" {
-                        Text(Copy.Cancel.scheduled).font(Typo.title)
-                        Text(Copy.Cancel.moneyNotice).font(Typo.body)
-                        Text(Copy.Cancel.moneyBinding(1)).font(Typo.body)
-                        Text(Copy.Cancel.moneyRefund(4, "20,000")).font(Typo.body)
-                        Text(Copy.Cancel.effective("2026-09-15 21:00")).font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
-                        Text(Copy.Cancel.futureRefund("20000")).font(Typo.caption)
+                        Text(Copy.Cancel.moneyStarted).font(Typo.title)
+                        Text(Copy.Cancel.moneyAbandon("30,000")).font(Typo.body)
                     } else {
-                        Text(Copy.Cancel.scheduled).font(Typo.title)
-                        Text("VOID 4 · FAIL 1").font(Typo.body)
-                        Text(Copy.Cancel.futureRefund("20000")).font(Typo.body)
+                        Text(Copy.Cancel.moneyPreStart).font(Typo.title)
+                        Text("지금 그만두면 약속금 30,000원은 전액 환불돼요.").font(Typo.body)
                     }
                 }
                 .padding(DS.Space.lg)

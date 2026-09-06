@@ -17,8 +17,12 @@ import { DomainError } from '../../common/errors/domain-errors';
 export interface SignedQuoteClaims {
   jti: string;
   occurrenceCount: number;
-  stakePerOccurrence: string; // bigint-serialized
+  /** @deprecated V1 alias of stakeTotal. Never multiplied by occurrence count. */
+  stakePerOccurrence: string;
+  stakeTotal: string;
   maxLoss: string;
+  contractStrictness: 'perfect' | 'realistic' | 'flexible';
+  allowedFailCount: number;
   quoteExpiresAt: string; // ISO
 }
 

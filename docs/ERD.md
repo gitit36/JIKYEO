@@ -91,7 +91,9 @@ erDiagram
 | start_at | timestamptz | 시작 |
 | end_at | timestamptz | 종료 |
 | timezone | varchar | 생성 시 고정 |
-| strictness | enum | normal/hard |
+| contract_strictness | enum | perfect/realistic/flexible — MONEY V1. 서버가 허용 FAIL을 계산 |
+| allowed_fail_count | int | 결제 후 불변. 클라이언트가 덮어쓰지 않음 |
+| contract_outcome | enum | pending/success/failed/voided |
 | extension_allowed | boolean | 연장 허용 |
 | status | enum | draft/payment_pending/signature_pending/active/completed/cancelled |
 | max_loss_amount | bigint nullable | 전체 최대 손실 — MONEY 전용, SELF/SOCIAL은 NULL |
@@ -101,8 +103,8 @@ erDiagram
 | signature_expires_at | timestamptz nullable | MONEY: 선결제 성공 시각 + 설정 만료(기본 30분) |
 | cancelled_at | timestamptz nullable | 서명 전 취소/만료 시각 |
 | cancellation_requested_at | timestamptz nullable | 활성 취소 요청이자 금전 컷오프 |
-| cancellation_effective_at | timestamptz nullable | 미래 회차 VOID 기준 시각. MONEY는 요청+24h |
-| cancellation_reason | enum nullable | user_cancelled / signature_expired |
+| cancellation_effective_at | timestamptz nullable | 취소 적용 시각. MONEY V1은 즉시 |
+| cancellation_reason | enum nullable | user_cancelled / signature_expired / system_cancelled |
 | contract_version | varchar | "v1" 등 계약 문구 버전 |
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
@@ -127,7 +129,8 @@ erDiagram
 | window_start_at | timestamptz | 수행 시작 |
 | deadline_at | timestamptz | 수행/증명 마감 |
 | status | enum | scheduled/active/evidence_submitted/reviewing/pass/uncertain/fail/void |
-| stake_amount | bigint | 회차당 약속금 |
+| stake_amount | bigint nullable | V1 미사용(null). 레거시 회차 금액 |
+| period_key | varchar nullable | x_per_week 기간 키. 고정 시각 스케줄에는 없음 |
 | failure_reason_code | varchar nullable | 실패 이유 |
 | decided_at | timestamptz nullable | 판정 시각 |
 | appeal_opened_at | timestamptz nullable | FAIL 시 항소 창 시작. 이후 설정으로 재계산하지 않음 |
@@ -257,10 +260,10 @@ Commitment 1 → **0..1** Stake. MONEY 모드 Commitment에만 존재한다. SEL
 |---|---|---|
 | id | UUID | PK |
 | commitment_id | UUID | FK unique |
-| per_occurrence_amount | bigint | 회차당 금액 |
-| max_total_amount | bigint | 전체 최대 |
+| per_occurrence_amount | bigint | deprecated alias. V1에서는 max_total_amount와 동일 |
+| max_total_amount | bigint | 약속 단위 Stake = 선결제 = 최대 손실 |
 | currency | char(3) | KRW |
-| settlement_mode | enum | end_of_commitment/per_occurrence |
+| settlement_mode | enum | contract_v1 (신규) / end_of_commitment (레거시, 비출시) |
 | recipient_type | enum | platform |
 | status | enum | pending/funded/settling/settled/refunded |
 | funded_at | timestamptz nullable | upfront charge 성공 시각 |

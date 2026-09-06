@@ -10,6 +10,7 @@ public enum WizardStep: Int, CaseIterable {
     case proofRule
     case enforcement       // "어떻게 지키게 만들까요?"
     case stake             // MONEY only
+    case strictness        // MONEY only
     case observer          // SOCIAL only
     case review
     case payment           // MONEY only (mock in Phase 3)
@@ -48,6 +49,9 @@ public final class CreateCommitmentModel: ObservableObject {
 
     // MARK: - Step · stake (MONEY only)
     @Published public var stakePerOccurrenceKrw: Int = 5_000
+    /// Commitment-level Stake. Occurrence count does not multiply this.
+    public var stakeTotalKrw: Int { stakePerOccurrenceKrw }
+    @Published public var contractStrictness: String = "realistic"
     /// Server-authoritative policy fetched on entry to the enforcement step.
     /// The client never invents limits. See PRD §7 and SRD §SR-FR-003b.
     @Published public var stakePolicy: StakePolicyResponse?
@@ -116,7 +120,7 @@ public final class CreateCommitmentModel: ObservableObject {
     /// Amount charged upfront = server-quoted max loss. Falls back to the
     /// client estimate only for display while the quote loads.
     public var upfrontKrw: Int64 {
-        maxLossKrw > 0 ? maxLossKrw : Int64(stakePerOccurrenceKrw * estimatedOccurrences)
+        maxLossKrw > 0 ? maxLossKrw : Int64(stakeTotalKrw)
     }
 
     public let timezone = TimeZone.current.identifier
@@ -170,8 +174,7 @@ public final class CreateCommitmentModel: ObservableObject {
     /// confirmation before spending money the user might regret.
     public var isLargeMoneyCommitment: Bool {
         guard let p = stakePolicy else { return false }
-        let est = Int64(stakePerOccurrenceKrw * estimatedOccurrences)
-        return est >= Int64(Double(p.maxPerCommitmentKrw) * 0.8)
+        return Int64(stakeTotalKrw) >= Int64(Double(p.maxPerCommitmentKrw) * 0.8)
     }
 
     // MARK: - Actions
@@ -276,7 +279,9 @@ public final class CreateCommitmentModel: ObservableObject {
             }
             let req = QuoteRequest(
                 schedule: buildSchedulePayload(),
-                stakePerOccurrenceKrw: stakePerOccurrenceKrw,
+                stakePerOccurrenceKrw: stakeTotalKrw,
+                stakeTotalKrw: stakeTotalKrw,
+                contractStrictness: contractStrictness,
                 timezone: timezone
             )
             self.quote = try await container.commitmentAPI.quote(req)
@@ -452,6 +457,8 @@ public final class CreateCommitmentModel: ObservableObject {
             schedule: buildSchedulePayload(),
             verification: buildVerificationPayload(),
             stakePerOccurrenceKrw: stakeKrw,
+            stakeTotalKrw: stakeKrw,
+            contractStrictness: enforcementMode == .money ? contractStrictness : nil,
             quoteId: quoteId,
             observer: observer
         )

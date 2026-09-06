@@ -41,6 +41,7 @@ function make() {
   const audit = new AuditService(prisma);
   const commitments = new CommitmentService(
     prisma, {} as any, {} as any, {} as any, users, policy, clock, audit, money, payments, cfg,
+    undefined, undefined, ledger,
   );
   const lease = new JobLeaseService(prisma, clock);
   const maintenance = new MoneyMaintenanceService(lease, commitments, settlement, payments, cfg);
@@ -59,7 +60,7 @@ async function windows(db: InMemoryMoneyDb, id: string, starts: Date[]) {
 
 async function fundedActive(count = 5) {
   const ctx = make();
-  await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 5_000n, count });
+  await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 15_000n, count });
   await ctx.payments.chargeUpfront(USER, C);
   await ctx.commitments.sign(USER, C);
   return ctx;
@@ -92,73 +93,45 @@ describe('Phase 5D — active cancellation', () => {
     expect(again.effectiveAt).toBe(r.effectiveAt);
   });
 
-  it('MONEY voids at cancellationRequestedAt including the exact boundary', async () => {
-    const ctx = await fundedActive(3);
-    await windows(ctx.db, C, [
-      new Date(NOW.getTime() - 1),
-      NOW,
-      new Date(NOW.getTime() + 1),
-    ]);
+  it('MONEY V1 pre-start cancel refunds the full Stake once', async () => {
+    const ctx = make();
+    await ctx.db.seedMoneyCommitment({
+      id: C, userId: USER, perOccurrence: 15_000n, count: 3, startAt: new Date(NOW.getTime() + 86_400_000),
+    });
+    await ctx.payments.chargeUpfront(USER, C);
+    await ctx.commitments.sign(USER, C);
     const preview = await ctx.commitments.previewCancel(USER, C);
-    expect(preview.effectiveAt).toBe(NOW.toISOString());
-    expect(preview.bindingOccurrenceCount).toBe(1);
-    expect(preview.voidOccurrenceCount).toBe(2);
-    const r = await ctx.commitments.cancel(USER, C, { simulateRefundFail: true });
-    expect(r.status).toBe('active');
-    expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o1` } }))!.status).toBe('scheduled');
-    expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o2` } }))!.status).toBe('void');
-    expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o3` } }))!.status).toBe('void');
-    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'forfeit' || x.entryType === 'refund_earned')).toHaveLength(0);
-    expect(ctx.provider.calls.refund).toBe(0);
-    await ctx.commitments.applyCancellationEffective();
-    expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o1` } }))!.status).toBe('scheduled');
-  });
-
-  it('rejects client effectiveAt and recomputes on confirm', async () => {
-    const ctx = await fundedActive(2);
-    await windows(ctx.db, C, [NOW, new Date(NOW.getTime() + 2 * NOTICE * 1000)]);
-    const preview = await ctx.commitments.previewCancel(USER, C);
-    const confirmed = await ctx.commitments.cancel(USER, C);
-    expect(confirmed.effectiveAt).toBe(preview.effectiveAt);
-    expect(confirmed.effectiveAt).toBe(NOW.toISOString());
-    expect(confirmed.bindingOccurrenceCount).toBe(preview.bindingOccurrenceCount);
-  });
-
-  it('5×5,000 with four VOID and one FAIL refunds 20,000 once', async () => {
-    const ctx = await fundedActive(5);
-    await windows(ctx.db, C, [
-      new Date(NOW.getTime() - 3_600_000),
-      NOW,
-      new Date(NOW.getTime() + 3_600_000),
-      new Date(NOW.getTime() + 86_400_000),
-      new Date(NOW.getTime() + 2 * 86_400_000),
-    ]);
+    expect(preview.futureRefundableAmountKrw).toBe('15000');
     const r = await ctx.commitments.cancel(USER, C);
-    expect(r.bindingOccurrenceCount).toBe(1);
-    expect(r.voidOccurrenceCount).toBe(4);
-    expect(r.bindingAmountKrw).toBe('5000');
-    expect(r.futureRefundableAmountKrw).toBe('20000');
-    expect((await ctx.policy.rollingExposure(USER)).reservedKrw).toBe(25_000);
-    const early = await ctx.settlement.settleCommitment(C);
-    expect(early.completed).toBe(false);
-    expect(early.refund).toBeNull();
-    expect(ctx.provider.calls.refund).toBe(0);
-
-    await ctx.maintenance.run();
-    expect(ctx.db.occurrence.rows.filter((o) => o.status === 'void')).toHaveLength(4);
-    expect((await ctx.policy.rollingExposure(USER)).reservedKrw).toBe(25_000);
-    await ctx.db.setOccurrenceStatus(`${C}_o1`, 'fail', ctx.clock.now());
-    const settled = await ctx.settlement.settleCommitment(C);
-    expect(settled.completed).toBe(true);
-    expect(settled.refund).toMatchObject({ status: 'succeeded', amountKrw: '20000' });
-    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'forfeit').map((x) => x.amount)).toEqual([5_000n]);
-    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'refund_earned').reduce((a, x) => a + x.amount, 0n)).toBe(20_000n);
-    expect(ctx.provider.calls.refund).toBe(1);
-    expect((await ctx.policy.rollingExposure(USER)).reservedKrw).toBe(0);
+    expect(r.status).toBe('cancelled');
+    expect(r.idempotent).toBe(false);
+    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'refund_paid')[0].amount).toBe(15_000n);
+    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'forfeit')).toHaveLength(0);
+    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'refund_earned')).toHaveLength(0);
+    const again = await ctx.commitments.cancel(USER, C);
+    expect(again.idempotent).toBe(true);
+    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'refund_paid')).toHaveLength(1);
   });
 
-  it('never overwrites reviewing, final, evidenced, or appealed occurrences', async () => {
-    const ctx = await fundedActive(5);
+  it('MONEY V1 post-start abandon forfeits the full Stake once', async () => {
+    const ctx = make();
+    await ctx.db.seedMoneyCommitment({
+      id: C, userId: USER, perOccurrence: 15_000n, count: 3, startAt: new Date(NOW.getTime() - 1),
+    });
+    await ctx.payments.chargeUpfront(USER, C);
+    await ctx.commitments.sign(USER, C);
+    const preview = await ctx.commitments.previewCancel(USER, C);
+    expect(preview.futureRefundableAmountKrw).toBe('0');
+    await ctx.commitments.cancel(USER, C);
+    expect(ctx.db.commitment.rows[0].status).toBe('completed');
+    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'forfeit')[0].amount).toBe(15_000n);
+    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'refund_paid')).toHaveLength(0);
+    expect(ctx.db.occurrence.rows.every((o) => o.status === 'void')).toBe(true);
+  });
+
+  it('SELF never overwrites reviewing, final, evidenced, or appealed occurrences', async () => {
+    const ctx = make();
+    await ctx.db.seedSelfCommitment({ id: C, userId: USER, count: 5 });
     const effective = new Date(NOW.getTime() + NOTICE * 1000);
     await windows(ctx.db, C, [effective, effective, effective, effective, effective]);
     await ctx.db.occurrence.update({ where: { id: `${C}_o1` }, data: { status: 'reviewing' } });
@@ -176,8 +149,9 @@ describe('Phase 5D — active cancellation', () => {
     expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o5` } }))!.status).toBe('void');
   });
 
-  it('repeated cancellation is idempotent and cannot be rescheduled', async () => {
-    const ctx = await fundedActive(2);
+  it('SELF repeated cancellation is idempotent', async () => {
+    const ctx = make();
+    await ctx.db.seedSelfCommitment({ id: C, userId: USER, count: 2 });
     await windows(ctx.db, C, [NOW, new Date(NOW.getTime() + 2 * NOTICE * 1000)]);
     const first = await ctx.commitments.cancel(USER, C);
     ctx.clock.advance(3_600_000);
@@ -187,8 +161,9 @@ describe('Phase 5D — active cancellation', () => {
     expect(ctx.db.commitment.rows[0].cancellationRequestedAt.toISOString()).toBe(NOW.toISOString());
   });
 
-  it('keeps each cancellation race financially correct', async () => {
-    const ctx = await fundedActive(2);
+  it('SELF keeps each cancellation race behaviorally correct', async () => {
+    const ctx = make();
+    await ctx.db.seedSelfCommitment({ id: C, userId: USER, count: 2 });
     const effective = new Date(NOW.getTime() + NOTICE * 1000);
     await windows(ctx.db, C, [effective, effective]);
     await ctx.commitments.cancel(USER, C);
@@ -214,29 +189,6 @@ describe('Phase 5D — active cancellation', () => {
     const [a, b] = await Promise.all([ctx.maintenance.run(), ctx.maintenance.run()]);
     expect([a.skipped, b.skipped].filter(Boolean).length).toBe(1);
     expect(ctx.db.occurrence.rows.filter((o) => o.status === 'void')).toHaveLength(1);
-  });
-
-  it('pending appeal blocks financial completion; refund retry stays idempotent', async () => {
-    const ctx = await fundedActive(2);
-    const effective = new Date(NOW.getTime() + NOTICE * 1000);
-    await windows(ctx.db, C, [NOW, effective]);
-    await ctx.commitments.cancel(USER, C);
-    ctx.clock.advance(NOTICE * 1000);
-    await ctx.commitments.applyCancellationEffective();
-    await ctx.db.setOccurrenceStatus(`${C}_o1`, 'fail', ctx.clock.now());
-    await ctx.db.appeal.create({ data: { id: 'ap1', occurrenceId: `${C}_o1`, userId: USER, status: 'submitted' } });
-    const blocked = await ctx.settlement.settleCommitment(C);
-    expect(blocked.completed).toBe(false);
-    expect(blocked.refund).toBeNull();
-
-    await ctx.db.appeal.update({ where: { id: 'ap1' }, data: { status: 'rejected' } });
-    ctx.provider.failNextRefund = true;
-    const failed = await ctx.settlement.settleCommitment(C);
-    expect(failed.refund?.status).toBe('failed');
-    const retried = await ctx.settlement.retryRefund(C);
-    expect(retried.refund).toMatchObject({ status: 'succeeded', amountKrw: '5000' });
-    expect(ctx.provider.calls.refund).toBe(2);
-    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'refund_paid')).toHaveLength(1);
   });
 
   it('recap treats cancelled VOID as neither PASS nor FAIL', async () => {

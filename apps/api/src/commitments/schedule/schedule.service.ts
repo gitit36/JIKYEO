@@ -11,6 +11,8 @@ export interface OccurrencePlan {
   sequenceNo: number;
   windowStartAt: Date; // UTC
   deadlineAt: Date; // UTC
+  /** ISO week key for x_per_week period targets. Absent on fixed-time schedules. */
+  periodKey?: string;
 }
 
 /**
@@ -76,13 +78,22 @@ export class ScheduleService {
 
     return localDates.map((d, idx) => {
       const windowStartLocal = d.set({ hour: wsH, minute: wsM, second: 0, millisecond: 0 });
-      const deadlineLocal = spansMidnight
+      let deadlineLocal = spansMidnight
         ? d.plus({ days: 1 }).set({ hour: dlH, minute: dlM, second: 0, millisecond: 0 })
         : d.set({ hour: dlH, minute: dlM, second: 0, millisecond: 0 });
+      let periodKey: string | undefined;
+      if (input.type === 'x_per_week') {
+        const weekEnd = d.endOf('week').set({ hour: dlH, minute: dlM, second: 0, millisecond: 0 });
+        const contractEnd = end.set({ hour: dlH, minute: dlM, second: 0, millisecond: 0 });
+        deadlineLocal = weekEnd < contractEnd ? weekEnd : contractEnd;
+        if (deadlineLocal < windowStartLocal) deadlineLocal = windowStartLocal;
+        periodKey = d.toFormat("kkkk-'W'WW");
+      }
       return {
         sequenceNo: idx + 1,
         windowStartAt: windowStartLocal.toUTC().toJSDate(),
         deadlineAt: deadlineLocal.toUTC().toJSDate(),
+        periodKey,
       };
     });
   }

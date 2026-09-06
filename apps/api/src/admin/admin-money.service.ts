@@ -7,6 +7,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SettlementService } from '../settlement/settlement.service';
 import { financialStatus } from '../settlement/financial-finality';
 import { Clock } from '../common/clock/clock';
+import { CommitmentService } from '../commitments/commitment.service';
+import { Optional } from '@nestjs/common';
 
 export type MoneyCaseKind = 'refund_delayed' | 'unknown_payment' | 'expired_awaiting_refund';
 
@@ -19,7 +21,21 @@ export class AdminMoneyService {
     private readonly settlement: SettlementService,
     private readonly audit: AuditService,
     private readonly clock: Clock,
+    @Optional() private readonly commitments?: CommitmentService,
   ) {}
+
+  async systemCancel(commitmentId: string, actorId: string | null) {
+    if (!this.commitments) throw new NotFoundError('Commitment service unavailable');
+    const result = await this.commitments.cancelSystem(commitmentId, actorId);
+    await this.audit.log({
+      actorType: 'admin',
+      actorId,
+      entityType: 'commitment',
+      entityId: commitmentId,
+      action: 'system_cancel',
+    });
+    return result;
+  }
 
   /**
    * Operational accounting view. Ledger is source of truth.
@@ -27,25 +43,24 @@ export class AdminMoneyService {
    */
   async accountingSummary() {
     const now = this.clock.now();
-    const [ledger, occs, appeals, delayed] = await Promise.all([
+    const [ledger, commitments, delayed] = await Promise.all([
       this.prisma.paymentLedger.findMany(),
-      this.prisma.occurrence.findMany({ where: { stakeAmount: { not: null } } }),
-      this.prisma.appeal.findMany(),
+      this.prisma.commitment.findMany({
+        where: { enforcementMode: 'money' },
+        include: { stake: true, occurrences: { include: { appeal: true } } },
+      }),
       this.prisma.payment.findMany({
         where: { type: 'refund', status: 'failed' },
         select: { amount: true },
       }),
     ]);
-    const appealByOcc = new Map(appeals.map((a) => [a.occurrenceId, a]));
     let held = 0n;
     let refundable = 0n;
-    let provisionalFail = 0n;
     let finalForfeit = 0n;
     let refundPaid = 0n;
     let reversal = 0n;
     for (const e of ledger) {
       if (e.entryType === 'deposit') held += e.amount;
-      if (e.entryType === 'refund_earned') refundable += e.amount;
       if (e.entryType === 'forfeit') finalForfeit += e.amount;
       if (e.entryType === 'refund_paid') {
         refundPaid += e.amount;
@@ -53,16 +68,34 @@ export class AdminMoneyService {
       }
       if (e.entryType === 'reversal') reversal += e.amount;
     }
-    for (const o of occs) {
-      if (financialStatus(o, appealByOcc.get(o.id), now) === 'pending' && o.status === 'fail' && o.stakeAmount) {
-        provisionalFail += o.stakeAmount;
+    refundable = held - (finalForfeit - reversal > 0n ? finalForfeit - reversal : 0n);
+    if (refundable < 0n) refundable = 0n;
+    let graceUsed = 0;
+    let provisionalFailCount = 0;
+    let thresholdBreakingProvisional = 0;
+    for (const c of commitments) {
+      const allowed = c.allowedFailCount ?? 0;
+      let finalFails = 0;
+      let provisional = 0;
+      for (const o of c.occurrences) {
+        const st = financialStatus(o, o.appeal, now);
+        if (st === 'fail') finalFails += 1;
+        if (o.status === 'fail' && st === 'pending') provisional += 1;
       }
+      graceUsed += Math.min(finalFails, allowed);
+      provisionalFailCount += provisional;
+      if (finalFails + provisional > allowed && provisional > 0) thresholdBreakingProvisional += 1;
     }
     const refundDelayed = delayed.reduce((a, p) => a + p.amount, 0n);
     return {
+      heldStakeKrw: held.toString(),
       heldDepositsKrw: held.toString(),
       refundableKrw: refundable.toString(),
-      provisionalFailKrw: provisionalFail.toString(),
+      behavioralProvisionalFailCount: provisionalFailCount,
+      graceUsedCount: graceUsed,
+      thresholdBreakingProvisionalCount: thresholdBreakingProvisional,
+      provisionalFailKrw: '0',
+      finalContractForfeitKrw: finalForfeit.toString(),
       finalForfeitKrw: finalForfeit.toString(),
       refundPaidKrw: refundPaid.toString(),
       refundDelayedKrw: refundDelayed.toString(),

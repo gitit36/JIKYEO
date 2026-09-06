@@ -46,12 +46,13 @@ function makeService(
 }
 
 describe('QuoteService', () => {
-  it('computes 3 × 5,000 = 15,000 KRW authoritatively', async () => {
+  it('computes a commitment-level Stake without multiplying by occurrence count', async () => {
     const { svc } = makeService();
     const q = await svc.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 15_000,
+      contractStrictness: 'realistic',
       schedule: {
         type: 'specific_days',
         days: ['MON', 'WED', 'FRI'],
@@ -62,8 +63,9 @@ describe('QuoteService', () => {
       },
     });
     expect(q.occurrenceCount).toBe(3);
-    expect(q.stakePerOccurrence).toBe(5_000n);
+    expect(q.stakeTotal).toBe(15_000n);
     expect(q.maxLoss).toBe(15_000n);
+    expect(q.allowedFailCount).toBe(0);
     expect(q.currency).toBe('KRW');
     expect(q.quoteExpiresAt.toISOString()).toBe('2026-09-02T14:10:00.000Z');
   });
@@ -73,7 +75,7 @@ describe('QuoteService', () => {
     const q = await svc.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'daily',
         startDate: '2026-09-07',
@@ -84,8 +86,8 @@ describe('QuoteService', () => {
     });
     const claims = cache.verify(q.quoteId);
     expect(claims.occurrenceCount).toBe(3);
-    expect(claims.stakePerOccurrence).toBe('5000');
-    expect(claims.maxLoss).toBe('15000');
+    expect(claims.stakeTotal).toBe('5000');
+    expect(claims.maxLoss).toBe('5000');
     expect(typeof claims.jti).toBe('string');
     expect(claims.jti.length).toBeGreaterThan(10);
     expect(() => cache.verify(q.quoteId.slice(0, -1) + 'X')).toThrow(DomainError);
@@ -96,7 +98,7 @@ describe('QuoteService', () => {
     const q = await svc.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'one_time',
         startDate: '2026-09-07',
@@ -119,7 +121,7 @@ describe('QuoteService', () => {
       const q = await svc.compute({
         userId: 'u1',
         timezone: 'Asia/Seoul',
-        stakePerOccurrenceKrw: 5_000,
+        stakeTotalKrw: 5_000,
         schedule: {
           type: 'one_time',
           startDate: '2026-09-07',
@@ -138,7 +140,7 @@ describe('QuoteService', () => {
     const q = await svc.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'one_time',
         startDate: '2026-09-07',
@@ -157,7 +159,7 @@ describe('QuoteService', () => {
       svc.compute({
         userId: 'u1',
         timezone: 'Asia/Seoul',
-        stakePerOccurrenceKrw: 100_001,
+        stakeTotalKrw: 100_001,
         schedule: {
           type: 'one_time',
           startDate: '2026-09-07',
@@ -169,17 +171,17 @@ describe('QuoteService', () => {
     ).rejects.toBeInstanceOf(DomainError);
   });
 
-  it('rejects max loss above per-commitment limit', async () => {
+  it('rejects stake above per-commitment limit', async () => {
     const { svc } = makeService();
     await expect(
       svc.compute({
         userId: 'u1',
         timezone: 'Asia/Seoul',
-        stakePerOccurrenceKrw: 100_000,
+        stakeTotalKrw: 500_001,
         schedule: {
-          type: 'daily',
+          type: 'one_time',
           startDate: '2026-09-07',
-          endDate: '2026-09-20',
+          endDate: '2026-09-07',
           windowStartLocalTime: '07:00',
           deadlineLocalTime: '09:00',
         },
@@ -193,7 +195,7 @@ describe('QuoteService', () => {
       svc.compute({
         userId: 'u1',
         timezone: 'Asia/Seoul',
-        stakePerOccurrenceKrw: 30_001,
+        stakeTotalKrw: 30_001,
         schedule: {
           type: 'one_time',
           startDate: '2026-09-07',
@@ -210,7 +212,7 @@ describe('QuoteService', () => {
     const q = await svc.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 30_000,
+      stakeTotalKrw: 30_000,
       schedule: {
         type: 'one_time',
         startDate: '2026-09-07',
@@ -219,21 +221,20 @@ describe('QuoteService', () => {
         deadlineLocalTime: '09:00',
       },
     });
-    expect(q.stakePerOccurrence).toBe(30_000n);
+    expect(q.stakeTotal).toBe(30_000n);
   });
 
-  it('enforces tier limits — TIER 1 rejects commitment max loss above 150,000 KRW', async () => {
+  it('enforces tier limits — TIER 1 rejects total Stake above 150,000 KRW', async () => {
     const { svc } = makeService({}, fakeStakePolicy('tier_1'));
     await expect(
       svc.compute({
         userId: 'u1',
         timezone: 'Asia/Seoul',
-        stakePerOccurrenceKrw: 30_000,
+        stakeTotalKrw: 40_000,
         schedule: {
-          // 30_000 * 6 = 180_000 > 150_000 tier1 max
-          type: 'daily',
+          type: 'one_time',
           startDate: '2026-09-07',
-          endDate: '2026-09-12',
+          endDate: '2026-09-07',
           windowStartLocalTime: '07:00',
           deadlineLocalTime: '09:00',
         },

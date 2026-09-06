@@ -65,7 +65,7 @@ public enum Copy {
         public static let step5Title       = "못 지키면 얼마를 걸까요?"
         public static let step5MaxPrefix   = "이번 약속에서\n최대"
         public static let step5MaxSuffix   = "이 걸려 있어요."
-        public static let step5PerLabel    = "한 번 놓치면"
+        public static let step5PerLabel    = "이번 약속 약속금"
         public static let step5MonthlyRemaining = "이번 달 남은 한도"
         public static let step5CustomLabel = "직접 입력"
         public static let step5CustomPlaceholder = "원하는 금액"
@@ -84,18 +84,32 @@ public enum Copy {
         // Review
         public static let step7Title       = "이대로 약속할게요"
         public static let step7CTA         = "이대로 약속할게요"
-        public static let step7MoneyReviewHint = "약속이 끝나면 지킨 만큼 돌려받아요."
+        public static let step7MoneyReviewHint = "성공하면 약속금 전액을 돌려받아요."
         public static let step7SelfReviewHint  = "돈은 걸지 않고 내 기록으로 확인할게요."
         public static let step7SocialReviewHint = "친구에게도 결과가 전달돼요."
         /// MONEY review CTA: "15,000원 걸고 약속할게요"
         public static func step7MoneyCTA(_ amount: String) -> String { "\(amount) 걸고 약속할게요" }
         public static let step8Title       = "약속금을 걸어요"
         public static let step8SubDev      = "개발 모드 · 모의 결제(MockPaymentProvider)로 진행돼요."
-        public static let step8RowPerOccurrence = "회차당 약속금"
+        public static let step8RowPerOccurrence = "이번 약속 약속금"
         public static let step8RowCount    = "총 횟수"
         public static let step8RowMaxLoss  = "최대 손실"
         public static let step8RowUpfront  = "지금 결제할 금액"
-        public static let step8Explain     = "약속금은 미리 결제되고, 약속이 끝나면 지킨 회차만큼 한 번에 돌려받아요."
+        public static let step8Explain     = "약속금은 한 번만 결제되고, 성공하면 전액이 돌아와요. 부분 환불은 없어요."
+        public static let strictnessTitle = "얼마나 빡세게 지킬까요?"
+        public static let strictPerfect = "완벽하게"
+        public static let strictPerfectHint = "한 번이라도 놓치면 실패해요."
+        public static let strictRealistic = "현실적으로"
+        public static let strictRealisticHint = "조금의 여유는 두되, 대부분 지켜야 해요."
+        public static let strictFlexible = "조금 여유롭게"
+        public static let strictFlexibleHint = "몇 번의 실수는 괜찮아요."
+        public static func graceUsed(_ n: Int) -> String { "\(n)번의 여유를 사용했어요." }
+        public static func stillKeep(_ amount: String) -> String { "아직 약속금 \(amount)원을 모두 지킬 수 있어요." }
+        public static func reviewStake(_ amount: String) -> String { "이번 약속에 \(amount)원을 걸어요." }
+        public static func reviewNeed(_ need: Int, _ total: Int) -> String { "총 \(total)번 중 \(need)번 이상 지키면 성공이에요." }
+        public static func reviewGrace(_ n: Int) -> String { "\(n)번까지는 놓쳐도 괜찮아요." }
+        public static func reviewRefund(_ amount: String) -> String { "약속에 성공하면 \(amount)원 전액을 돌려받아요." }
+        public static let reviewFail = "성공 기준을 넘겨 실패하면 환불되지 않아요."
         public static func step8CTA(_ amount: String) -> String { "\(amount) 결제하기" }
         public static let step8Charging    = "결제 중"
         public static let step8FailedTitle = "결제가 완료되지 않았어요"
@@ -209,7 +223,7 @@ public enum Copy {
         public static let uncertainCTA     = "다시 증명하기"
         // FAIL
         public static let failTitle        = "약속을 놓쳤어요."
-        public static func failMoneyBody(_ krw: Int64) -> String { "\(MoneyText.format(krw))이 걸린 회차예요." }
+        public static func failMoneyBody(_ krw: Int64) -> String { "아직 약속금 \(MoneyText.format(krw))을 모두 지킬 수 있어요." }
         public static let failSelfBody     = "다음 약속은 이어가볼까요?"
         // Shared
         public static let backHome         = "홈으로"
@@ -256,7 +270,7 @@ public enum Copy {
     public enum Terms {
         public static let title = "결제 전 확인"
         public static let accept = "내용을 확인했고, 결제할게요"
-        public static let body = "회차별 금액, 최대 결제액, 지킨 금액 환불, 실패는 7일 이의 후 확정, 취소 시점 이후 회차는 환불됩니다. 상금이나 다른 사람 지급은 없어요."
+        public static let body = "한 번의 약속금, 성공 시 전액 환불, 계약 실패 시 환불 없음, 부분 환불 없음. 실패는 7일 이의 후 확정. 시작 전 취소는 전액 환불, 시작 후 자진 취소는 환불되지 않아요. 상금이나 다른 사람 지급은 없어요."
     }
 
     public enum Age {
@@ -266,7 +280,12 @@ public enum Copy {
     public enum Cancel {
         public static let cta = "약속 그만하기"
         public static let selfConfirm = "이미 시작된 회차는 그대로 두고,\n앞으로의 약속을 그만할게요."
-        public static let moneyNotice = "아직 시작 전 회차는 바로 취소돼요."
+        public static let moneyNotice = "아직 시작 전이에요. 지금 그만두면 약속금은 전액 환불돼요."
+        public static let moneyPreStart = "아직 시작 전 MONEY 약속이에요."
+        public static let moneyStarted = "이미 시작된 MONEY 약속이에요."
+        public static func moneyAbandon(_ amount: String) -> String {
+            "지금 그만두면 약속금 \(amount)원은 환불되지 않아요."
+        }
         public static func moneyBinding(_ n: Int) -> String { "이미 시작된 \(n)번은 그대로 진행돼요." }
         public static func moneyRefund(_ n: Int, _ amount: String) -> String {
             "이후 \(n)번의 약속금 \(amount)원은 최종 정산 때 환불돼요."

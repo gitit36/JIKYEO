@@ -3,18 +3,25 @@ import { Injectable } from '@nestjs/common';
 import { Clock } from '../common/clock/clock';
 import { DomainError, ForbiddenError, NotFoundError } from '../common/errors/domain-errors';
 import { PrismaService } from '../prisma/prisma.service';
+import { allowedFailCount, ContractStrictnessMode, parseStrictness } from './grace-policy';
 
-export const TERMS_VERSION = 'terms-v1';
+export const TERMS_VERSION = 'terms-v2';
 
 export interface TermsSnapshot {
   documentVersion: string;
-  perOccurrenceKrw: string;
+  totalStakeKrw: string;
   occurrenceCount: number;
-  maxChargeKrw: string;
-  passVoidRefund: true;
+  contractStrictness: ContractStrictnessMode;
+  allowedFailCount: number;
+  successCondition: string;
+  successFullRefund: true;
+  contractFailNoRefund: true;
+  noPartialRefund: true;
   provisionalFail: true;
   appealDays: 7;
-  cancellationCutoff: 'cancellation_requested_at';
+  voidDoesNotConsumeGrace: true;
+  preStartCancelFullRefund: true;
+  postStartAbandonNoRefund: true;
   refundToOriginalMethod: true;
   noPrizePayout: true;
   refundHandling: string;
@@ -29,7 +36,7 @@ export interface TermsView {
 }
 
 const REFUND_GUIDANCE =
-  '환불은 원래 결제 수단으로 돌아가며, 최종 정산 때 한 번에 처리돼요. 처리가 늦으면 다시 시도해요.';
+  '환불은 원래 결제 수단으로 전액 한 번에 돌아가요. 부분 환불은 없어요. 처리가 늦으면 다시 시도해요.';
 
 @Injectable()
 export class TermsService {
@@ -90,15 +97,16 @@ export class TermsService {
   }
 
   private buildSnapshot(c: {
-    stake: { perOccurrenceAmount: bigint; maxTotalAmount: bigint } | null;
+    contractStrictness: string | null;
+    allowedFailCount: number | null;
+    stake: { maxTotalAmount: bigint } | null;
     occurrences: { id: string }[];
   }): TermsSnapshot {
     if (!c.stake) throw new DomainError('PAYMENT_NOT_REQUIRED', '이 약속에는 결제가 필요하지 않아요.');
-    return defaultTermsSnapshot(
-      c.stake.perOccurrenceAmount.toString(),
-      c.occurrences.length,
-      c.stake.maxTotalAmount.toString(),
-    );
+    const mode = parseStrictness(c.contractStrictness);
+    const count = c.occurrences.length;
+    const allowed = c.allowedFailCount ?? allowedFailCount(mode, count);
+    return defaultTermsSnapshot(c.stake.maxTotalAmount.toString(), count, mode, allowed);
   }
 
   private stored(row: {
@@ -130,19 +138,27 @@ export class TermsService {
 }
 
 export function defaultTermsSnapshot(
-  perOccurrenceKrw: string,
+  totalStakeKrw: string,
   occurrenceCount: number,
-  maxChargeKrw: string,
+  contractStrictness: ContractStrictnessMode = 'realistic',
+  allowed = allowedFailCount(contractStrictness, occurrenceCount),
 ): TermsSnapshot {
+  const need = Math.max(0, occurrenceCount - allowed);
   return {
     documentVersion: TERMS_VERSION,
-    perOccurrenceKrw,
+    totalStakeKrw,
     occurrenceCount,
-    maxChargeKrw,
-    passVoidRefund: true,
+    contractStrictness,
+    allowedFailCount: allowed,
+    successCondition: `총 ${occurrenceCount}번 중 ${need}번 이상 지키면 성공이에요.`,
+    successFullRefund: true,
+    contractFailNoRefund: true,
+    noPartialRefund: true,
     provisionalFail: true,
     appealDays: 7,
-    cancellationCutoff: 'cancellation_requested_at',
+    voidDoesNotConsumeGrace: true,
+    preStartCancelFullRefund: true,
+    postStartAbandonNoRefund: true,
     refundToOriginalMethod: true,
     noPrizePayout: true,
     refundHandling: REFUND_GUIDANCE,

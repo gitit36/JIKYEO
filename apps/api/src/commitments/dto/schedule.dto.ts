@@ -52,9 +52,21 @@ export class QuoteRequestDto {
   @Type(() => ScheduleDto)
   schedule!: ScheduleDto;
 
+  /** Commitment-level Stake. Preferred. */
+  @IsOptional()
   @IsInt()
   @Min(1)
-  stakePerOccurrenceKrw!: number;
+  stakeTotalKrw?: number;
+
+  /** @deprecated Alias of stakeTotalKrw. Never multiplied. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  stakePerOccurrenceKrw?: number;
+
+  @IsOptional()
+  @IsIn(['perfect', 'realistic', 'flexible'])
+  contractStrictness?: 'perfect' | 'realistic' | 'flexible';
 
   @IsString()
   timezone!: string;

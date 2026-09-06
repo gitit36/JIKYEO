@@ -180,7 +180,7 @@ describe('CommitmentService.createAndActivate — MONEY mode', () => {
     const q = await quote.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'specific_days',
         days: ['MON', 'WED', 'FRI'],
@@ -192,7 +192,7 @@ describe('CommitmentService.createAndActivate — MONEY mode', () => {
     });
     const result = await service.createAndActivate('u1', buildMoneyDto(q.quoteId));
     expect(result.occurrenceCount).toBe(3);
-    expect(result.maxLossKrw).toBe('15000');
+    expect(result.maxLossKrw).toBe('5000');
     expect(result.enforcementMode).toBe('money');
     // Phase 4: MONEY is NOT active until the upfront charge succeeds.
     expect(result.status).toBe('payment_pending');
@@ -203,7 +203,7 @@ describe('CommitmentService.createAndActivate — MONEY mode', () => {
     expect(db.stakes[0].status).toBe('pending');
     expect(db.commitments[0].enforcementMode).toBe('money');
     expect(db.commitments[0].timezone).toBe('Asia/Seoul');
-    expect(db.commitments[0].maxLossAmount).toBe(15000n);
+    expect(db.commitments[0].maxLossAmount).toBe(5000n);
     expect(db.commitments[0].currency).toBe('KRW');
     expect(db.stakes).toHaveLength(1);
     expect(db.verificationRules).toHaveLength(1);
@@ -211,7 +211,7 @@ describe('CommitmentService.createAndActivate — MONEY mode', () => {
     expect(db.occurrences).toHaveLength(3);
     for (const o of db.occurrences) {
       expect(o.deadlineAt.getUTCHours()).toBe(12);
-      expect(o.stakeAmount).toBe(5000n);
+      expect(o.stakeAmount).toBeNull();
     }
   });
 
@@ -228,7 +228,7 @@ describe('CommitmentService.createAndActivate — MONEY mode', () => {
     const q = await quote.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'one_time',
         startDate: '2026-09-07',
@@ -255,7 +255,7 @@ describe('CommitmentService.createAndActivate — MONEY mode', () => {
     const q = await quote.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'specific_days',
         days: ['MON', 'WED', 'FRI'],
@@ -282,7 +282,7 @@ describe('CommitmentService.createAndActivate — MONEY mode', () => {
     const q = await quote.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'one_time',
         startDate: '2026-09-07',
@@ -311,7 +311,7 @@ describe('CommitmentService.createAndActivate — MONEY mode', () => {
     const q = await quote.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'one_time',
         startDate: '2026-09-07',
@@ -338,7 +338,7 @@ describe('CommitmentService.createAndActivate — MONEY mode', () => {
     const q = await quote.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'one_time',
         startDate: '2026-09-07',
@@ -370,7 +370,7 @@ describe('CommitmentService.createAndActivate — MONEY mode', () => {
     const q = await quote.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'one_time',
         startDate: '2026-09-07',
@@ -462,7 +462,7 @@ describe('Single-use quotes', () => {
     const q = await quote.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'one_time',
         startDate: '2026-09-07',
@@ -495,7 +495,7 @@ describe('Single-use quotes', () => {
     const q = await quote.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'one_time',
         startDate: '2026-09-07',
@@ -527,7 +527,7 @@ describe('Timezone freeze', () => {
     const q = await quote.compute({
       userId: 'u1',
       timezone: 'Asia/Seoul',
-      stakePerOccurrenceKrw: 5_000,
+      stakeTotalKrw: 5_000,
       schedule: {
         type: 'daily',
         startDate: '2026-09-07',

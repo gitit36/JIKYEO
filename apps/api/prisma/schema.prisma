@@ -79,6 +79,7 @@ enum CommitmentStatus {
 enum CancellationReason {
   user_cancelled
   signature_expired
+  system_cancelled
 }
 
 // SELF: no money, no observer required. SOCIAL: no money, observer required.
@@ -183,8 +184,22 @@ enum VerificationOutcome {
 }
 
 enum SettlementMode {
-  end_of_commitment
+  end_of_commitment // LEGACY pro-rata. Isolated; new MONEY V1 never uses this.
   per_occurrence
+  contract_v1
+}
+
+enum ContractStrictness {
+  perfect
+  realistic
+  flexible
+}
+
+enum ContractOutcome {
+  pending
+  success
+  failed
+  voided
 }
 
 enum StakeRecipientType {
@@ -335,6 +350,10 @@ model Commitment {
   cancellationEffectiveAt    DateTime?           @map("cancellation_effective_at") @db.Timestamptz
   cancellationReason         CancellationReason? @map("cancellation_reason")
   contractVersion     String              @default("v1") @map("contract_version")
+  // MONEY V1: server-computed grace. Client cannot override allowedFailCount.
+  contractStrictness  ContractStrictness? @map("contract_strictness")
+  allowedFailCount    Int?                @map("allowed_fail_count")
+  contractOutcome     ContractOutcome     @default(pending) @map("contract_outcome")
   // NOTE: We intentionally do NOT store the raw signature drawing. The
   // signature is a behavioral commitment ritual, not a legal signature.
   // Only `signedAt`, `signatureCompleted`, and `contractVersion` are kept.
@@ -371,6 +390,7 @@ model Occurrence {
   decidedAt           DateTime?         @map("decided_at") @db.Timestamptz
   appealOpenedAt      DateTime?         @map("appeal_opened_at") @db.Timestamptz
   appealDeadlineAt    DateTime?         @map("appeal_deadline_at") @db.Timestamptz
+  periodKey           String?           @map("period_key")
   createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz
 
   commitment          Commitment              @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
@@ -477,7 +497,7 @@ model Stake {
   perOccurrenceAmount   BigInt              @map("per_occurrence_amount")
   maxTotalAmount        BigInt              @map("max_total_amount")
   currency              String              @default("KRW") @db.Char(3)
-  settlementMode        SettlementMode      @default(end_of_commitment) @map("settlement_mode")
+  settlementMode        SettlementMode      @default(contract_v1) @map("settlement_mode")
   recipientType         StakeRecipientType  @default(platform) @map("recipient_type")
   status                StakeStatus         @default(pending)
   fundedAt              DateTime?           @map("funded_at") @db.Timestamptz

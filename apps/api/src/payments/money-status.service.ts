@@ -83,13 +83,16 @@ export class MoneyStatusService {
         refundableRemaining: this.ledger.refundableRemaining(totals),
       });
       if (!status) continue;
+      const netForfeit = totals.forfeit - totals.reversal;
+      const v1 = c.stake.settlementMode === 'contract_v1';
+      const remaining = totals.deposit - (netForfeit > 0n ? netForfeit : 0n) - totals.refundPaid;
       out.set(c.id, {
         status,
         label: MONEY_STATUS_LABEL_KO[status],
-        perOccurrenceKrw: c.stake.perOccurrenceAmount.toString(),
+        perOccurrenceKrw: c.stake.maxTotalAmount.toString(),
         upfrontKrw: c.stake.maxTotalAmount.toString(),
-        refundableKrw: (totals.refundEarned + totals.reversal).toString(),
-        forfeitedKrw: (totals.forfeit - totals.reversal > 0n ? totals.forfeit - totals.reversal : 0n).toString(),
+        refundableKrw: (v1 ? (remaining > 0n ? remaining : 0n) : totals.refundEarned + totals.reversal).toString(),
+        forfeitedKrw: (netForfeit > 0n ? netForfeit : 0n).toString(),
         refundPaidKrw: totals.refundPaid.toString(),
         depositKrw: totals.deposit.toString(),
       });

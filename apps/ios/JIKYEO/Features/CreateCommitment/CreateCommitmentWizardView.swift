@@ -6,7 +6,7 @@ import SwiftUI
 ///   Goal → Schedule → Verification → Proof Rule → **Enforcement**
 ///     ├─ SELF   → Review → Signature → Done
 ///     ├─ SOCIAL → Observer → Review → Signature → Done
-///     └─ MONEY  → Stake → Review → (mock) Payment → Signature → Done
+///     └─ MONEY  → Stake → Strictness → Review → (mock) Payment → Signature → Done
 struct CreateCommitmentWizardView: View {
     let debugStage: String?
     init(debugStage: String? = nil) { self.debugStage = debugStage }
@@ -39,7 +39,9 @@ struct CreateCommitmentWizardView: View {
                         }
                     })
                 case .stake:
-                    StakeStep(model: model, onNext: {
+                    StakeStep(model: model, onNext: { model.step = .strictness })
+                case .strictness:
+                    StrictnessStep(model: model, onNext: {
                         model.step = .review
                         Task { await model.refreshQuote(container: container) }
                     })
@@ -89,9 +91,10 @@ struct CreateCommitmentWizardView: View {
                     model.enforcementMode = .money
                     model.stakePerOccurrenceKrw = 10_000
                     model.step = .review
-                    model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 3,
-                        stakePerOccurrence: "10000", maxLoss: "30000",
-                        currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600))
+                    model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 10,
+                        stakePerOccurrence: "30000", maxLoss: "30000",
+                        currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600),
+                        stakeTotal: "30000", contractStrictness: "realistic", allowedFailCount: 1)
                     model.safety = SafetyResponse(decision: "safe", reasonCode: "OK", userMessage: "")
                 }
                 if debugStage == "wizard-review-self" {
@@ -106,8 +109,9 @@ struct CreateCommitmentWizardView: View {
                     model.stakePerOccurrenceKrw = 5_000
                     model.step = .payment
                     model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 3,
-                        stakePerOccurrence: "5000", maxLoss: "15000",
-                        currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600))
+                        stakePerOccurrence: "15000", maxLoss: "15000",
+                        currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600),
+                        stakeTotal: "15000", contractStrictness: "realistic", allowedFailCount: 0)
                     if debugStage == "wizard-payment-failed" {
                         model.paymentState = .failed(message: "결제가 완료되지 않았어요. 카드 정보를 확인하고 다시 시도해주세요.")
                         model.lastPayment = PaymentView(paymentId: "pay_demo", commitmentId: "c_demo", type: "charge",
@@ -139,16 +143,17 @@ struct CreateCommitmentWizardView: View {
                     model.step = .signature
                     model.paymentState = .succeeded
                     model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 3,
-                        stakePerOccurrence: "5000", maxLoss: "15000",
-                        currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600))
-                    model.moneyView = MoneyView(status: .funded, label: "약속금 걸림", perOccurrenceKrw: "5000", upfrontKrw: "15000",
+                        stakePerOccurrence: "15000", maxLoss: "15000",
+                        currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600),
+                        stakeTotal: "15000", contractStrictness: "realistic", allowedFailCount: 0)
+                    model.moneyView = MoneyView(status: .funded, label: "약속금 걸림", perOccurrenceKrw: "15000", upfrontKrw: "15000",
                         refundableKrw: "0", forfeitedKrw: "0", refundPaidKrw: "0", depositKrw: "15000")
                 }
                 if debugStage == "wizard-done-money"   {
                     model.enforcementMode = .money
                     model.createdEnforcementMode = .money
                     model.createdMaxLossKrw = 15_000
-                    model.moneyView = MoneyView(status: .funded, label: "약속금 걸림", perOccurrenceKrw: "5000", upfrontKrw: "15000",
+                    model.moneyView = MoneyView(status: .funded, label: "약속금 걸림", perOccurrenceKrw: "15000", upfrontKrw: "15000",
                         refundableKrw: "0", forfeitedKrw: "0", refundPaidKrw: "0", depositKrw: "15000")
                     model.step = .done
                 }
@@ -192,11 +197,13 @@ fileprivate extension CreateCommitmentModel {
             step = WizardStep(rawValue: step.rawValue - 1) ?? .goal
         case .stake, .observer:
             step = .enforcement
+        case .strictness:
+            step = .stake
         case .review:
             switch enforcementMode {
             case .self:   step = .enforcement
             case .social: step = .observer
-            case .money:  step = .stake
+            case .money:  step = .strictness
             }
         case .payment:
             // Leaving an unpaid MONEY commitment behind: drop the client handle
@@ -733,9 +740,9 @@ private struct StakeStep: View {
                         Text(Copy.Wizard.step5MaxPrefix)
                             .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
                         Spacer()
-                        MoneyText(Int64(model.stakePerOccurrenceKrw * model.estimatedOccurrences), intent: .atRisk, size: .hero)
+                        MoneyText(Int64(model.stakeTotalKrw), intent: .atRisk, size: .hero)
                     }
-                    Text("총 \(model.estimatedOccurrences)번 · 최대 손실 표시")
+                    Text("총 \(model.estimatedOccurrences)번 · 약속금은 한 번만 걸어요")
                         .font(Typo.caption).foregroundStyle(DS.Color.textMuted)
                     if let p = model.stakePolicy {
                         Divider().padding(.vertical, DS.Space.xxs)
@@ -749,7 +756,7 @@ private struct StakeStep: View {
                 }
             }
             if !withinTier, let p = model.stakePolicy {
-                Text("이번 티어에서는 회차당 최대 \(MoneyText.format(Int64(p.maxPerOccurrenceKrw)))까지 걸 수 있어요.")
+                Text("이번 티어에서는 최대 \(MoneyText.format(Int64(p.maxPerOccurrenceKrw)))까지 걸 수 있어요.")
                     .font(Typo.caption).foregroundStyle(DS.Color.moneyLost)
             }
         }
@@ -761,7 +768,7 @@ private struct StakeStep: View {
             Button(Copy.Wizard.step5OverTierConfirm) { onNext() }
             Button(Copy.Wizard.step5OverTierBack, role: .cancel) { }
         } message: {
-            Text(Copy.Wizard.step5OverTierBody(Int64(model.stakePerOccurrenceKrw * model.estimatedOccurrences)))
+            Text(Copy.Wizard.step5OverTierBody(Int64(model.stakeTotalKrw)))
         }
     }
     private var suggestedAmounts: [Int] {
@@ -830,6 +837,67 @@ private struct CustomStakeChoice: View {
         } message: {
             Text("최대 \(MoneyText.format(Int64(maxAmount)))까지 걸 수 있어요.")
         }
+    }
+}
+
+// MARK: - Step · Strictness (MONEY only)
+private struct StrictnessStep: View {
+    @ObservedObject var model: CreateCommitmentModel
+    let onNext: () -> Void
+    var body: some View {
+        WizardContainer(title: Copy.Wizard.strictnessTitle, primaryTitle: Copy.Wizard.next, primaryEnabled: true, onPrimary: onNext) {
+            VStack(spacing: DS.Space.sm) {
+                StrictnessRow(
+                    title: Copy.Wizard.strictRealistic,
+                    hint: Copy.Wizard.strictRealisticHint,
+                    recommended: true,
+                    isSelected: model.contractStrictness == "realistic"
+                ) { model.contractStrictness = "realistic" }
+                StrictnessRow(
+                    title: Copy.Wizard.strictPerfect,
+                    hint: Copy.Wizard.strictPerfectHint,
+                    recommended: false,
+                    isSelected: model.contractStrictness == "perfect"
+                ) { model.contractStrictness = "perfect" }
+                StrictnessRow(
+                    title: Copy.Wizard.strictFlexible,
+                    hint: Copy.Wizard.strictFlexibleHint,
+                    recommended: false,
+                    isSelected: model.contractStrictness == "flexible"
+                ) { model.contractStrictness = "flexible" }
+            }
+        }
+    }
+}
+
+private struct StrictnessRow: View {
+    let title: String
+    let hint: String
+    let recommended: Bool
+    let isSelected: Bool
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(title).font(Typo.bodyStrong)
+                    if recommended {
+                        Text("추천").font(Typo.caption).foregroundStyle(DS.Color.primary)
+                    }
+                    Spacer()
+                    if isSelected { Image(systemName: "checkmark").foregroundStyle(DS.Color.primary) }
+                }
+                Text(hint).font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
+            }
+            .padding(DS.Space.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.md)
+                    .stroke(isSelected ? DS.Color.primary : DS.Color.divider, lineWidth: isSelected ? 2 : 1)
+                    .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.surface))
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -910,6 +978,17 @@ private struct ReviewStep: View {
             }
             if model.enforcementMode == .money {
                 MoneyBreakdownCard(model: model)
+                VStack(alignment: .leading, spacing: DS.Space.xs) {
+                    Text(Copy.Wizard.reviewStake(moneyAmount))
+                    Text(Copy.Wizard.reviewNeed(reviewNeedCount, reviewTotalCount))
+                    if reviewAllowedFails > 0 {
+                        Text(Copy.Wizard.reviewGrace(reviewAllowedFails))
+                    }
+                    Text(Copy.Wizard.reviewRefund(moneyAmount))
+                    Text(Copy.Wizard.reviewFail)
+                }
+                .font(Typo.body)
+                .foregroundStyle(DS.Color.text)
             }
             Text(reviewTail)
                 .font(Typo.body)
@@ -919,6 +998,12 @@ private struct ReviewStep: View {
             }
         }
     }
+    private var moneyAmount: String {
+        MoneyText.format(model.upfrontKrw).replacingOccurrences(of: "원", with: "")
+    }
+    private var reviewTotalCount: Int { model.occurrenceCount ?? model.estimatedOccurrences }
+    private var reviewAllowedFails: Int { model.quote?.allowedFailCount ?? 0 }
+    private var reviewNeedCount: Int { max(0, reviewTotalCount - reviewAllowedFails) }
     private var reviewTail: String {
         switch model.enforcementMode {
         case .money:  return Copy.Wizard.step7MoneyReviewHint
@@ -970,7 +1055,7 @@ private struct UnsafeGoalCard: View {
     }
 }
 
-/// Shared MONEY breakdown: 회차당 약속금 · 총 횟수 · 최대 손실 · 지금 결제할 금액.
+/// Shared MONEY breakdown: one Stake · count · max loss = charge.
 /// All values come from the server quote; the client estimate is only a
 /// placeholder while the quote loads.
 private struct MoneyBreakdownCard: View {
@@ -978,7 +1063,7 @@ private struct MoneyBreakdownCard: View {
     var body: some View {
         Card {
             VStack(spacing: DS.Space.xxs) {
-                CardRow(Copy.Wizard.step8RowPerOccurrence, value: MoneyText.format(Int64(model.stakePerOccurrenceKrw)))
+                CardRow(Copy.Wizard.step8RowPerOccurrence, value: MoneyText.format(Int64(model.stakeTotalKrw)))
                 CardRow(Copy.Wizard.step8RowCount, value: "\(model.occurrenceCount ?? model.estimatedOccurrences)번")
                 CardRow(Copy.Wizard.step8RowMaxLoss, value: MoneyText.format(model.upfrontKrw))
                 Divider().padding(.vertical, DS.Space.xxs)

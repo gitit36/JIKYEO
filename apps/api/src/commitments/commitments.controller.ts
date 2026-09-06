@@ -24,14 +24,18 @@ export class CommitmentsController {
     const q = await this.quote.compute({
       userId: req.userId,
       schedule: dto.schedule.toDomain(),
-      stakePerOccurrenceKrw: dto.stakePerOccurrenceKrw,
+      stakeTotalKrw: dto.stakeTotalKrw ?? dto.stakePerOccurrenceKrw ?? 0,
+      contractStrictness: dto.contractStrictness,
       timezone: dto.timezone,
     });
     return {
       quoteId: q.quoteId,
       occurrenceCount: q.occurrenceCount,
-      stakePerOccurrence: q.stakePerOccurrence.toString(),
+      stakeTotal: q.stakeTotal.toString(),
+      stakePerOccurrence: q.stakeTotal.toString(),
       maxLoss: q.maxLoss.toString(),
+      contractStrictness: q.contractStrictness,
+      allowedFailCount: q.allowedFailCount,
       currency: q.currency,
       quoteExpiresAt: q.quoteExpiresAt.toISOString(),
     };

@@ -15,7 +15,8 @@ import SwiftUI
 ///                    wizard-payment, wizard-payment-failed, wizard-signature,
 ///                    wizard-resume-signature, wizard-done-money, wizard-done-self
 ///   Cancel        — cancel-self, cancel-money, cancel-settled
-///   Compliance    — terms-accept, age-reject, fail-provisional, cancel-immediate
+///   Compliance    — terms-accept, age-reject, fail-provisional, cancel-immediate,
+///                    v1-grace-alive, v1-grace-exceeded, v1-cancel-pre, v1-cancel-post, v1-makeup
 ///   Money status  — history-money (기록 tab with every MoneyStatus)
 ///   Proof + Result — proof-photo, proof-gps, proof-timer, proof-self,
 ///                    result-pass-money, result-pass-self,

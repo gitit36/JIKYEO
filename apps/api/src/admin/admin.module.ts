@@ -9,9 +9,10 @@ import { AdminMoneyController } from './admin-money.controller';
 import { AdminMoneyService } from './admin-money.service';
 import { AdminUsersController } from './admin-users.controller';
 import { UsersModule } from '../users/users.module';
+import { CommitmentsModule } from '../commitments/commitments.module';
 
 @Module({
-  imports: [PaymentsModule, SettlementModule, AuditModule, AppealsModule, UsersModule],
+  imports: [PaymentsModule, SettlementModule, AuditModule, AppealsModule, UsersModule, CommitmentsModule],
   controllers: [AdminMoneyController, AdminAppealsController, AdminUsersController],
   providers: [AdminGuard, AdminMoneyService],
 })

@@ -40,7 +40,7 @@
 - 활성 약속 취소의 컷오프는 `cancellationRequestedAt`이다. 요청 철회/재일정은 없다.
 
 ### SR-FR-003 약속금 (MONEY 모드 전용)
-- 회차당 금액과 전체 최대손실을 분리 저장해야 한다.
+- MONEY V1은 약속 단위 약속금 1건이다. 회차 수와 곱하지 않으며 `maxLoss = Stake`.
 - 결제 전 최대손실을 클라이언트와 서버 모두 검증해야 한다.
 - 서버가 티어별 금액 상한 정책을 강제해야 한다 (SR-FR-003b 참조).
 - SELF/SOCIAL 모드에서는 Stake row가 생성되지 않아야 한다. 0원 Stake row 형태로 우회 표현하는 것은 금지된다.
@@ -59,7 +59,7 @@
 ### SR-FR-004 결제 (MONEY 모드 전용)
 - 선결제 성공은 Stake funded + `signature_pending`까지만 만든다. `/sign`이 끝나야 `active`가 된다. 결제 성공만으로 활성화하지 않는다.
 - 서명 전 취소/만료: `payment_pending`(미충전)은 PG/ledger 없이 취소. `signature_pending`(충전됨)은 원결제 수단으로 전액 환불 1회. 만료는 동일 환불 경로. forfeit/refund_earned를 만들지 않는다. 환불 실패는 기존 `refund_delayed` 재시도. 손실 한도 예약은 환불 성공 전까지 유지. 서명 vs 취소/만료는 원자적으로 하나만 성공한다.
-- 활성 취소의 금전 컷오프는 `cancellationRequestedAt`. `windowStart < requestedAt`은 유지, `>=`는 VOID. 24h 고지로 새 노출을 만들지 않는다. FAIL은 `appealDeadlineAt` 만료(무항소) 또는 기각 전에 forfeit/완료/월손실 실현을 하지 않는다. 승인 항소는 PASS/VOID이며 정상 경로에서 forfeit/reversal을 만들지 않는다.
+- MONEY V1 활성 취소: 시작 전 사용자 취소와 시스템 취소는 전액 환불 1회. 시작 후 사용자 취소는 자진 포기로 환불 없이 전액 forfeit 1회. SELF 컷오프는 기존과 같다. FAIL은 재정적 최종성 전에 몰수하지 않는다. 허용 FAIL(Grace) 안의 최종 FAIL은 원장을 움직이지 않는다.
 - 중복 결제를 막기 위해 idempotency key를 사용해야 한다.
 - 서버 서명 quote를 사용해야 하며, 각 quote는 unique `jti`로 식별되고 한 번만 소비된다 (`consumed_quotes`).
 - Quote 서명 시크릿(`QUOTE_SIGNING_SECRET`)은 JWT 시크릿과 분리되어야 한다.
@@ -217,11 +217,12 @@ behavioral FAIL에 더해:
 7. Stake row가 funded 상태
 8. Settlement row `(occurrence_id)` unique + `idempotency_key` 획득 (중복 정산 차단)
 
-Verification은 behavioral 결과만 기록한다. SettlementService가 별도로 이 결과를 소비한다:
-- PASS / VOID → `refund_earned` 적립 (환불 예정)
-- FAIL → `forfeit` 적립 (돌려받지 못한 금액)
-- UNCERTAIN / `system_hold` → 절대 정산하지 않음
-- 모든 회차 종결 시 aggregate refund 1회: `upfrontCharge − forfeitedTotal`. 회차마다 환불하지 않는다.
+Verification은 behavioral 결과만 기록한다. MONEY V1 Settlement는 계약 결과만 소비한다:
+- 계약 SUCCESS / 시작 전·시스템 취소 → 전액 `refund_paid` 1회
+- 계약 FAIL / 시작 후 자진 포기 → 전액 `forfeit` 1회, 환불 호출 없음
+- 회차 PASS/FAIL/VOID는 `refund_earned`나 회차별 forfeit을 만들지 않는다
+- UNCERTAIN / `system_hold` / 잠정 FAIL은 정산하지 않음
+- 레거시 회차 비례(`end_of_commitment` + `refund_earned`)는 신규 생성 경로에서 사용하지 않는다 (비출시)
 - 환불 실패 → `refund_delayed`, 재시도는 idempotent.
 
 사용자 화면의 금전 상태(결제 중·약속금 걸림·환불 예정·환불 중·환불 완료·결제 실패·환불 지연·정산 완료)는 항상 정산/ledger에서 파생하며, behavioral FAIL 시점에 "돈을 잃었다"고 표현하지 않는다. 전액 몰수는 `정산 완료`이며 “환불 완료 0원”을 쓰지 않는다.
@@ -233,10 +234,10 @@ Verification은 behavioral 결과만 기록한다. SettlementService가 별도�
 이 절은 MONEY 모드 Commitment에만 적용된다. SELF/SOCIAL Commitment는 결제/정산 로직을 갖지 않으며, `payment_ledger`, `settlement`, `payment` row가 생성되지 않는다.
 
 ### 시나리오
-- MONEY 약속 생성 → quote 소비 → 전체 최대금액 charge
-- occurrence PASS → refundable amount 누적
-- occurrence FAIL → forfeited amount 누적
-- 기간 종료 → refundable total 환불
+- MONEY 약속 생성 → quote 소비 → 약속금 1회 charge
+- 계약 성공 → 전액 환불 1회
+- 계약 실패 → 환불 없음, 전액 forfeit 1회
+- 회차 비례/부분 환불은 V1 경로에 없다
 - appeal 승인 → 정산 전이면 correctedResult로 정산(reversal 없음). 몰수 후면 reversal 1 + 추가 refund 1
 
 ### 요구

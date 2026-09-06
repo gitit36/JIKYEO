@@ -42,7 +42,7 @@ function make() {
 }
 
 async function funded(ctx = make()) {
-  await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 5_000n, count: 3 });
+  await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 15_000n, count: 3 });
   await ctx.payments.chargeUpfront(USER, C);
   return ctx;
 }
@@ -50,7 +50,7 @@ async function funded(ctx = make()) {
 describe('Phase 5A — unsigned cancel / expiry', () => {
   it('cancel before charge → no PG call and no ledger', async () => {
     const ctx = make();
-    await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 5_000n, count: 3 });
+    await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 15_000n, count: 3 });
     const r = await ctx.commitments.cancel(USER, C);
     expect(r.status).toBe('cancelled');
     expect(r.cancellationReason).toBe('user_cancelled');
@@ -127,7 +127,7 @@ describe('Phase 5A — unsigned cancel / expiry', () => {
 
   it('unknown charge + cancel reconciles then refunds exactly once', async () => {
     const ctx = make();
-    await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 5_000n, count: 3 });
+    await ctx.db.seedMoneyCommitment({ id: C, userId: USER, perOccurrence: 15_000n, count: 3 });
     await expect(ctx.payments.chargeUpfront(USER, C, { simulate: 'charge_lost' })).rejects.toMatchObject({
       code: 'PAYMENT_PROVIDER_ERROR',
     });

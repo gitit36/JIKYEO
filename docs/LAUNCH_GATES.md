@@ -4,8 +4,8 @@ Selected PG: **NHN KCP**. KakaoPay and cards are payment methods behind KCP, not
 
 External boxes stay unchecked until written evidence exists.
 
-- [ ] KCP written acceptance of prepaid challenge → PASS/VOID refund → financially final FAIL as consideration
-- [ ] KCP partial/repeated refund limits and settlement timing confirmed in writing
+- [ ] KCP written acceptance of one upfront charge + full cancellation/refund + transaction lookup/reconciliation
+- [ ] KCP full-refund and settlement-timing confirmation in writing (partial refund is not required for MONEY V1)
 - [ ] Acceptable iOS/native KCP integration path confirmed
 - [ ] Apple External Purchase entitlement and commission/refund answer (not implemented)
 - [ ] Lawyer confirmation of terms, cancellation cutoff, provisional FAIL, adult gate

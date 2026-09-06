@@ -35,4 +35,10 @@ export class AdminMoneyController {
   async reconcile(@Param('id') id: string) {
     return this.admin.reconcile(id, null);
   }
+
+  @Post('cases/:id/system-cancel')
+  @HttpCode(200)
+  async systemCancel(@Param('id') id: string) {
+    return this.admin.systemCancel(id, null);
+  }
 }

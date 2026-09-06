@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { CancellationReason, Commitment, EnforcementMode, Prisma, VerificationMethod } from '@prisma/client';
 import { AppConfig } from '../config/app-config';
 import { MoneyStatusService, MoneyView } from '../payments/money-status.service';
+import { LedgerService } from '../payments/ledger.service';
 import { PaymentService, PaymentView } from '../payments/payment.service';
 import { Clock } from '../common/clock/clock';
 import { DomainError, ForbiddenError, NotFoundError, ValidationError } from '../common/errors/domain-errors';
@@ -72,6 +73,7 @@ export class CommitmentService {
     @Optional() private readonly cfg?: AppConfig,
     @Optional() private readonly appeals?: AppealService,
     @Optional() private readonly moneyGate?: MoneyGateService,
+    @Optional() private readonly ledger?: LedgerService,
   ) {}
 
   get signatureExpirySeconds(): number {
@@ -93,8 +95,9 @@ export class CommitmentService {
       if (!dto.quoteId) {
         throw new DomainError('QUOTE_REQUIRED_FOR_MODE', '금액 약속에는 서버 시세가 필요해요.');
       }
-      if (!dto.stakePerOccurrenceKrw || dto.stakePerOccurrenceKrw <= 0) {
-        throw new ValidationError('stakePerOccurrenceKrw is required for MONEY');
+      const stakeIn = dto.stakeTotalKrw ?? dto.stakePerOccurrenceKrw;
+      if (!stakeIn || stakeIn <= 0) {
+        throw new ValidationError('stakeTotalKrw is required for MONEY');
       }
       await this.moneyGate?.assertCanUseMoney(userId);
     } else {
@@ -105,8 +108,8 @@ export class CommitmentService {
           '이 강제력에서는 약속금이 없어 서버 시세가 필요하지 않아요.',
         );
       }
-      if (dto.stakePerOccurrenceKrw !== undefined && dto.stakePerOccurrenceKrw !== null) {
-        throw new ValidationError('stakePerOccurrenceKrw not allowed for non-MONEY modes');
+      if (dto.stakeTotalKrw != null || dto.stakePerOccurrenceKrw != null) {
+        throw new ValidationError('stake not allowed for non-MONEY modes');
       }
     }
 
@@ -131,28 +134,30 @@ export class CommitmentService {
     this.assertVerificationRule(dto.verification.method, dto.verification);
 
     // 5. Mode-specific quote verification + stake computation.
-    let stakePerOccurrence: bigint | null = null;
+    let stakeTotal: bigint | null = null;
     let maxLoss: bigint | null = null;
     let claimsJti: string | null = null;
+    let contractStrictness: 'perfect' | 'realistic' | 'flexible' | null = null;
+    let allowedFails: number | null = null;
 
     if (dto.enforcementMode === 'money') {
       const claims = this.quoteCache.verify(dto.quoteId!);
       claimsJti = claims.jti;
-      stakePerOccurrence = Money.fromNumber(dto.stakePerOccurrenceKrw!);
-      maxLoss = stakePerOccurrence * BigInt(plans.length);
+      const requested = Money.fromNumber(dto.stakeTotalKrw ?? dto.stakePerOccurrenceKrw!);
+      const quotedTotal = claims.stakeTotal ?? claims.stakePerOccurrence;
+      stakeTotal = requested;
+      maxLoss = requested;
+      contractStrictness = claims.contractStrictness ?? 'realistic';
+      allowedFails = claims.allowedFailCount;
       if (
         plans.length !== claims.occurrenceCount ||
-        stakePerOccurrence.toString() !== claims.stakePerOccurrence ||
-        maxLoss.toString() !== claims.maxLoss
+        requested.toString() !== quotedTotal ||
+        maxLoss.toString() !== claims.maxLoss ||
+        (dto.contractStrictness && dto.contractStrictness !== claims.contractStrictness)
       ) {
         throw new DomainError('QUOTE_EXPIRED', 'Quote no longer matches the schedule');
       }
-      // Server-authoritative re-check of tier limits. Client cannot override.
-      await this.stakePolicy.assertWithinLimits(
-        userId,
-        dto.stakePerOccurrenceKrw!,
-        Number(maxLoss),
-      );
+      await this.stakePolicy.assertWithinLimits(userId, Number(requested), Number(maxLoss));
     }
 
     // 6. Persist in one transaction.
@@ -196,19 +201,21 @@ export class CommitmentService {
           signedAt: initialStatus === 'active' ? this.clock.now() : null,
           signatureCompleted: initialStatus === 'active',
           contractVersion: 'v1',
-        },
+          ...({
+            contractStrictness,
+            allowedFailCount: allowedFails,
+          } as object),
+        } as Prisma.CommitmentUncheckedCreateInput,
       });
 
-      // Stake row exists only for MONEY. SELF/SOCIAL never create one — we
-      // do not use zero-value Stake rows to represent "no money".
-      if (dto.enforcementMode === 'money' && stakePerOccurrence !== null && maxLoss !== null) {
+      if (dto.enforcementMode === 'money' && stakeTotal !== null && maxLoss !== null) {
         await tx.stake.create({
           data: {
             commitmentId: commitment.id,
-            perOccurrenceAmount: stakePerOccurrence,
+            perOccurrenceAmount: maxLoss,
             maxTotalAmount: maxLoss,
             currency: 'KRW',
-            settlementMode: 'end_of_commitment',
+            settlementMode: 'contract_v1',
             recipientType: 'platform',
             status: 'pending',
           },
@@ -242,9 +249,8 @@ export class CommitmentService {
           sequenceNo: p.sequenceNo,
           windowStartAt: p.windowStartAt,
           deadlineAt: p.deadlineAt,
-          // Per-occurrence stakeAmount only exists for MONEY. Deliberately
-          // NULL (not zero) for SELF/SOCIAL to keep money semantics honest.
-          stakeAmount: stakePerOccurrence,
+          periodKey: p.periodKey ?? null,
+          stakeAmount: null,
           status: 'scheduled' as const,
         })),
       });
@@ -416,6 +422,9 @@ export class CommitmentService {
     }
 
     const now = this.clock.now();
+    if (c.enforcementMode === 'money') {
+      return this.cancelMoneyV1(c.id, userId, now, 'user_cancelled');
+    }
     const effectiveAt = this.computeEffectiveAt(c.enforcementMode, now);
     const won = await this.prisma.commitment.updateMany({
       where: { id: c.id, status: 'active', cancellationRequestedAt: null },
@@ -447,6 +456,89 @@ export class CommitmentService {
       after: { effectiveAt: effectiveAt.toISOString(), mode: c.enforcementMode },
     });
     return this.cancelSnapshot(c.id, false, null, effectiveAt);
+  }
+
+  async cancelSystem(commitmentId: string, actorId: string | null): Promise<CancelUnsignedResult> {
+    const c = await this.prisma.commitment.findUnique({ where: { id: commitmentId } });
+    if (!c) throw new NotFoundError('Commitment not found');
+    if (c.enforcementMode !== 'money') {
+      return this.cancelUnsigned({ commitmentId, actorType: 'system', actorId, reason: 'system_cancelled' });
+    }
+    if (c.status === 'cancelled' && c.cancellationReason === 'system_cancelled') {
+      return this.cancelView(c.id, true);
+    }
+    return this.cancelMoneyV1(c.id, actorId, this.clock.now(), 'system_cancelled');
+  }
+
+  private async cancelMoneyV1(
+    commitmentId: string,
+    actorId: string | null,
+    now: Date,
+    reason: 'user_cancelled' | 'system_cancelled',
+  ): Promise<CancelUnsignedResult> {
+    const c = await this.prisma.commitment.findUnique({
+      where: { id: commitmentId },
+      include: { stake: true },
+    });
+    if (!c) throw new NotFoundError('Commitment not found');
+    if (c.status === 'cancelled') return this.cancelView(c.id, true);
+    const started = now.getTime() >= c.startAt.getTime();
+    const abandon = reason === 'user_cancelled' && started;
+    const outcome = abandon ? 'failed' : 'voided';
+    const won = await this.prisma.$transaction(async (tx) => {
+      const moved = await tx.commitment.updateMany({
+        where: { id: c.id, status: { in: ['active', 'signature_pending'] } },
+        data: {
+          status: abandon ? 'completed' : 'cancelled',
+          cancelledAt: now,
+          cancellationRequestedAt: now,
+          cancellationEffectiveAt: now,
+          cancellationReason: reason,
+          ...({ contractOutcome: outcome } as object),
+        } as object,
+      });
+      if (moved.count === 0) return 0;
+      await tx.occurrence.updateMany({
+        where: { commitmentId: c.id, status: { in: ['scheduled', 'active'] } },
+        data: { status: 'void', failureReasonCode: abandon ? 'contract_abandoned' : 'commitment_cancelled', decidedAt: now },
+      });
+      if (c.stake) {
+        await tx.stake.updateMany({
+          where: { id: c.stake.id, status: { in: ['funded', 'pending'] } },
+          data: { status: abandon ? 'settled' : 'settling', settledAt: now },
+        });
+      }
+      return moved.count;
+    });
+    if (won === 0) return this.cancelView(c.id, true);
+
+    let refund: PaymentView | null = null;
+    if (abandon && this.ledger && c.stake) {
+      await this.ledger.append({
+        userId: c.userId,
+        commitmentId: c.id,
+        entryType: 'forfeit',
+        amount: c.stake.maxTotalAmount,
+        idempotencyKey: `contract_forfeit:${c.id}`,
+      });
+    } else if (this.payments) {
+      const charge = await this.prisma.payment.findFirst({
+        where: { commitmentId: c.id, type: 'charge', status: 'succeeded' },
+      });
+      if (charge) {
+        refund = await this.payments.refundAggregate(c.id, charge.amount, `contract_cancel:${c.id}`);
+      }
+    }
+
+    await this.audit.log({
+      actorType: reason === 'system_cancelled' ? 'system' : 'user',
+      actorId,
+      entityType: 'commitment',
+      entityId: c.id,
+      action: abandon ? 'cancel_abandon' : 'cancel_money_v1',
+      after: { reason, outcome, started },
+    });
+    return this.cancelSnapshot(c.id, false, refund, now);
   }
 
   async cancelUnsigned(input: {
@@ -641,6 +733,7 @@ export class CommitmentService {
     const c = await this.prisma.commitment.findUnique({
       where: { id: commitmentId },
       include: {
+        stake: true,
         occurrences: { include: { evidence: { select: { id: true }, take: 1 }, appeal: true } },
       },
     });
@@ -651,23 +744,20 @@ export class CommitmentService {
     const cutoff = c?.cancellationRequestedAt ?? effectiveAt ?? c?.cancellationEffectiveAt ?? c?.cancelledAt ?? this.clock.now();
     let binding = 0;
     let voidN = 0;
-    let bindingAmt = 0n;
-    let voidAmt = 0n;
     const unsignedCancelled = c?.status === 'cancelled';
     for (const o of c?.occurrences ?? []) {
       const willVoid =
-        o.status === 'void' && (o.failureReasonCode === 'commitment_cancelled' || unsignedCancelled)
+        o.status === 'void' && (o.failureReasonCode === 'commitment_cancelled' || o.failureReasonCode === 'contract_abandoned' || unsignedCancelled)
           ? true
           : this.canVoidForCancel(o, cutoff);
-      if (willVoid) {
-        voidN += 1;
-        if (o.stakeAmount != null) voidAmt += o.stakeAmount;
-      } else {
-        binding += 1;
-        if (o.stakeAmount != null) bindingAmt += o.stakeAmount;
-      }
+      if (willVoid) voidN += 1;
+      else binding += 1;
     }
     const moneyMode = c?.enforcementMode === 'money';
+    const v1 = moneyMode && c?.stake?.settlementMode === 'contract_v1';
+    const started = !!(c?.startAt && cutoff.getTime() >= c.startAt.getTime());
+    const abandon = v1 && started && c?.cancellationReason !== 'system_cancelled';
+    const total = c?.stake?.maxTotalAmount ?? 0n;
     return {
       commitmentId,
       status: (c?.status ?? 'cancelled') as CommitmentState,
@@ -678,8 +768,8 @@ export class CommitmentService {
       effectiveAt: cutoff.toISOString(),
       bindingOccurrenceCount: binding,
       voidOccurrenceCount: voidN,
-      bindingAmountKrw: moneyMode ? bindingAmt.toString() : null,
-      futureRefundableAmountKrw: moneyMode ? voidAmt.toString() : null,
+      bindingAmountKrw: moneyMode ? (v1 ? (abandon ? total.toString() : '0') : null) : null,
+      futureRefundableAmountKrw: moneyMode ? (v1 ? (abandon ? '0' : total.toString()) : '0') : null,
     };
   }
 

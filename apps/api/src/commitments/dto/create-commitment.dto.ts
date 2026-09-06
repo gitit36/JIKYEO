@@ -115,11 +115,21 @@ export class CreateCommitmentDraftDto {
   @Type(() => VerificationRuleDto)
   verification!: VerificationRuleDto;
 
-  // MONEY-only. Server rejects when set for SELF/SOCIAL and when missing for MONEY.
+  // MONEY-only. Commitment-level Stake. Preferred.
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  stakeTotalKrw?: number;
+
+  /** @deprecated Alias of stakeTotalKrw. Never multiplied. */
   @IsOptional()
   @IsInt()
   @Min(1)
   stakePerOccurrenceKrw?: number;
+
+  @IsOptional()
+  @IsIn(['perfect', 'realistic', 'flexible'])
+  contractStrictness?: 'perfect' | 'realistic' | 'flexible';
 
   // MONEY-only. Must match a valid single-use quote produced by /commitments/quote.
   @IsOptional()
