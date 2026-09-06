@@ -29,6 +29,8 @@ public struct CommitmentAPI {
         public let money: MoneyView?
         public let signatureExpiresAt: Date?
         public let cancellationReason: String?
+        public let cancellationRequestedAt: Date?
+        public let cancellationEffectiveAt: Date?
         public let appeals: [AppealSummary]?
     }
 
@@ -50,6 +52,8 @@ public struct CommitmentAPI {
         public let money: MoneyView?
         public let appeals: [AppealSummary]?
         public let occurrences: [OccurrenceDetail]
+        public let cancellationRequestedAt: Date?
+        public let cancellationEffectiveAt: Date?
     }
 
     public func listMine() async throws -> [MyCommitment] {
@@ -63,6 +67,10 @@ public struct CommitmentAPI {
     /// Signature ritual for a MONEY commitment after payment. Idempotent.
     public func sign(commitmentId: String) async throws -> SignCommitmentResponse {
         try await api.post("commitments/\(commitmentId)/sign")
+    }
+
+    public func cancelPreview(commitmentId: String) async throws -> CancelCommitmentResponse {
+        try await api.get("commitments/\(commitmentId)/cancel")
     }
 
     public func cancel(commitmentId: String, simulateRefundFail: Bool = false) async throws -> CancelCommitmentResponse {

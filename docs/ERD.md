@@ -98,6 +98,8 @@ erDiagram
 | signature_completed | boolean | true when the signature ritual finished |
 | signature_expires_at | timestamptz nullable | MONEY: 선결제 성공 시각 + 설정 만료(기본 30분) |
 | cancelled_at | timestamptz nullable | 서명 전 취소/만료 시각 |
+| cancellation_requested_at | timestamptz nullable | 활성 취소 요청 시각 |
+| cancellation_effective_at | timestamptz nullable | 미래 회차 VOID 기준 시각. MONEY는 요청+24h |
 | cancellation_reason | enum nullable | user_cancelled / signature_expired |
 | contract_version | varchar | "v1" 등 계약 문구 버전 |
 | created_at | timestamptz | |

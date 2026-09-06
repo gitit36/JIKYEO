@@ -95,7 +95,8 @@ final class HistoryViewModel: ObservableObject {
             CommitmentAPI.MyCommitment(id: id, title: title, category: "workout", status: status, enforcementMode: mode,
                                        timezone: "Asia/Seoul", maxLossKrw: m?.upfrontKrw, verificationMethod: "gps",
                                        perOccurrenceKrw: m?.perOccurrenceKrw, occurrenceCount: 3, money: m,
-                                       signatureExpiresAt: nil, cancellationReason: nil, appeals: nil)
+                                       signatureExpiresAt: nil, cancellationReason: nil,
+                                       cancellationRequestedAt: nil, cancellationEffectiveAt: nil, appeals: nil)
         }
         items = [
             row("c1", "헬스장 가기",        "active",          .money, money(.funded, refundable: "5000", forfeited: "0", paid: "0")),
@@ -160,7 +161,8 @@ private struct CommitmentHistoryCard: View {
         switch item.status {
         case "payment_pending":    return "결제 대기"
         case "signature_pending":  return "서명 대기"
-        case "active":             return "진행 중"
+        case "active":
+            return item.cancellationEffectiveAt == nil ? "진행 중" : Copy.Cancel.scheduled
         case "completed":       return "끝난 약속"
         case "cancelled":       return "취소됨"
         default:                return item.status

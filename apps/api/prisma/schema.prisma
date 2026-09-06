@@ -320,8 +320,10 @@ model Commitment {
   signatureCompleted  Boolean             @default(false) @map("signature_completed")
   // MONEY: set when the upfront charge succeeds. Server-authoritative.
   signatureExpiresAt  DateTime?           @map("signature_expires_at") @db.Timestamptz
-  cancelledAt         DateTime?           @map("cancelled_at") @db.Timestamptz
-  cancellationReason  CancellationReason? @map("cancellation_reason")
+  cancelledAt                DateTime?           @map("cancelled_at") @db.Timestamptz
+  cancellationRequestedAt    DateTime?           @map("cancellation_requested_at") @db.Timestamptz
+  cancellationEffectiveAt    DateTime?           @map("cancellation_effective_at") @db.Timestamptz
+  cancellationReason         CancellationReason? @map("cancellation_reason")
   contractVersion     String              @default("v1") @map("contract_version")
   // NOTE: We intentionally do NOT store the raw signature drawing. The
   // signature is a behavioral commitment ritual, not a legal signature.
@@ -340,6 +342,7 @@ model Commitment {
 
   @@index([userId, status])
   @@index([status, signatureExpiresAt])
+  @@index([status, cancellationEffectiveAt])
   @@map("commitments")
 }
 

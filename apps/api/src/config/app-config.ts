@@ -101,6 +101,11 @@ export class AppConfig {
     return Number(this.cfg.get<string>('SIGNATURE_EXPIRY_SECONDS') ?? 1800);
   }
 
+  /** MONEY active-cancel notice before future occurrences VOID. Default 24h. */
+  get activeCancellationNoticeSeconds(): number {
+    return Number(this.cfg.get<string>('ACTIVE_CANCELLATION_NOTICE_SECONDS') ?? 86_400);
+  }
+
   /** Owner may appeal a final MONEY FAIL within this many seconds of decidedAt. */
   get appealWindowSeconds(): number {
     return Number(this.cfg.get<string>('APPEAL_WINDOW_SECONDS') ?? 7 * 24 * 3600);

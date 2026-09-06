@@ -168,7 +168,8 @@ POST /v1/commitments/quote            # MONEY 모드에서만 호출
 POST /v1/commitments                  # 생성 + 활성화 (SELF/SOCIAL/MONEY 분기)
 GET  /v1/commitments
 GET  /v1/commitments/{id}
-POST /v1/commitments/{id}/cancel     # owner-only, unsigned only; active/completed 거부. idempotent
+GET  /v1/commitments/{id}/cancel     # owner preview (effectiveAt, binding/void counts, MONEY amounts)
+POST /v1/commitments/{id}/cancel     # unsigned Phase 5A or active future-only cutoff. idempotent. completed 거부
 POST /v1/internal/jobs/money-maintenance   # x-internal-job-secret (JWT/quote/webhook과 분리)
 GET  /v1/admin/money/cases                 # x-admin-secret. refund_delayed | unknown_payment | expired_awaiting_refund
 GET  /v1/admin/money/cases/{id}
@@ -639,10 +640,13 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - Device token hash+encrypt (`PUSH_TOKEN_ENCRYPTION_SECRET`), category prefs, transactional outbox, MockPushProvider
 - Weekly Recap: 사용자 타임존 직전 Mon–Sun, `(userId, localWeekStart)`, owner API + iOS
 - Evidence raw 삭제: 최종 유효 판정 +30일, hold 조건, 메타 보존. money_maintenance lease 확장
-- 실 APNs / 실 PG / 실 vision / admin web / 활성 약속 취소 / 소셜은 제외
+- 실 APNs / 실 PG / 실 vision / admin web / 소셜은 제외
 
-### Phase 5D — remaining (예정)
-- 실 PG, 실 APNs, 실 vision, admin web UI, 활성 약속 취소, 소셜
+### Phase 5D — Active cancellation (완료)
+- 활성 약속 미래 회차만 취소. SELF 즉시 / MONEY 24h notice. 기존 `/cancel` + preview. VOID는 maintenance, 합산 환불은 기존 settlement.
+
+### Phase 5E — remaining (예정)
+- 실 PG, 실 APNs, 실 vision, admin web UI, 소셜
 
 ### Phase 6 — Social 완전판 + Friend Verify (예정)
 
@@ -665,6 +669,7 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - [x] SELF/SOCIAL/MONEY 강제력 모드 분기
 - [x] GPS target `userSelected` 강제
 - [x] timezone freeze test
+- [x] 활성 약속 취소 (Phase 5D, 미래 회차만, SELF 즉시 / MONEY 24h)
 - [ ] offline evidence retry
 - [x] 위험 목표 filter (Goal Safety classifier)
 - [ ] monitoring dashboard

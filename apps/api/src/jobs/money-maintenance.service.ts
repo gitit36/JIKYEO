@@ -18,6 +18,7 @@ export interface MaintenanceReport {
   recapsCreated?: number;
   outboxProcessed?: number;
   evidencePurged?: number;
+  cancelledVoided?: number;
 }
 
 @Injectable()
@@ -52,10 +53,12 @@ export class MoneyMaintenanceService {
         recapsCreated: 0,
         outboxProcessed: 0,
         evidencePurged: 0,
+        cancelledVoided: 0,
       };
     }
     try {
       const { expired } = await this.commitments.expireOverdue();
+      const cancelled = await this.commitments.applyCancellationEffective();
       const sweep = await this.settlement.sweep();
       // sweep already calls reconcileStale; run once more for in-window unknowns.
       const recon = await this.payments.reconcileStale(0);
@@ -72,6 +75,7 @@ export class MoneyMaintenanceService {
         recapsCreated: recaps.created,
         outboxProcessed: outbox.processed,
         evidencePurged: purge.purged,
+        cancelledVoided: cancelled.voided,
       };
     } finally {
       await this.lease.release('money_maintenance', holder);

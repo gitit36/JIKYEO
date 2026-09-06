@@ -37,6 +37,7 @@
 - 사용자는 각 약속마다 강제력 모드(**SELF / SOCIAL / MONEY**) 중 하나를 지정한다.
 - SOCIAL 모드는 실제 verifier 관계가 존재해야 활성화될 수 있다. Release 빌드에서 verifier가 없으면 서버는 활성화를 거부한다 (`FRIEND_NOT_SELECTED`).
 - MONEY 모드는 아래 SR-FR-003, SR-FR-003b를 만족해야 활성화된다. SELF 모드는 quote/payment 없이 즉시 활성화될 수 있다.
+- 활성 약속 취소는 미래 회차만 적용한다. 요청 철회/재일정은 없다.
 
 ### SR-FR-003 약속금 (MONEY 모드 전용)
 - 회차당 금액과 전체 최대손실을 분리 저장해야 한다.
@@ -58,6 +59,7 @@
 ### SR-FR-004 결제 (MONEY 모드 전용)
 - 선결제 성공은 Stake funded + `signature_pending`까지만 만든다. `/sign`이 끝나야 `active`가 된다. 결제 성공만으로 활성화하지 않는다.
 - 서명 전 취소/만료: `payment_pending`(미충전)은 PG/ledger 없이 취소. `signature_pending`(충전됨)은 원결제 수단으로 전액 환불 1회. 만료는 동일 환불 경로. forfeit/refund_earned를 만들지 않는다. 환불 실패는 기존 `refund_delayed` 재시도. 손실 한도 예약은 환불 성공 전까지 유지. 서명 vs 취소/만료는 원자적으로 하나만 성공한다.
+- 활성 취소는 미래 회차만. SELF는 즉시, `windowStart < now`는 유지. MONEY는 `ACTIVE_CANCELLATION_NOTICE_SECONDS`(기본 24h) 후 `windowStart >= cancellationEffectiveAt`만 VOID(`commitment_cancelled`). reviewing/증거/최종/대기 항소는 덮지 않는다. 요청 자체는 ledger/환불을 만들지 않으며 종료 시 기존 1회 합산 환불을 쓴다.
 - 중복 결제를 막기 위해 idempotency key를 사용해야 한다.
 - 서버 서명 quote를 사용해야 하며, 각 quote는 unique `jti`로 식별되고 한 번만 소비된다 (`consumed_quotes`).
 - Quote 서명 시크릿(`QUOTE_SIGNING_SECRET`)은 JWT 시크릿과 분리되어야 한다.

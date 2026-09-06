@@ -45,6 +45,11 @@ export class CommitmentsController {
     return this.commitment.getOwnedList(req.userId);
   }
 
+  @Get(':id/cancel')
+  async cancelPreview(@Req() req: AuthedRequest, @Param('id') id: string): Promise<unknown> {
+    return this.commitment.previewCancel(req.userId, id);
+  }
+
   @Get(':id')
   async getOne(@Req() req: AuthedRequest, @Param('id') id: string): Promise<unknown> {
     return this.commitment.getOwnedDetail(req.userId, id);
@@ -62,8 +67,9 @@ export class CommitmentsController {
   async cancel(
     @Req() req: AuthedRequest,
     @Param('id') id: string,
-    @Body() body?: { simulate?: string },
+    @Body() body?: { simulate?: string; effectiveAt?: string },
   ): Promise<unknown> {
+    void body?.effectiveAt;
     return this.commitment.cancel(req.userId, id, {
       simulateRefundFail: body?.simulate === 'refund_fail',
     });

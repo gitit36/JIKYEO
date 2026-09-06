@@ -19,8 +19,10 @@ export type OccurrenceState =
 //   any active-ish state can go to system_hold and back
 export const occurrenceSM = new StateMachine<OccurrenceState>('occurrence', [
   ['scheduled', 'active'],
+  ['scheduled', 'void'], // commitment_cancelled future cutoff
   ['scheduled', 'system_hold'],
   ['active', 'evidence_submitted'],
+  ['active', 'void'], // commitment_cancelled; loses to evidence/review
   ['active', 'fail'], // deadline passed with no evidence (via deadline worker + gate)
   ['active', 'system_hold'],
   ['evidence_submitted', 'reviewing'],

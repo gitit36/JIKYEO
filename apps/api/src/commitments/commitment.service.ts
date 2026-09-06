@@ -24,6 +24,11 @@ export interface CancelUnsignedResult {
   idempotent: boolean;
   money: MoneyView | null;
   refund: PaymentView | null;
+  effectiveAt: string | null;
+  bindingOccurrenceCount: number;
+  voidOccurrenceCount: number;
+  bindingAmountKrw: string | null;
+  futureRefundableAmountKrw: string | null;
 }
 
 interface ActivateResult {
@@ -319,9 +324,8 @@ export class CommitmentService {
   }
 
   /**
-   * Owner cancel of an unsigned MONEY/SELF draft. Active/completed cannot use
-   * this path. Funded signature_pending issues one full refund; uncharged
-   * payment_pending cancels with no PG/ledger write.
+   * Owner cancel. Unsigned (draft / payment_pending / signature_pending) keeps
+   * the Phase 5A path. Active commitments schedule a future-only cutoff.
    */
   async cancel(
     userId: string,
@@ -329,6 +333,9 @@ export class CommitmentService {
     opts: { simulateRefundFail?: boolean } = {},
   ): Promise<CancelUnsignedResult> {
     const c = await this.getOwned(userId, commitmentId);
+    if (c.status === 'active' || c.cancellationRequestedAt) {
+      return this.cancelActive(userId, c.id);
+    }
     return this.cancelUnsigned({
       commitmentId: c.id,
       actorType: 'user',
@@ -336,6 +343,19 @@ export class CommitmentService {
       reason: 'user_cancelled',
       simulateRefundFail: opts.simulateRefundFail,
     });
+  }
+
+  async previewCancel(userId: string, commitmentId: string): Promise<CancelUnsignedResult> {
+    const c = await this.getOwned(userId, commitmentId);
+    if (c.status === 'completed' && !c.cancellationRequestedAt) {
+      throw new DomainError('INVALID_STATE_TRANSITION', '이미 끝난 약속은 취소할 수 없어요.');
+    }
+    if (c.status === 'cancelled' || c.cancellationRequestedAt) {
+      return this.cancelSnapshot(c.id, true, null, c.cancellationEffectiveAt ?? c.cancelledAt);
+    }
+    const now = this.clock.now();
+    const effectiveAt = this.computeEffectiveAt(c.enforcementMode, now);
+    return this.cancelSnapshot(c.id, true, null, effectiveAt);
   }
 
   async expireOverdue(): Promise<{ expired: number }> {
@@ -361,6 +381,73 @@ export class CommitmentService {
       }
     }
     return { expired };
+  }
+
+  async applyCancellationEffective(): Promise<{ voided: number; completed: number }> {
+    const now = this.clock.now();
+    const due = await this.prisma.commitment.findMany({
+      where: {
+        status: 'active',
+        cancellationEffectiveAt: { lte: now },
+        cancellationReason: 'user_cancelled',
+      },
+      select: { id: true },
+      take: 200,
+    });
+    let voided = 0;
+    let completed = 0;
+    for (const row of due) {
+      voided += await this.voidEligibleFuture(row.id);
+      if (await this.completeIfResolved(row.id)) completed += 1;
+    }
+    return { voided, completed };
+  }
+
+  private async cancelActive(userId: string, commitmentId: string): Promise<CancelUnsignedResult> {
+    const c = await this.getOwned(userId, commitmentId);
+    if (c.status === 'completed' && !c.cancellationRequestedAt) {
+      throw new DomainError('INVALID_STATE_TRANSITION', '이미 끝난 약속은 취소할 수 없어요.');
+    }
+    if (c.status === 'cancelled') return this.cancelView(c.id, true);
+    if (c.cancellationRequestedAt && c.cancellationEffectiveAt) {
+      return this.cancelSnapshot(c.id, true, null, c.cancellationEffectiveAt);
+    }
+    if (c.status !== 'active') {
+      throw new DomainError('INVALID_STATE_TRANSITION', '이 약속은 취소할 수 없어요.');
+    }
+
+    const now = this.clock.now();
+    const effectiveAt = this.computeEffectiveAt(c.enforcementMode, now);
+    const won = await this.prisma.commitment.updateMany({
+      where: { id: c.id, status: 'active', cancellationRequestedAt: null },
+      data: {
+        cancellationRequestedAt: now,
+        cancellationEffectiveAt: effectiveAt,
+        cancellationReason: 'user_cancelled',
+      },
+    });
+    if (won.count === 0) {
+      const again = await this.prisma.commitment.findUnique({ where: { id: c.id } });
+      if (again?.cancellationEffectiveAt) {
+        return this.cancelSnapshot(again.id, true, null, again.cancellationEffectiveAt);
+      }
+      throw new DomainError('INVALID_STATE_TRANSITION', '이 약속은 취소할 수 없어요.');
+    }
+
+    if (c.enforcementMode !== 'money' && effectiveAt.getTime() <= now.getTime()) {
+      await this.voidEligibleFuture(c.id);
+      await this.completeIfResolved(c.id);
+    }
+
+    await this.audit.log({
+      actorType: 'user',
+      actorId: userId,
+      entityType: 'commitment',
+      entityId: c.id,
+      action: 'cancel_active',
+      after: { effectiveAt: effectiveAt.toISOString(), mode: c.enforcementMode },
+    });
+    return this.cancelSnapshot(c.id, false, null, effectiveAt);
   }
 
   async cancelUnsigned(input: {
@@ -473,6 +560,118 @@ export class CommitmentService {
     if (!refund && this.payments) {
       refund = await this.payments.findSucceededRefund(commitmentId);
     }
+    const effectiveAt = c?.cancellationEffectiveAt ?? c?.cancelledAt ?? null;
+    return this.cancelSnapshot(commitmentId, idempotent, refund, effectiveAt);
+  }
+
+  private computeEffectiveAt(mode: EnforcementMode, now: Date): Date {
+    if (mode === 'money') {
+      const sec = this.cfg?.activeCancellationNoticeSeconds ?? 86_400;
+      return new Date(now.getTime() + sec * 1000);
+    }
+    return now;
+  }
+
+  private async voidEligibleFuture(commitmentId: string): Promise<number> {
+    const c = await this.prisma.commitment.findUnique({
+      where: { id: commitmentId },
+      include: {
+        occurrences: { include: { evidence: { select: { id: true }, take: 1 }, appeal: true } },
+      },
+    });
+    if (!c?.cancellationEffectiveAt) return 0;
+    const now = this.clock.now();
+    if (c.cancellationEffectiveAt.getTime() > now.getTime()) return 0;
+    let voided = 0;
+    for (const occ of c.occurrences) {
+      if (!this.canVoidForCancel(occ, c.cancellationEffectiveAt)) continue;
+      const won = await this.prisma.$transaction(async (tx) => {
+        const fresh = await tx.occurrence.findUnique({
+          where: { id: occ.id },
+          include: { evidence: { select: { id: true }, take: 1 }, appeal: true },
+        });
+        if (!fresh || !this.canVoidForCancel(fresh, c.cancellationEffectiveAt!)) return 0;
+        const moved = await tx.occurrence.updateMany({
+          where: { id: occ.id, status: { in: ['scheduled', 'active'] } },
+          data: { status: 'void', failureReasonCode: 'commitment_cancelled', decidedAt: now },
+        });
+        return moved.count;
+      });
+      if (won === 1) voided += 1;
+    }
+    return voided;
+  }
+
+  private canVoidForCancel(
+    occ: {
+      status: string;
+      windowStartAt: Date;
+      evidence: { id: string }[];
+      appeal: { status: string } | null;
+    },
+    effectiveAt: Date,
+  ): boolean {
+    if (!occ.windowStartAt || occ.windowStartAt.getTime() < effectiveAt.getTime()) return false;
+    if (occ.evidence?.length) return false;
+    if (occ.appeal && (occ.appeal.status === 'submitted' || occ.appeal.status === 'reviewing')) return false;
+    if (!['scheduled', 'active'].includes(occ.status)) return false;
+    return true;
+  }
+
+  private async completeIfResolved(commitmentId: string): Promise<boolean> {
+    const c = await this.prisma.commitment.findUnique({
+      where: { id: commitmentId },
+      include: { occurrences: { include: { appeal: true } } },
+    });
+    if (!c || c.status !== 'active' || c.enforcementMode === 'money') return false;
+    const open = c.occurrences.some((o) => {
+      if (o.appeal && (o.appeal.status === 'submitted' || o.appeal.status === 'reviewing')) return true;
+      return !['pass', 'fail', 'void'].includes(o.status);
+    });
+    if (open) return false;
+    const won = await this.prisma.commitment.updateMany({
+      where: { id: c.id, status: 'active' },
+      data: { status: 'completed' },
+    });
+    return won.count === 1;
+  }
+
+  private async cancelSnapshot(
+    commitmentId: string,
+    idempotent: boolean,
+    refund: PaymentView | null,
+    effectiveAt: Date | null,
+  ): Promise<CancelUnsignedResult> {
+    const c = await this.prisma.commitment.findUnique({
+      where: { id: commitmentId },
+      include: {
+        occurrences: { include: { evidence: { select: { id: true }, take: 1 }, appeal: true } },
+      },
+    });
+    const money = this.moneyStatus ? await this.moneyStatus.forCommitment(commitmentId) : null;
+    if (!refund && this.payments) {
+      refund = await this.payments.findSucceededRefund(commitmentId);
+    }
+    const cutoff = effectiveAt ?? c?.cancellationEffectiveAt ?? c?.cancelledAt ?? this.clock.now();
+    let binding = 0;
+    let voidN = 0;
+    let bindingAmt = 0n;
+    let voidAmt = 0n;
+    const unsignedCancelled = c?.status === 'cancelled';
+    for (const o of c?.occurrences ?? []) {
+      const willVoid =
+        o.status === 'void' && (o.failureReasonCode === 'commitment_cancelled' || unsignedCancelled)
+          ? true
+          : this.canVoidForCancel(o, cutoff);
+      if (willVoid) {
+        voidN += 1;
+        if (o.stakeAmount != null) voidAmt += o.stakeAmount;
+      } else {
+        binding += 1;
+        if (o.stakeAmount != null) bindingAmt += o.stakeAmount;
+      }
+    }
+    const moneyMode = c?.enforcementMode === 'money';
     return {
       commitmentId,
       status: (c?.status ?? 'cancelled') as CommitmentState,
@@ -480,6 +679,11 @@ export class CommitmentService {
       idempotent,
       money,
       refund,
+      effectiveAt: cutoff.toISOString(),
+      bindingOccurrenceCount: binding,
+      voidOccurrenceCount: voidN,
+      bindingAmountKrw: moneyMode ? bindingAmt.toString() : null,
+      futureRefundableAmountKrw: moneyMode ? voidAmt.toString() : null,
     };
   }
 
@@ -517,6 +721,8 @@ export class CommitmentService {
       occurrenceCount: r._count.occurrences,
       signatureExpiresAt: r.signatureExpiresAt?.toISOString() ?? null,
       cancellationReason: r.cancellationReason,
+      cancellationRequestedAt: r.cancellationRequestedAt?.toISOString() ?? null,
+      cancellationEffectiveAt: r.cancellationEffectiveAt?.toISOString() ?? null,
       // MONEY-only derived money state (결제 중 / 약속금 걸림 / 환불 예정 …). null otherwise.
       money: moneyViews.get(r.id) ?? null,
       appeals: r.enforcementMode === 'money' ? appealMap.get(r.id) ?? [] : [],
@@ -559,6 +765,8 @@ export class CommitmentService {
       signatureCompleted: c.signatureCompleted,
       signatureExpiresAt: c.signatureExpiresAt?.toISOString() ?? null,
       cancellationReason: c.cancellationReason,
+      cancellationRequestedAt: c.cancellationRequestedAt?.toISOString() ?? null,
+      cancellationEffectiveAt: c.cancellationEffectiveAt?.toISOString() ?? null,
       money,
       timezone: c.timezone,
       startAt: c.startAt.toISOString(),

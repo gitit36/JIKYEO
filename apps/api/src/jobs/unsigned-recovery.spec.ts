@@ -164,9 +164,10 @@ describe('Phase 5A — unsigned cancel / expiry', () => {
     expect((await policy.rollingExposure(USER)).realizedForfeitKrw).toBe(0);
   });
 
-  it('active/completed cannot use unsigned cancel', async () => {
+  it('completed cannot be newly cancelled', async () => {
     const ctx = await funded();
     await ctx.commitments.sign(USER, C);
+    await ctx.db.commitment.update({ where: { id: C }, data: { status: 'completed' } });
     await expect(ctx.commitments.cancel(USER, C)).rejects.toMatchObject({ code: 'INVALID_STATE_TRANSITION' });
   });
 

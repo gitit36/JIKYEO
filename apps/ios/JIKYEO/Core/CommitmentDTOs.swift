@@ -199,6 +199,11 @@ public struct CancelCommitmentResponse: Codable {
     public let idempotent: Bool?
     public let money: MoneyView?
     public let refund: PaymentView?
+    public let effectiveAt: Date?
+    public let bindingOccurrenceCount: Int?
+    public let voidOccurrenceCount: Int?
+    public let bindingAmountKrw: String?
+    public let futureRefundableAmountKrw: String?
 }
 
 public struct SafetyResponse: Codable {

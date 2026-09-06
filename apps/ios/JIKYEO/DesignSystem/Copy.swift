@@ -251,6 +251,22 @@ public enum Copy {
         }
     }
 
+    public enum Cancel {
+        public static let cta = "약속 그만하기"
+        public static let selfConfirm = "이미 시작된 회차는 그대로 두고,\n앞으로의 약속을 그만할게요."
+        public static let moneyNotice = "취소는 24시간 뒤 적용돼요."
+        public static func moneyBinding(_ n: Int) -> String { "그전에 시작되는 \(n)번은 그대로 진행돼요." }
+        public static func moneyRefund(_ n: Int, _ amount: String) -> String {
+            "이후 \(n)번의 약속금 \(amount)원은 최종 정산 때 환불돼요."
+        }
+        public static let confirm = "그만할게요"
+        public static let keep = "계속 지킬게요"
+        public static let scheduled = "취소 예정"
+        public static func effective(_ when: String) -> String { "적용 시각 \(when)" }
+        public static func remaining(_ n: Int) -> String { "남은 진행 회차 \(n)번" }
+        public static func futureRefund(_ amount: String) -> String { "최종 정산 때 환불 예정 \(amount)원" }
+    }
+
     public enum Notify {
         public static let deadline = "약속 시간이 다가오고 있어요"
         public static let signature = "서명을 마쳐주세요"

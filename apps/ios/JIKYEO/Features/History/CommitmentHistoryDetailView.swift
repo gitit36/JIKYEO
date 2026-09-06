@@ -8,12 +8,33 @@ struct CommitmentHistoryDetailView: View {
     @State private var submitting: AppealSummary?
     @State private var errorMessage: String?
     @State private var deletedEvidence: Set<String> = []
+    @State private var cancelPreview: CancelCommitmentResponse?
+    @State private var cancelResult: CancelCommitmentResponse?
+    @State private var confirming = false
+    @State private var cancelling = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.md) {
                 if let m = (detail?.money ?? preview.money) {
                     MoneySummary(money: m)
+                }
+                if let scheduled = cancelBanner {
+                    Card {
+                        VStack(alignment: .leading, spacing: DS.Space.sm) {
+                            Text(Copy.Cancel.scheduled).font(Typo.bodyStrong)
+                            Text(Copy.Cancel.effective(scheduled.when)).font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
+                            Text(Copy.Cancel.remaining(scheduled.binding)).font(Typo.caption)
+                            if let amt = scheduled.refund {
+                                Text(Copy.Cancel.futureRefund(amt)).font(Typo.caption)
+                            }
+                        }
+                    }
+                }
+                if canCancel {
+                    SecondaryButton(Copy.Cancel.cta) {
+                        Task { await loadPreview() }
+                    }
                 }
                 ForEach(occurrences) { occ in
                     OccurrenceAppealCard(
@@ -43,17 +64,100 @@ struct CommitmentHistoryDetailView: View {
         .background(DS.Color.surfaceBackground.ignoresSafeArea())
         .navigationTitle(preview.title)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
+        .task {
+            await load()
+            await refreshCancelBanner()
+        }
         .sheet(item: $submitting) { row in
             AppealSubmitSheet(occurrenceId: row.occurrenceId) {
                 submitting = nil
                 Task { await load() }
             }
         }
+        .confirmationDialog(Copy.Cancel.cta, isPresented: $confirming, titleVisibility: .visible) {
+            Button(Copy.Cancel.confirm) { Task { await confirmCancel() } }
+            Button(Copy.Cancel.keep, role: .cancel) {}
+        } message: {
+            Text(confirmMessage)
+        }
+    }
+
+    private var canCancel: Bool {
+        let status = detail?.status ?? preview.status
+        let effective = detail?.cancellationEffectiveAt ?? preview.cancellationEffectiveAt
+        return status == "active" && effective == nil
+    }
+
+    private var cancelBanner: (when: String, binding: Int, refund: String?)? {
+        let status = detail?.status ?? preview.status
+        guard status == "active" else { return nil }
+        if let r = cancelResult ?? cancelPreview, let at = r.effectiveAt {
+            let refund = (detail?.enforcementMode ?? preview.enforcementMode) == .money
+                ? r.futureRefundableAmountKrw.map(Self.formatKrw)
+                : nil
+            return (Self.formatWhen(at), r.bindingOccurrenceCount ?? 0, refund)
+        }
+        if let at = detail?.cancellationEffectiveAt ?? preview.cancellationEffectiveAt {
+            return (Self.formatWhen(at), 0, nil)
+        }
+        return nil
+    }
+
+    private var confirmMessage: String {
+        let mode = detail?.enforcementMode ?? preview.enforcementMode
+        guard mode == .money, let p = cancelPreview else { return Copy.Cancel.selfConfirm }
+        let bind = p.bindingOccurrenceCount ?? 0
+        let voids = p.voidOccurrenceCount ?? 0
+        let amt = p.futureRefundableAmountKrw ?? "0"
+        return "\(Copy.Cancel.moneyNotice)\n\(Copy.Cancel.moneyBinding(bind))\n\(Copy.Cancel.moneyRefund(voids, Self.formatKrw(amt)))"
+    }
+
+    private static func formatWhen(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ko_KR")
+        f.dateFormat = "M월 d일 HH:mm"
+        return f.string(from: date)
+    }
+
+    private static func formatKrw(_ raw: String) -> String {
+        let formatted = MoneyText.format(Int64(raw) ?? 0)
+        return formatted.hasSuffix("원") ? String(formatted.dropLast()) : formatted
     }
 
     private var occurrences: [CommitmentAPI.OccurrenceDetail] {
         detail?.occurrences ?? []
+    }
+
+    private func loadPreview() async {
+        do {
+            cancelPreview = try await container.commitmentAPI.cancelPreview(commitmentId: commitmentId)
+            confirming = true
+        } catch let e as APIError {
+            errorMessage = e.message
+        } catch {
+            errorMessage = "불러오지 못했어요. 다시 시도해주세요."
+        }
+    }
+
+    private func confirmCancel() async {
+        cancelling = true
+        defer { cancelling = false }
+        do {
+            cancelResult = try await container.commitmentAPI.cancel(commitmentId: commitmentId)
+            await load()
+            await refreshCancelBanner()
+        } catch let e as APIError {
+            errorMessage = e.message
+        } catch {
+            errorMessage = "불러오지 못했어요. 다시 시도해주세요."
+        }
+    }
+
+    private func refreshCancelBanner() async {
+        let status = detail?.status ?? preview.status
+        let effective = detail?.cancellationEffectiveAt ?? preview.cancellationEffectiveAt
+        guard status == "active", effective != nil || cancelResult != nil else { return }
+        cancelPreview = try? await container.commitmentAPI.cancelPreview(commitmentId: commitmentId)
     }
 
     private func load() async {
@@ -205,3 +309,36 @@ enum AppealCopy {
         }
     }
 }
+
+#if DEBUG
+struct CancelDebugView: View {
+    let stage: String
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.Space.md) {
+                    if stage == "cancel-self" {
+                        Text(Copy.Cancel.cta).font(Typo.title)
+                        Text(Copy.Cancel.selfConfirm).font(Typo.body)
+                        Text(Copy.Cancel.remaining(1)).font(Typo.caption)
+                    } else if stage == "cancel-money" {
+                        Text(Copy.Cancel.scheduled).font(Typo.title)
+                        Text(Copy.Cancel.moneyNotice).font(Typo.body)
+                        Text(Copy.Cancel.moneyBinding(1)).font(Typo.body)
+                        Text(Copy.Cancel.moneyRefund(4, "20,000")).font(Typo.body)
+                        Text(Copy.Cancel.effective("2026-09-15 21:00")).font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
+                        Text(Copy.Cancel.futureRefund("20000")).font(Typo.caption)
+                    } else {
+                        Text(Copy.Cancel.scheduled).font(Typo.title)
+                        Text("VOID 4 · FAIL 1").font(Typo.body)
+                        Text(Copy.Cancel.futureRefund("20000")).font(Typo.body)
+                    }
+                }
+                .padding(DS.Space.lg)
+            }
+            .background(DS.Color.surfaceBackground.ignoresSafeArea())
+            .navigationTitle(Copy.Cancel.cta)
+        }
+    }
+}
+#endif

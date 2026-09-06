@@ -32,7 +32,8 @@ function flattenWhere(where: Row | undefined): Row | undefined {
 }
 
 function matchesValue(actual: any, cond: any): boolean {
-  if (cond === null || cond === undefined) return actual === cond;
+  if (cond === null) return actual === null || actual === undefined;
+  if (cond === undefined) return actual === undefined;
   if (cond instanceof Date) return actual instanceof Date && actual.getTime() === cond.getTime();
   if (typeof cond === 'object' && !Array.isArray(cond)) {
     let ok = true;
@@ -102,7 +103,7 @@ class Table {
     }
   }
 
-  private withInclude(row: Row | null, args: Row): Row | null {
+  withInclude(row: Row | null, args: Row): Row | null {
     if (!row) return null;
     if (args?.include && this.hooks.include) return this.hooks.include({ ...row }, args.include);
     if (args?.select) {
@@ -249,6 +250,10 @@ export class InMemoryMoneyDb {
       if (include.appeal) {
         row.appeal = this.appeal.rows.find((a) => a.occurrenceId === row.id) ?? null;
       }
+      if (include.evidence) {
+        const ev = this.evidence.rows.filter((e) => e.occurrenceId === row.id);
+        row.evidence = include.evidence.take ? ev.slice(0, include.evidence.take) : ev;
+      }
       if (include.verificationResults) {
         row.verificationResults = this.verificationResult.rows.filter((v) => v.occurrenceId === row.id);
       }
@@ -316,10 +321,11 @@ export class InMemoryMoneyDb {
     include: (row, include) => {
       if (include.stake) row.stake = this.stake.rows.find((s) => s.commitmentId === row.id) ?? null;
       if (include.occurrences) {
+        const occInc = include.occurrences.include ?? {};
         row.occurrences = this.occurrence.rows
           .filter((o) => o.commitmentId === row.id)
           .sort((a, b) => a.sequenceNo - b.sequenceNo)
-          .map((o) => ({ ...o }));
+          .map((o) => this.occurrence.withInclude({ ...o }, { include: occInc })!);
       }
       return row;
     },

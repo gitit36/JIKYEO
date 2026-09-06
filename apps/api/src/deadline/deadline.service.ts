@@ -57,7 +57,7 @@ export class DeadlineService {
         deadlineAt: { lt: graceCutoff },
       },
       include: {
-        commitment: { select: { id: true, userId: true, enforcementMode: true, status: true } },
+        commitment: { select: { id: true, userId: true, enforcementMode: true, status: true, cancellationEffectiveAt: true } },
         evidence: { select: { id: true }, take: 1 },
         verificationResults: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
@@ -70,6 +70,11 @@ export class DeadlineService {
     for (const occ of candidates) {
       if (occ.commitment.status !== 'active') {
         // Commitment was cancelled or completed — skip.
+        alreadyResolved += 1;
+        continue;
+      }
+      const cutoff = occ.commitment.cancellationEffectiveAt;
+      if (cutoff && occ.windowStartAt.getTime() >= cutoff.getTime()) {
         alreadyResolved += 1;
         continue;
       }

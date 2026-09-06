@@ -366,7 +366,10 @@ describe('Phase 5C — evidence retention + overlapping maintenance', () => {
     const lease = new JobLeaseService(ctx.prisma, clock);
     const payments = new PaymentService(ctx.prisma, new MockPaymentProvider(), new LedgerService(ctx.prisma), clock, { evaluate: async () => ({}) } as any, cfg());
     const settlement = new SettlementService(ctx.prisma, new LedgerService(ctx.prisma), payments, clock, cfg());
-    const commitments = { expireOverdue: async () => ({ expired: 0 }) } as unknown as CommitmentService;
+    const commitments = {
+      expireOverdue: async () => ({ expired: 0 }),
+      applyCancellationEffective: async () => ({ voided: 0, completed: 0 }),
+    } as unknown as CommitmentService;
     const maintenance = new MoneyMaintenanceService(
       lease, commitments, settlement, payments, cfg(), ctx.notifications, ctx.recaps, ctx.retention,
     );
