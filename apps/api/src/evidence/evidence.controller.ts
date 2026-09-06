@@ -56,6 +56,23 @@ export class EvidenceController {
     return this.evidence.submit(req.userId, occurrenceId, dto);
   }
 
+  @Get('occurrences/:id/evidence')
+  async list(
+    @Req() req: AuthedRequest,
+    @Param('id') occurrenceId: string,
+  ): Promise<unknown> {
+    return this.evidence.listForOccurrence(req.userId, occurrenceId);
+  }
+
+  @Get('occurrences/:id/evidence/:evidenceId/asset')
+  async asset(
+    @Req() req: AuthedRequest,
+    @Param('id') occurrenceId: string,
+    @Param('evidenceId') evidenceId: string,
+  ): Promise<unknown> {
+    return this.evidence.getAsset(req.userId, occurrenceId, evidenceId);
+  }
+
   @Get('occurrences/:id/result')
   async result(
     @Req() req: AuthedRequest,

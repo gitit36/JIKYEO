@@ -7,6 +7,7 @@ struct CommitmentHistoryDetailView: View {
     @State private var detail: CommitmentAPI.CommitmentDetail?
     @State private var submitting: AppealSummary?
     @State private var errorMessage: String?
+    @State private var deletedEvidence: Set<String> = []
 
     var body: some View {
         ScrollView {
@@ -15,7 +16,11 @@ struct CommitmentHistoryDetailView: View {
                     MoneySummary(money: m)
                 }
                 ForEach(occurrences) { occ in
-                    OccurrenceAppealCard(occurrence: occ, mode: detail?.enforcementMode ?? preview.enforcementMode) {
+                    OccurrenceAppealCard(
+                        occurrence: occ,
+                        mode: detail?.enforcementMode ?? preview.enforcementMode,
+                        evidenceDeleted: deletedEvidence.contains(occ.id)
+                    ) {
                         submitting = occ.appeal ?? AppealSummary(
                             occurrenceId: occ.id,
                             sequenceNo: occ.sequenceNo,
@@ -54,6 +59,14 @@ struct CommitmentHistoryDetailView: View {
     private func load() async {
         do {
             detail = try await container.commitmentAPI.getOne(id: commitmentId)
+            var deleted = Set<String>()
+            for occ in detail?.occurrences ?? [] {
+                let items = (try? await container.evidenceAPI.list(occurrenceId: occ.id)) ?? []
+                if items.contains(where: { $0.status == "deleted" }) {
+                    deleted.insert(occ.id)
+                }
+            }
+            deletedEvidence = deleted
             errorMessage = nil
         } catch let e as APIError {
             errorMessage = e.message
@@ -66,6 +79,7 @@ struct CommitmentHistoryDetailView: View {
 private struct OccurrenceAppealCard: View {
     let occurrence: CommitmentAPI.OccurrenceDetail
     let mode: EnforcementMode
+    var evidenceDeleted = false
     let onAppeal: () -> Void
 
     var body: some View {
@@ -82,6 +96,11 @@ private struct OccurrenceAppealCard: View {
                             .font(Typo.caption)
                             .foregroundStyle(DS.Color.textSecondary)
                     }
+                }
+                if evidenceDeleted {
+                    Text(Copy.Evidence.deleted)
+                        .font(Typo.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
                 }
                 if let line = AppealCopy.stateLine(occurrence.appeal) {
                     Text(line)

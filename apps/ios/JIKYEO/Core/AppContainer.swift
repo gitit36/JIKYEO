@@ -15,6 +15,9 @@ public final class AppContainer: ObservableObject {
     public let paymentAPI: PaymentAPI
     public let timerAPI: TimerAPI
     public let appealAPI: AppealAPI
+    public let notificationAPI: NotificationAPI
+    public let recapAPI: RecapAPI
+    @Published var pendingLink: DeepLink?
 
     public init(environment: AppEnvironment = .live) {
         self.environment = environment
@@ -31,5 +34,13 @@ public final class AppContainer: ObservableObject {
         self.paymentAPI = PaymentAPI(api: api)
         self.timerAPI = TimerAPI(api: api)
         self.appealAPI = AppealAPI(api: api)
+        self.notificationAPI = NotificationAPI(api: api)
+        self.recapAPI = RecapAPI(api: api)
+    }
+
+    func open(_ url: URL) {
+        if let link = DeepLink.parse(url) {
+            pendingLink = link
+        }
     }
 }

@@ -11,26 +11,54 @@
 
 type Row = Record<string, any>;
 
+const OPS = new Set(['in', 'notIn', 'not', 'lt', 'lte', 'gt', 'gte', 'startsWith']);
+const REL = new Set(['commitment', 'appeal', 'occurrence', 'user']);
+
+function isOp(cond: any): boolean {
+  return cond && typeof cond === 'object' && !Array.isArray(cond) && Object.keys(cond).some((k) => OPS.has(k));
+}
+
+function flattenWhere(where: Row | undefined): Row | undefined {
+  if (!where) return where;
+  const out: Row = {};
+  for (const [k, v] of Object.entries(where)) {
+    if (k.includes('_') && v && typeof v === 'object' && !Array.isArray(v) && !isOp(v) && !REL.has(k)) {
+      Object.assign(out, v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 function matchesValue(actual: any, cond: any): boolean {
   if (cond === null || cond === undefined) return actual === cond;
   if (cond instanceof Date) return actual instanceof Date && actual.getTime() === cond.getTime();
   if (typeof cond === 'object' && !Array.isArray(cond)) {
-    if ('in' in cond) return (cond.in as any[]).includes(actual);
-    if ('notIn' in cond) return !(cond.notIn as any[]).includes(actual);
-    if ('not' in cond) return !matchesValue(actual, cond.not);
-    if ('lt' in cond) return actual < cond.lt;
-    if ('lte' in cond) return actual <= cond.lte;
-    if ('gt' in cond) return actual > cond.gt;
-    if ('gte' in cond) return actual >= cond.gte;
-    if ('startsWith' in cond) return typeof actual === 'string' && actual.startsWith(cond.startsWith);
-    return false;
+    let ok = true;
+    let any = false;
+    if ('in' in cond) { any = true; ok = ok && (cond.in as any[]).includes(actual); }
+    if ('notIn' in cond) { any = true; ok = ok && !(cond.notIn as any[]).includes(actual); }
+    if ('not' in cond) { any = true; ok = ok && !matchesValue(actual, cond.not); }
+    if ('lt' in cond) { any = true; ok = ok && actual < cond.lt; }
+    if ('lte' in cond) { any = true; ok = ok && actual <= cond.lte; }
+    if ('gt' in cond) { any = true; ok = ok && actual > cond.gt; }
+    if ('gte' in cond) { any = true; ok = ok && actual >= cond.gte; }
+    if ('startsWith' in cond) { any = true; ok = ok && typeof actual === 'string' && actual.startsWith(cond.startsWith); }
+    return any ? ok : false;
   }
   return actual === cond;
 }
 
-function matches(row: Row, where: Row | undefined): boolean {
+function matches(row: Row, where: Row | undefined, rel?: (key: string, cond: any, row: Row) => boolean): boolean {
   if (!where) return true;
-  return Object.entries(where).every(([k, v]) => matchesValue(row[k], v));
+  const flat = flattenWhere(where)!;
+  return Object.entries(flat).every(([k, v]) => {
+    if (k === 'OR') return (v as Row[]).some((w) => matches(row, w, rel));
+    if (k === 'AND') return (v as Row[]).every((w) => matches(row, w, rel));
+    if (REL.has(k)) return rel ? rel(k, v, row) : true;
+    return matchesValue(row[k], v);
+  });
 }
 
 function sortBy(rows: Row[], orderBy: Row | Row[] | undefined): Row[] {
@@ -55,8 +83,15 @@ class Table {
   constructor(
     private readonly name: string,
     private readonly uniques: string[][] = [],
-    private readonly hooks: { include?: (row: Row, include: Row) => Row } = {},
+    private readonly hooks: {
+      include?: (row: Row, include: Row) => Row;
+      relation?: (key: string, cond: any, row: Row) => boolean;
+    } = {},
   ) {}
+
+  private match(row: Row, where: Row | undefined): boolean {
+    return matches(row, where, this.hooks.relation);
+  }
 
   private assertUnique(data: Row, ignoreId?: string): void {
     for (const cols of this.uniques) {
@@ -100,21 +135,27 @@ class Table {
   }
 
   async findUnique(args: { where: Row; include?: Row; select?: Row }): Promise<Row | null> {
-    return this.withInclude(this.rows.find((r) => matches(r, args.where)) ?? null, args);
+    return this.withInclude(this.rows.find((r) => this.match(r, args.where)) ?? null, args);
   }
 
   async findFirst(args: { where?: Row; orderBy?: Row; include?: Row }): Promise<Row | null> {
-    return this.withInclude(sortBy(this.rows.filter((r) => matches(r, args?.where)), args?.orderBy)[0] ?? null, args ?? {});
+    return this.withInclude(sortBy(this.rows.filter((r) => this.match(r, args?.where)), args?.orderBy)[0] ?? null, args ?? {});
   }
 
   async count(args: { where?: Row } = {}): Promise<number> {
-    return this.rows.filter((r) => matches(r, args.where)).length;
+    return this.rows.filter((r) => this.match(r, args.where)).length;
   }
 
   async findMany(args: { where?: Row; orderBy?: Row; include?: Row; select?: Row; take?: number } = {}): Promise<Row[]> {
-    let out = sortBy(this.rows.filter((r) => matches(r, args.where)), args.orderBy);
+    let out = sortBy(this.rows.filter((r) => this.match(r, args.where)), args.orderBy);
     if (args.take) out = out.slice(0, args.take);
     return out.map((r) => this.withInclude(r, args)!);
+  }
+
+  async upsert(args: { where: Row; create: Row; update: Row }): Promise<Row> {
+    const existing = await this.findUnique({ where: args.where });
+    if (existing) return this.update({ where: { id: existing.id }, data: args.update });
+    return this.create({ data: args.create });
   }
 
   async aggregate(args: { where?: Row; _sum?: Row }): Promise<{ _sum: Row }> {
@@ -127,7 +168,7 @@ class Table {
   }
 
   async update(args: { where: Row; data: Row }): Promise<Row> {
-    const row = this.rows.find((r) => matches(r, args.where));
+    const row = this.rows.find((r) => this.match(r, args.where));
     if (!row) throw Object.assign(new Error('Record not found'), { code: 'P2025' });
     this.assertUnique({ ...row, ...args.data }, row.id);
     Object.assign(row, args.data);
@@ -136,19 +177,27 @@ class Table {
 
   async deleteMany(args: { where: Row }): Promise<{ count: number }> {
     const before = this.rows.length;
-    this.rows = this.rows.filter((r) => !matches(r, args.where));
+    this.rows = this.rows.filter((r) => !this.match(r, args.where));
     return { count: before - this.rows.length };
   }
 
   async updateMany(args: { where: Row; data: Row }): Promise<{ count: number }> {
     let count = 0;
     for (const row of this.rows) {
-      if (matches(row, args.where)) {
+      if (this.match(row, args.where)) {
         Object.assign(row, args.data);
         count += 1;
       }
     }
     return { count };
+  }
+
+  snapshot(): Row[] {
+    return this.rows.map((r) => ({ ...r }));
+  }
+
+  restore(rows: Row[]): void {
+    this.rows = rows.map((r) => ({ ...r }));
   }
 }
 
@@ -160,12 +209,30 @@ export class InMemoryMoneyDb {
 
   /** Serialise transactions so concurrent cap/charge tests cannot race the reservation insert. */
   async $transaction<T>(fn: (tx: InMemoryMoneyDb) => Promise<T>): Promise<T> {
-    const run = this.txTail.then(() => fn(this));
+    const run = this.txTail.then(async () => {
+      const snap = this.allTables().map((t) => t.snapshot());
+      try {
+        return await fn(this);
+      } catch (e) {
+        this.allTables().forEach((t, i) => t.restore(snap[i]));
+        throw e;
+      }
+    });
     this.txTail = run.then(() => undefined, () => undefined);
     return run;
   }
 
+  private allTables(): Table[] {
+    return [
+      this.user, this.stake, this.occurrence, this.payment, this.paymentLedger, this.settlement,
+      this.paymentWebhookEvent, this.jobLease, this.auditLog, this.appeal, this.evidence,
+      this.verificationResult, this.commitment, this.deviceToken, this.notificationPreference,
+      this.notificationOutbox, this.weeklyRecap,
+    ];
+  }
+
   readonly stake = new Table('stake', [['commitmentId']]);
+  readonly user = new Table('usr');
   readonly occurrence = new Table('occ', [['commitmentId', 'sequenceNo']], {
     include: (row, include) => {
       if (include.commitment) {
@@ -182,7 +249,17 @@ export class InMemoryMoneyDb {
       if (include.appeal) {
         row.appeal = this.appeal.rows.find((a) => a.occurrenceId === row.id) ?? null;
       }
+      if (include.verificationResults) {
+        row.verificationResults = this.verificationResult.rows.filter((v) => v.occurrenceId === row.id);
+      }
       return row;
+    },
+    relation: (key, cond, row) => {
+      if (key === 'commitment') {
+        const c = this.commitment.rows.find((x) => x.id === row.commitmentId);
+        return c ? matches(c, cond) : false;
+      }
+      return true;
     },
   });
   readonly payment = new Table('pay', [['idempotencyKey']]);
@@ -209,8 +286,32 @@ export class InMemoryMoneyDb {
       return row;
     },
   });
-  readonly evidence = new Table('evd');
+  readonly evidence = new Table('evd', [], {
+    include: (row, include) => {
+      if (include.occurrence) {
+        const occ = this.occurrence.rows.find((o) => o.id === row.occurrenceId);
+        if (!occ) {
+          row.occurrence = null;
+          return row;
+        }
+        row.occurrence = { ...occ };
+        const occInc = include.occurrence.include;
+        if (occInc?.commitment) {
+          const c = this.commitment.rows.find((x) => x.id === occ.commitmentId);
+          row.occurrence.commitment = c ? { ...c } : null;
+        }
+        if (occInc?.appeal) {
+          row.occurrence.appeal = this.appeal.rows.find((a) => a.occurrenceId === occ.id) ?? null;
+        }
+      }
+      return row;
+    },
+  });
   readonly verificationResult = new Table('vrs');
+  readonly deviceToken = new Table('dev', [['tokenHash']]);
+  readonly notificationPreference = new Table('npref', [['userId']]);
+  readonly notificationOutbox = new Table('nout', [['dedupeKey']]);
+  readonly weeklyRecap = new Table('recap', [['userId', 'localWeekStart']]);
   readonly commitment = new Table('cmt', [], {
     include: (row, include) => {
       if (include.stake) row.stake = this.stake.rows.find((s) => s.commitmentId === row.id) ?? null;

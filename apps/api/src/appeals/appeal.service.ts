@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Appeal, AppealStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { Clock } from '../common/clock/clock';
 import { DomainError, ForbiddenError, NotFoundError } from '../common/errors/domain-errors';
 import { AppConfig } from '../config/app-config';
+import { NotificationService } from '../notifications/notification.service';
 import { LedgerService } from '../payments/ledger.service';
 import { ledgerKeys, PaymentService } from '../payments/payment.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -49,6 +50,7 @@ export class AppealService {
     private readonly audit: AuditService,
     private readonly clock: Clock,
     private readonly cfg: AppConfig,
+    @Optional() private readonly notifications?: NotificationService,
   ) {}
 
   get windowSeconds(): number {
@@ -293,6 +295,7 @@ export class AppealService {
       action: 'appeal_approved',
       after: { occurrenceId: occ.id, correctedResult },
     });
+    try { await this.notifications?.enqueueAppeal(occ.commitment.userId, appealId); } catch { /* outbox must not fail domain */ }
     return this.toView(after, occ.commitmentId, occ.sequenceNo);
   }
 
@@ -328,6 +331,7 @@ export class AppealService {
       action: 'appeal_rejected',
       after: { occurrenceId: existing.occurrenceId, reason: text },
     });
+    try { await this.notifications?.enqueueAppeal(existing.userId, appealId); } catch { /* outbox must not fail domain */ }
     return this.toView(row, existing.occurrence.commitmentId, existing.occurrence.sequenceNo);
   }
 

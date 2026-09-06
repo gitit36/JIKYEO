@@ -25,6 +25,16 @@ struct JIKYEOApp: App {
                 .environmentObject(container)
                 .environmentObject(container.auth)
                 .tint(DS.Color.primary)
+                .onOpenURL { url in
+                    container.open(url)
+                }
+                #if DEBUG
+                .onAppear {
+                    if let raw = DebugLaunch.deepLink, let url = URL(string: raw) {
+                        container.open(url)
+                    }
+                }
+                #endif
         }
     }
 }

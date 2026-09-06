@@ -18,6 +18,8 @@ import { SettlementModule } from './settlement/settlement.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AdminModule } from './admin/admin.module';
 import { AppealsModule } from './appeals/appeals.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { RecapsModule } from './recaps/recaps.module';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { AppealsModule } from './appeals/appeals.module';
     SettlementModule,
     JobsModule,
     AppealsModule,
+    NotificationsModule,
+    RecapsModule,
     AdminModule,
   ],
   controllers: [HealthController],

@@ -48,6 +48,9 @@
 		E9CEBA4C097212BC72C6C878 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFE5CF552F3E17762560457 /* AppEnvironment.swift */; };
 		F631A5F0EC0EC6BD14F3DDD6 /* StatusChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C42A0920D900711B7539E21 /* StatusChip.swift */; };
 		FCFA3159FA125CEDA766E884 /* CommitmentAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A852DEEEE8CFF8E4BBEFC768 /* CommitmentAPI.swift */; };
+		A3C1E2D4B5061728394A5B6C /* DeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D2F3E5C61728394A5B6C7D /* DeepLink.swift */; };
+		C5E3A4F6D728394A5B6C7D8E /* NotificationRecapAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F4B5A7E8394A5B6C7D8E9F /* NotificationRecapAPI.swift */; };
+		E7A5C6B8F94A5B6C7D8E9F0A /* WeeklyRecapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B6D7C9A05B6C7D8E9F0A1B /* WeeklyRecapView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -93,6 +96,10 @@
 		F023F30966FFCF9732152E0C /* GpsTargetPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GpsTargetPickerView.swift; sourceTree = "<group>"; };
 		F042E29D6A97F5DB89D5C19B /* CommitmentTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitmentTemplate.swift; sourceTree = "<group>"; };
 		FC98049F94AE6C08CC430AEA /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
+		B4D2F3E5C61728394A5B6C7D /* DeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLink.swift; sourceTree = "<group>"; };
+		D6F4B5A7E8394A5B6C7D8E9F /* NotificationRecapAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRecapAPI.swift; sourceTree = "<group>"; };
+		F8B6D7C9A05B6C7D8E9F0A1B /* WeeklyRecapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyRecapView.swift; sourceTree = "<group>"; };
+		22B33C44D55E6F708192A3B4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -132,6 +139,7 @@
 				F04858AAE95252907790A502 /* Onboarding */,
 				C38605068336AD0760438496 /* Proof */,
 				F8CCF3311D05E3696C22D583 /* Settings */,
+				33C44D55E66F708192A3B4C5 /* Recap */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -187,6 +195,8 @@
 				A852DEEEE8CFF8E4BBEFC768 /* CommitmentAPI.swift */,
 				651C3B3D6E1BDE083904B2B2 /* CommitmentDTOs.swift */,
 				C091644AD30AE05D142CB337 /* DebugLaunch.swift */,
+				B4D2F3E5C61728394A5B6C7D /* DeepLink.swift */,
+				D6F4B5A7E8394A5B6C7D8E9F /* NotificationRecapAPI.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -205,6 +215,14 @@
 				3CDC37B1BC5F624BACD1E19B /* JIKYEO.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		33C44D55E66F708192A3B4C5 /* Recap */ = {
+			isa = PBXGroup;
+			children = (
+				F8B6D7C9A05B6C7D8E9F0A1B /* WeeklyRecapView.swift */,
+			);
+			path = Recap;
 			sourceTree = "<group>";
 		};
 		F8CCF3311D05E3696C22D583 /* Settings */ = {
@@ -232,6 +250,7 @@
 			children = (
 				A204BF2D4ACB95C6267833B2 /* JIKYEOApp.swift */,
 				0DBDB4231946A98FF2AB821F /* RootView.swift */,
+				22B33C44D55E6F708192A3B4 /* Info.plist */,
 				EB79B2BD1E9D485C3CDB466F /* Core */,
 				B9F9EDBB01BA05D41197A11A /* DesignSystem */,
 				6A1C2A58EE0E55E2731CFCD2 /* Features */,
@@ -328,6 +347,9 @@
 				CA73DB7335F3C60C357C5F35 /* CreateCommitmentModel.swift in Sources */,
 				4414C35E44A1DFD7F849F685 /* CreateCommitmentWizardView.swift in Sources */,
 				217D0A05911CB8D47EA69738 /* DebugLaunch.swift in Sources */,
+				A3C1E2D4B5061728394A5B6C /* DeepLink.swift in Sources */,
+				C5E3A4F6D728394A5B6C7D8E /* NotificationRecapAPI.swift in Sources */,
+				E7A5C6B8F94A5B6C7D8E9F0A /* WeeklyRecapView.swift in Sources */,
 				0B6F4DB25CA3B4884EA2EF0D /* FriendsView.swift in Sources */,
 				285E17402E0FEE7291C1C153 /* GpsProofView.swift in Sources */,
 				4ED5A5E7A01BA89E42FE2C43 /* GpsTargetPickerView.swift in Sources */,
@@ -366,6 +388,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "지켜";
 				INFOPLIST_KEY_NSCameraUsageDescription = "약속을 사진으로 증명하기 위해 카메라를 사용해요.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "약속 장소에 도착했는지 확인하기 위해 위치를 사용해요.";
@@ -456,6 +479,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "지켜";
 				INFOPLIST_KEY_NSCameraUsageDescription = "약속을 사진으로 증명하기 위해 카메라를 사용해요.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "약속 장소에 도착했는지 확인하기 위해 위치를 사용해요.";

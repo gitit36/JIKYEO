@@ -572,7 +572,28 @@ SELF/SOCIAL Commitment는 이 상태 머신을 실행하지 않는다 (Stake row
 
 ## 5. 데이터 보존
 
-- Evidence 원본: 판정 및 Appeal 기간 종료 후 삭제
+- Evidence 원본: 최종 유효 판정(항소 결정 포함) 후 `DEFAULT_EVIDENCE_RETENTION_DAYS`(기본 30일). reviewing / UNCERTAIN / system_hold / 항소 대기 / 항소 창 / 미결 검증 중에는 삭제하지 않는다. 삭제 후 해시·메타·판정·감사만 남기고 raw object는 제거한다.
+
+### DEVICE_TOKEN
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| token_hash | text | unique. 평문 토큰을 저장하지 않음 |
+| token_ciphertext | text | `PUSH_TOKEN_ENCRYPTION_SECRET`로 암호화. 전송용 |
+| environment | enum | sandbox / production |
+| active | bool | invalid-token 시 false |
+
+### NOTIFICATION_PREFERENCE
+사용자당 카테고리 옵트인 (deadline_reminder, signature_expiry, refund, appeal, weekly_recap).
+
+### NOTIFICATION_OUTBOX
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| dedupe_key | text | unique. 논리 이벤트 1건 |
+| status | enum | pending / sent / failed |
+| title, body, deep_link | text | lock-screen 일반 문구 + 인증 딥링크 |
+
+### WEEKLY_RECAP
+`(user_id, local_week_start)` unique. due/pass/fail/void/unresolved, completion_rate, MONEY일 때만 kept/net_forfeited/refund_pending.
 - AI 분석 결과: 장기 보존 가능, 개인정보 최소화
 - 결제/정산: 법적 보존기간 준수
 - Audit Log: 장기 보존

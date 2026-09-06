@@ -151,6 +151,42 @@ export class EvidenceService {
     throw new ValidationError('Unsupported evidence kind');
   }
 
+  async listForOccurrence(userId: string, occurrenceId: string) {
+    const occ = await this.prisma.occurrence.findUnique({
+      where: { id: occurrenceId },
+      include: { commitment: { select: { userId: true } } },
+    });
+    if (!occ) throw new NotFoundError('Occurrence not found');
+    if (occ.commitment.userId !== userId) throw new ForbiddenError();
+    const rows = await this.prisma.evidence.findMany({
+      where: { occurrenceId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((e) => ({
+      evidenceId: e.id,
+      status: e.status,
+      hash: e.hash,
+      metadata: e.metadataJson,
+      deletedAt: e.deletedAt?.toISOString() ?? null,
+      assetAvailable: e.status === 'active' && !!e.storageKey,
+    }));
+  }
+
+  async getAsset(userId: string, occurrenceId: string, evidenceId: string) {
+    const occ = await this.prisma.occurrence.findUnique({
+      where: { id: occurrenceId },
+      include: { commitment: { select: { userId: true } } },
+    });
+    if (!occ) throw new NotFoundError('Occurrence not found');
+    if (occ.commitment.userId !== userId) throw new ForbiddenError();
+    const row = await this.prisma.evidence.findUnique({ where: { id: evidenceId } });
+    if (!row || row.occurrenceId !== occurrenceId) throw new NotFoundError('Evidence not found');
+    if (row.status === 'deleted' || !row.storageKey || !(await this.storage.exists(row.storageKey))) {
+      throw new DomainError('NOT_FOUND', '보관 기간이 지나 삭제된 증거예요.');
+    }
+    return { evidenceId: row.id, storageKey: row.storageKey, status: row.status };
+  }
+
   private async transitionToReviewing(occurrenceId: string): Promise<void> {
     // Move `scheduled/active` → `evidence_submitted` → `reviewing` for the
     // duration of the verifier call. If verification finishes synchronously

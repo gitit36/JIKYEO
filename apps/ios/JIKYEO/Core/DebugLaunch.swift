@@ -38,5 +38,9 @@ public enum DebugLaunch {
     public static var accessToken: String? {
         UserDefaults.standard.string(forKey: "jikyeoDebugAccessToken")
     }
+    /// `-jikyeoDebugDeepLink jikyeo://today`
+    public static var deepLink: String? {
+        UserDefaults.standard.string(forKey: "jikyeoDebugDeepLink")
+    }
 }
 #endif

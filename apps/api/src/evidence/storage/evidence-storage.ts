@@ -27,4 +27,7 @@ export abstract class EvidenceStorage {
 
   /** Optional integrity check used by tests / real S3 head-object. */
   abstract exists(storageKey: string): Promise<boolean>;
+
+  /** Permanently remove the raw object. Must be idempotent if the key is already gone. */
+  abstract delete(storageKey: string): Promise<void>;
 }

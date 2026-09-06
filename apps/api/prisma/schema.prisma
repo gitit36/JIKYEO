@@ -128,6 +128,30 @@ enum EvidenceType {
   friend
 }
 
+enum EvidenceStatus {
+  active
+  deleted
+}
+
+enum PushEnvironment {
+  sandbox
+  production
+}
+
+enum NotificationCategory {
+  deadline_reminder
+  signature_expiry
+  refund
+  appeal
+  weekly_recap
+}
+
+enum NotificationOutboxStatus {
+  pending
+  sent
+  failed
+}
+
 enum VerifierType {
   rule
   ai
@@ -263,6 +287,10 @@ model User {
   auditLogs          AuditLog[]
   evidenceSubmitted  Evidence[]
   timerSessions      FocusTimerSession[]
+  deviceTokens       DeviceToken[]
+  notificationPrefs  NotificationPreference?
+  notificationOutbox NotificationOutbox[]
+  weeklyRecaps       WeeklyRecap[]
 
   @@unique([authProvider, authSubject])
   @@index([email])
@@ -367,6 +395,8 @@ model Evidence {
   metadataJson         Json          @default("{}") @map("metadata_json")
   hash                 String?
   retentionUntil       DateTime      @map("retention_until") @db.Timestamptz
+  status               EvidenceStatus @default(active)
+  deletedAt            DateTime?     @map("deleted_at") @db.Timestamptz
   createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz
 
   occurrence           Occurrence    @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
@@ -374,6 +404,7 @@ model Evidence {
 
   @@index([occurrenceId])
   @@index([hash])
+  @@index([status, retentionUntil])
   @@map("evidence")
 }
 
@@ -673,4 +704,80 @@ model EventOutbox {
 
   @@index([publishedAt, createdAt])
   @@map("event_outbox")
+}
+
+// APNs device. Hash is unique; ciphertext is only for Mock/APNs delivery.
+model DeviceToken {
+  id              String          @id @default(uuid()) @db.Uuid
+  userId          String          @map("user_id") @db.Uuid
+  tokenHash       String          @unique @map("token_hash")
+  tokenCiphertext String          @map("token_ciphertext")
+  environment     PushEnvironment
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, active])
+  @@map("device_tokens")
+}
+
+model NotificationPreference {
+  userId            String   @id @map("user_id") @db.Uuid
+  deadlineReminder  Boolean  @default(true) @map("deadline_reminder")
+  signatureExpiry   Boolean  @default(true) @map("signature_expiry")
+  refund            Boolean  @default(true)
+  appeal            Boolean  @default(true)
+  weeklyRecap       Boolean  @default(true) @map("weekly_recap")
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+// Transactional push outbox. Domain rows never wait on this table.
+model NotificationOutbox {
+  id            String                   @id @default(uuid()) @db.Uuid
+  userId        String                   @map("user_id") @db.Uuid
+  category      NotificationCategory
+  dedupeKey     String                   @unique @map("dedupe_key")
+  title         String
+  body          String
+  deepLink      String                   @map("deep_link")
+  status        NotificationOutboxStatus @default(pending)
+  attempt       Int                      @default(0)
+  nextAttemptAt DateTime                 @default(now()) @map("next_attempt_at") @db.Timestamptz
+  lastError     String?                  @map("last_error")
+  createdAt     DateTime                 @default(now()) @map("created_at") @db.Timestamptz
+  sentAt        DateTime?                @map("sent_at") @db.Timestamptz
+
+  user          User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@map("notification_outbox")
+}
+
+model WeeklyRecap {
+  id                         String    @id @default(uuid()) @db.Uuid
+  userId                     String    @map("user_id") @db.Uuid
+  localWeekStart             String    @map("local_week_start")
+  timezone                   String
+  due                        Int
+  passCount                  Int       @map("pass_count")
+  failCount                  Int       @map("fail_count")
+  voidCount                  Int       @map("void_count")
+  unresolvedCount            Int       @map("unresolved_count")
+  completionRate             Decimal?  @map("completion_rate") @db.Decimal(5, 4)
+  hasMoneySection            Boolean   @map("has_money_section")
+  keptKrw                    BigInt?   @map("kept_krw")
+  netForfeitedKrw            BigInt?   @map("net_forfeited_krw")
+  refundPendingOrDelayedKrw  BigInt?   @map("refund_pending_or_delayed_krw")
+  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user                       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, localWeekStart])
+  @@map("weekly_recaps")
 }

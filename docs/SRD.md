@@ -102,16 +102,16 @@
 - 추가 환불 실패는 `refund_delayed`와 기존 retry/reconcile을 따른다. 손실한도 크레딧은 추가 환불 성공 후에만 복구된다.
 
 ### SR-FR-010 Notification
-- 24h/1h/10m/deadline/result/refund 이벤트 기반 알림
-- 전송 실패 retry
-- 사용자의 알림 설정 준수
+- 트랜잭션 outbox. 도메인 상태는 푸시 성공에 의존하지 않는다.
+- 이벤트: 증명 마감 리마인더, 서명 만료, 환불 완료/지연, 항소 승인/기각, Weekly Recap 준비.
+- 기기 토큰(해시+암호화, sandbox/production), 카테고리 옵트인, pending/sent/failed, backoff retry, invalid-token 비활성, 논리 이벤트당 안정 dedupe key.
+- 전송은 at-least-once. 중복 enqueue만 방지한다. lock-screen은 일반 문구 + 인증 딥링크. 목표/증거/금액 금지.
+- OS 권한·토큰 등록·카테고리 옵트인 전에는 푸시하지 않는다. 푸시 off가 앱 안 상태를 가리지 않는다.
 
 ### SR-FR-011 Weekly Recap
-- 주간 성공률
-- 지킨 금액
-- 놓친 금액
-- 약속별 통계
-- 다음 주 추천
+- 사용자 타임존 직전 Mon–Sun, 기본 월요일 로컬 09:00, `(userId, localWeekStart)` 1회.
+- 유효 결과 due/PASS/FAIL/VOID/unresolved, completionRate = PASS/(PASS+FAIL) 또는 null.
+- MONEY 회차가 있을 때만 금액 섹션. 빈 recap 생성·푸시 금지. owner-only API.
 
 ### SR-FR-012 Goal Safety
 - 위험 목표 입력 시 MONEY stake 비활성화 (`stake_disallowed`) 또는 목표 자체 차단(`unsafe`).

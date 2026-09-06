@@ -148,6 +148,10 @@ public struct EvidenceAPI {
     public func result(occurrenceId: String) async throws -> OccurrenceResultResponse {
         try await api.get("occurrences/\(occurrenceId)/result")
     }
+
+    public func list(occurrenceId: String) async throws -> [EvidenceItem] {
+        try await api.get("occurrences/\(occurrenceId)/evidence")
+    }
 }
 
 /// Focus Timer (`POST /occurrences/:id/timer/start`, heartbeat, finish).

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { VerificationOrchestrator } from '../verification/verification-orchestrator.service';
 import { VerificationModule } from '../verification/verification.module';
+import { EvidenceRetentionService } from './evidence-retention.service';
 import { EvidenceController } from './evidence.controller';
 import { EvidenceService } from './evidence.service';
 import { FocusTimerService } from './focus-timer.service';
@@ -13,11 +14,12 @@ import { MockEvidenceStorage } from './storage/mock-evidence-storage';
   controllers: [EvidenceController],
   providers: [
     EvidenceService,
+    EvidenceRetentionService,
     FocusTimerService,
     MockEvidenceStorage,
     { provide: EvidenceStorage, useExisting: MockEvidenceStorage },
     VerificationOrchestrator,
   ],
-  exports: [EvidenceService, FocusTimerService, VerificationOrchestrator],
+  exports: [EvidenceService, EvidenceRetentionService, FocusTimerService, VerificationOrchestrator],
 })
 export class EvidenceModule {}

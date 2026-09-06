@@ -15,6 +15,7 @@ import { EvidenceStorage, EvidenceUploadTicket } from './evidence-storage';
 @Injectable()
 export class MockEvidenceStorage extends EvidenceStorage {
   private readonly keys = new Set<string>();
+  failNextDelete = false;
 
   constructor(private readonly clock: Clock) {
     super();
@@ -41,6 +42,14 @@ export class MockEvidenceStorage extends EvidenceStorage {
 
   async exists(storageKey: string): Promise<boolean> {
     return this.keys.has(storageKey);
+  }
+
+  async delete(storageKey: string): Promise<void> {
+    if (this.failNextDelete) {
+      this.failNextDelete = false;
+      throw new Error('STORAGE_DELETE_FAILED');
+    }
+    this.keys.delete(storageKey);
   }
 
   /** Test-only helper. */

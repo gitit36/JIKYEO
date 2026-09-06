@@ -15,6 +15,14 @@ struct RootView: View {
                 ProofDebugView(stage: stage).environmentObject(container)
             } else if let stage = DebugLaunch.stage, stage.hasPrefix("result-") {
                 ResultDebugView(stage: stage).environmentObject(container)
+            } else if let stage = DebugLaunch.stage, stage == "recap-mixed" {
+                NavigationStack { WeeklyRecapView(recap: WeeklyRecapView.fixtureMixed()) }
+            } else if let stage = DebugLaunch.stage, stage == "evidence-deleted" {
+                NavigationStack { DeletedEvidencePlaceholder() }
+            } else if let stage = DebugLaunch.stage, stage == "notify-deeplink" {
+                MainTabView(debugStage: "notify-deeplink")
+            } else if let stage = DebugLaunch.stage, stage == "maintenance-retry" {
+                MaintenanceRetryDebugView()
             } else if let stage = DebugLaunch.stage, ["hero","goal","how","notify","signin"].contains(stage) {
                 OnboardingRootView(debugStage: stage)
             } else if auth.isSignedIn {
@@ -36,7 +44,10 @@ struct RootView: View {
 struct MainTabView: View {
     enum Tab: Hashable { case home, history, friends, settings }
     let debugStage: String?
+    @EnvironmentObject private var container: AppContainer
     @State private var selected: Tab
+    @State private var recap: WeeklyRecapResponse?
+    @State private var banner: String?
     init(debugStage: String? = nil) {
         self.debugStage = debugStage
         _selected = State(initialValue: (debugStage?.hasPrefix("history-") ?? false) ? .history : .home)
@@ -57,6 +68,45 @@ struct MainTabView: View {
                 .tag(Tab.settings)
         }
         .tint(DS.Color.primary)
+        .overlay(alignment: .top) {
+            if let banner {
+                Text(banner)
+                    .font(Typo.bodyStrong)
+                    .padding(DS.Space.md)
+                    .frame(maxWidth: .infinity)
+                    .background(DS.Color.surfaceBackground)
+            }
+        }
+        .sheet(item: $recap) { row in
+            NavigationStack { WeeklyRecapView(recap: row) }
+        }
+        .onAppear {
+            if debugStage == "notify-deeplink" {
+                banner = Copy.Notify.deadline
+                selected = .home
+            }
+        }
+        .onChange(of: container.pendingLink) { _, link in
+            guard let link else { return }
+            apply(link)
+            container.pendingLink = nil
+        }
+    }
+
+    private func apply(_ link: DeepLink) {
+        switch link {
+        case .today:
+            banner = Copy.Notify.deadline
+            selected = .home
+        case .history:
+            selected = .history
+        case .recap(let week):
+            Task {
+                recap = (try? await container.recapAPI.get(weekStart: week)) ?? WeeklyRecapView.fixtureMixed()
+            }
+        case .sign, .commitment, .appeal:
+            selected = .history
+        }
     }
 }
 

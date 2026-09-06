@@ -210,6 +210,18 @@ POST /v1/occurrences/{id}/evidence        # multi-modal: photo/gps/timer/self
 POST /v1/occurrences/{id}/timer/start
 POST /v1/occurrences/{id}/timer/heartbeat
 POST /v1/occurrences/{id}/timer/finish
+GET  /v1/occurrences/{id}/evidence
+GET  /v1/occurrences/{id}/evidence/{evidenceId}/asset
+```
+
+### Notifications / Recap
+```http
+POST /v1/devices/tokens
+POST /v1/devices/tokens/unregister
+GET  /v1/notifications/preferences
+POST /v1/notifications/preferences
+GET  /v1/recaps/latest
+GET  /v1/recaps/{localWeekStart}
 ```
 
 ### Appeal
@@ -623,9 +635,14 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - 누적 환불 ≤ 선결제. cap credit는 추가 환불 성공 후. 실패는 refund_delayed + retry/reconcile
 - iOS: MONEY FAIL `[결과에 이의 제기하기]`, 검토 중 / 승인됨·추가 환불 / 기각됨
 
-### Phase 5C — Weekly Recap / remaining (예정)
-- Weekly Recap
-- 실 PG, 푸시, 증거 삭제, 실 vision, 활성 약속 취소, 소셜
+### Phase 5C — Notifications / Weekly Recap / evidence retention (완료, MockPushProvider)
+- Device token hash+encrypt (`PUSH_TOKEN_ENCRYPTION_SECRET`), category prefs, transactional outbox, MockPushProvider
+- Weekly Recap: 사용자 타임존 직전 Mon–Sun, `(userId, localWeekStart)`, owner API + iOS
+- Evidence raw 삭제: 최종 유효 판정 +30일, hold 조건, 메타 보존. money_maintenance lease 확장
+- 실 APNs / 실 PG / 실 vision / admin web / 활성 약속 취소 / 소셜은 제외
+
+### Phase 5D — remaining (예정)
+- 실 PG, 실 APNs, 실 vision, admin web UI, 활성 약속 취소, 소셜
 
 ### Phase 6 — Social 완전판 + Friend Verify (예정)
 
@@ -642,7 +659,7 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - [x] 장애 중 자동 FAIL 차단 (Verification/Deadline)
 - [x] AI UNCERTAIN 처리 (Mock provider, PASS/UNCERTAIN/FAIL)
 - [x] Appeal reversal (Phase 5B, MockPaymentProvider)
-- [ ] Evidence auto-delete
+- [x] Evidence auto-delete (Phase 5C, Mock storage, 30일 + hold)
 - [x] Stake 상한 server-side validation (StakePolicy)
 - [x] `QUOTE_SIGNING_SECRET` 분리 및 single-use quote
 - [x] SELF/SOCIAL/MONEY 강제력 모드 분기

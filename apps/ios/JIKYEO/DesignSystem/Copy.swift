@@ -251,6 +251,46 @@ public enum Copy {
         }
     }
 
+    public enum Notify {
+        public static let deadline = "약속 시간이 다가오고 있어요"
+        public static let signature = "서명을 마쳐주세요"
+        public static let refundDone = "환불 처리가 완료됐어요"
+        public static let refundDelayed = "환불 처리가 늦어지고 있어요"
+        public static let appeal = "이의 제기 결과가 도착했어요"
+        public static let recap = "지난주 약속을 정리했어요"
+        public static let retryTitle = "다시 보냈어요"
+        public static let retryBody = "전송에 실패했던 알림과 삭제를 유지보수가 다시 처리했어요."
+        public static let section = "알림"
+        public static let enable = "알림 허용"
+        public static let deadlinePref = "약속 마감"
+        public static let signaturePref = "서명 만료"
+        public static let refundPref = "환불"
+        public static let appealPref = "이의 제기"
+        public static let recapPref = "주간 정리"
+        public static let recapCta = "지난주 정리"
+    }
+
+    public enum Recap {
+        public static let nav = "지난주 정리"
+        public static let title = "지난주 약속을 정리했어요"
+        public static func weekLine(_ start: String) -> String { "\(start)부터 일주일" }
+        public static func counts(due: Int, pass: Int, fail: Int, void: Int, unresolved: Int) -> String {
+            "예정 \(due) · 지킴 \(pass) · 놓침 \(fail) · 무효 \(void) · 미결 \(unresolved)"
+        }
+        public static func rate(_ value: Double?) -> String {
+            guard let value else { return "성공률은 아직 없어요." }
+            return "성공률 \(Int((value * 100).rounded()))%"
+        }
+        public static func kept(_ krw: String) -> String { "지킨 약속금 \(krw)원" }
+        public static func forfeited(_ krw: String) -> String { "정산된 손실 \(krw)원" }
+        public static func refundPending(_ krw: String) -> String { "환불 대기 \(krw)원" }
+    }
+
+    public enum Evidence {
+        public static let title = "증거"
+        public static let deleted = "보관 기간이 지나 삭제된 증거예요."
+    }
+
     // MARK: - Days
     public static let weekdayShort: [String: String] = [
         "MON": "월", "TUE": "화", "WED": "수", "THU": "목",

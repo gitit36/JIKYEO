@@ -106,6 +106,30 @@ export class AppConfig {
     return Number(this.cfg.get<string>('APPEAL_WINDOW_SECONDS') ?? 7 * 24 * 3600);
   }
 
+  /** Local hour (0–23) to generate the previous week's recap. Default Monday 09:00. */
+  get recapLocalHour(): number {
+    return Number(this.cfg.get<string>('RECAP_LOCAL_HOUR') ?? 9);
+  }
+
+  /**
+   * Encrypts APNs device tokens at rest. Distinct from JWT, quote, job, and admin secrets.
+   */
+  get pushTokenEncryptionSecret(): string {
+    const v = this.cfg.get<string>('PUSH_TOKEN_ENCRYPTION_SECRET');
+    if (!v || v.length === 0) {
+      throw new Error('Missing required env var: PUSH_TOKEN_ENCRYPTION_SECRET');
+    }
+    if (
+      v === this.cfg.get<string>('JWT_SECRET') ||
+      v === this.cfg.get<string>('QUOTE_SIGNING_SECRET') ||
+      v === this.cfg.get<string>('INTERNAL_JOB_SECRET') ||
+      v === this.cfg.get<string>('ADMIN_API_SECRET')
+    ) {
+      throw new Error('PUSH_TOKEN_ENCRYPTION_SECRET must not equal JWT, quote, job, or admin secrets');
+    }
+    return v;
+  }
+
   /**
    * Protects `POST /internal/jobs/*`. Distinct from JWT, quote signing,
    * and payment-webhook authenticity.
