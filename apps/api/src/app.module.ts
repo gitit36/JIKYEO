@@ -15,6 +15,8 @@ import { VerificationModule } from './verification/verification.module';
 import { EvidenceModule } from './evidence/evidence.module';
 import { DeadlineModule } from './deadline/deadline.module';
 import { SettlementModule } from './settlement/settlement.module';
+import { JobsModule } from './jobs/jobs.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -33,6 +35,8 @@ import { SettlementModule } from './settlement/settlement.module';
     EvidenceModule,
     DeadlineModule,
     SettlementModule,
+    JobsModule,
+    AdminModule,
   ],
   controllers: [HealthController],
 })

@@ -57,9 +57,21 @@ export class CommitmentsController {
     return this.commitment.sign(req.userId, id);
   }
 
+  @Post(':id/cancel')
+  @HttpCode(200)
+  async cancel(
+    @Req() req: AuthedRequest,
+    @Param('id') id: string,
+    @Body() body?: { simulate?: string },
+  ): Promise<unknown> {
+    return this.commitment.cancel(req.userId, id, {
+      simulateRefundFail: body?.simulate === 'refund_fail',
+    });
+  }
+
   @Delete(':id')
-  @HttpCode(204)
-  async cancel(@Req() req: AuthedRequest, @Param('id') id: string): Promise<void> {
-    await this.commitment.cancel(req.userId, id);
+  @HttpCode(200)
+  async cancelDelete(@Req() req: AuthedRequest, @Param('id') id: string): Promise<unknown> {
+    return this.commitment.cancel(req.userId, id);
   }
 }

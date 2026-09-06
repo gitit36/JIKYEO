@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Payment, PaymentStatus, Prisma } from '@prisma/client';
 import { Clock } from '../common/clock/clock';
 import { DomainError, ForbiddenError, NotFoundError } from '../common/errors/domain-errors';
+import { AppConfig } from '../config/app-config';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from './ledger.service';
 import { LostProviderResponseError, PaymentProvider, PaymentProviderResult, WebhookEvent } from './providers/payment-provider';
@@ -61,7 +62,12 @@ export class PaymentService {
     private readonly ledger: LedgerService,
     private readonly clock: Clock,
     private readonly stakePolicy: StakePolicyService,
+    @Optional() private readonly cfg?: AppConfig,
   ) {}
+
+  private get signatureExpirySeconds(): number {
+    return this.cfg?.signatureExpirySeconds ?? 1_800;
+  }
 
   // ---------------------------------------------------------------- charge
 
@@ -237,9 +243,10 @@ export class PaymentService {
         },
         tx,
       );
+      const expiresAt = new Date(now.getTime() + this.signatureExpirySeconds * 1000);
       await tx.commitment.updateMany({
         where: { id: payment.commitmentId, status: 'payment_pending' },
-        data: { status: 'signature_pending' },
+        data: { status: 'signature_pending', signatureExpiresAt: expiresAt },
       });
       return saved;
     });
@@ -463,6 +470,16 @@ export class PaymentService {
    * than `olderThanMs` and apply the authoritative status. Safe to run
    * repeatedly; every application is idempotent.
    */
+  async reconcilePayment(payment: Payment): Promise<Payment> {
+    if (payment.status !== 'requested') return payment;
+    const key = payment.providerPaymentKey;
+    if (!key) return payment;
+    const status = await this.provider.getStatus(key);
+    return payment.type === 'charge'
+      ? this.applyChargeResult(payment.id, status.status, status.providerPaymentKey, status.failureCode ?? null)
+      : this.applyRefundResult(payment.id, status.status, status.failureCode ?? null);
+  }
+
   async reconcileStale(olderThanMs = 5 * 60_000): Promise<{ checked: number; resolved: number }> {
     const cutoff = new Date(this.clock.now().getTime() - olderThanMs);
     const stale = await this.prisma.payment.findMany({
@@ -470,12 +487,7 @@ export class PaymentService {
     });
     let resolved = 0;
     for (const p of stale) {
-      const key = p.providerPaymentKey;
-      if (!key) continue;
-      const status = await this.provider.getStatus(key);
-      const after = p.type === 'charge'
-        ? await this.applyChargeResult(p.id, status.status, status.providerPaymentKey, status.failureCode ?? null)
-        : await this.applyRefundResult(p.id, status.status, status.failureCode ?? null);
+      const after = await this.reconcilePayment(p);
       if (after.status !== 'requested') resolved += 1;
     }
     return { checked: stale.length, resolved };

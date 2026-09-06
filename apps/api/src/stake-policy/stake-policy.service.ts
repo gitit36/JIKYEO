@@ -116,9 +116,10 @@ export class StakePolicyService {
     const reservedIds = new Set<string>();
     for (const c of commitments) {
       if (c.id === excludeCommitmentId) continue;
-      if (c.status === 'completed' || c.status === 'cancelled') continue;
+      if (c.status === 'completed') continue;
       const stake = c.stake;
       if (!stake) continue;
+      // Cancelled unsigned stays reserved until the refund actually succeeds.
       const reserved =
         stake.status === 'funded' ||
         stake.status === 'settling' ||
@@ -129,7 +130,7 @@ export class StakePolicyService {
     }
     let realizedForfeitKrw = 0;
     const completedIds = new Set(
-      commitments.filter((c) => c.status === 'completed' || c.status === 'cancelled').map((c) => c.id),
+      commitments.filter((c) => c.status === 'completed').map((c) => c.id),
     );
     for (const r of forfeits) {
       if (reservedIds.has(r.commitmentId)) continue;

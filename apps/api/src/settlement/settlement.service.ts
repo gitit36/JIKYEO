@@ -116,7 +116,8 @@ export class SettlementService {
     // forfeit money it was never charged.
     if (c.stake.status === 'pending') return { ...base, skipped: 'not_funded' };
     // Funded but unsigned (signature_pending) is not enforceable and must
-    // not settle. Unsigned-payment expiry/cancel is a Phase 5 blocker.
+    // not settle. Cancelled unsigned recovery refunds via PaymentService,
+    // never via occurrence forfeit/refund_earned.
     if (c.status !== 'active' && c.status !== 'completed') return { ...base, skipped: 'not_active' };
 
     let settled = 0;
@@ -187,12 +188,45 @@ export class SettlementService {
    * Only meaningful while the Stake is `settling` and no refund succeeded.
    */
   async retryRefund(commitmentId: string): Promise<SettlementReport> {
-    const stake = await this.prisma.stake.findUnique({ where: { commitmentId } });
-    if (!stake) throw new DomainError('PAYMENT_NOT_REQUIRED', 'No stake on this commitment');
-    if (stake.status === 'refunded' || stake.status === 'settled') {
+    const c = await this.prisma.commitment.findUnique({
+      where: { id: commitmentId },
+      include: { stake: true },
+    });
+    if (!c?.stake) throw new DomainError('PAYMENT_NOT_REQUIRED', 'No stake on this commitment');
+    if (c.status === 'cancelled') {
+      if (c.stake.status === 'settling' || c.stake.status === 'funded') {
+        const charge = await this.prisma.payment.findFirst({
+          where: { commitmentId, type: 'charge', status: 'succeeded' },
+        });
+        const refund = charge
+          ? await this.payments.refundAggregate(commitmentId, charge.amount, `unsigned_cancel:${commitmentId}`)
+          : null;
+        const totals = await this.ledger.totalsForCommitment(commitmentId);
+        return {
+          commitmentId,
+          skipped: null,
+          occurrencesSettled: 0,
+          occurrencesPending: 0,
+          completed: true,
+          totals: view(totals),
+          refund,
+        };
+      }
+      const refund = await this.payments.findSucceededRefund(commitmentId);
+      return {
+        commitmentId,
+        skipped: null,
+        occurrencesSettled: 0,
+        occurrencesPending: 0,
+        completed: true,
+        totals: view(await this.ledger.totalsForCommitment(commitmentId)),
+        refund,
+      };
+    }
+    if (c.stake.status === 'refunded' || c.stake.status === 'settled') {
       return this.settleCommitment(commitmentId);
     }
-    if (stake.status !== 'settling') {
+    if (c.stake.status !== 'settling') {
       throw new DomainError('SETTLEMENT_NOT_READY', '아직 정산이 시작되지 않았어요.');
     }
     return this.settleCommitment(commitmentId);
@@ -212,7 +246,10 @@ export class SettlementService {
     let refundsRequested = 0;
     for (const s of stakes) {
       try {
-        const r = await this.settleCommitment(s.commitmentId);
+        const c = await this.prisma.commitment.findUnique({ where: { id: s.commitmentId }, select: { status: true } });
+        const r = c?.status === 'cancelled'
+          ? await this.retryRefund(s.commitmentId)
+          : await this.settleCommitment(s.commitmentId);
         if (r.completed) completed += 1;
         if (r.refund?.status === 'requested' || r.refund?.status === 'succeeded') refundsRequested += 1;
       } catch (e) {

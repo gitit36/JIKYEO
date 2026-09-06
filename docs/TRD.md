@@ -168,7 +168,12 @@ POST /v1/commitments/quote            # MONEY 모드에서만 호출
 POST /v1/commitments                  # 생성 + 활성화 (SELF/SOCIAL/MONEY 분기)
 GET  /v1/commitments
 GET  /v1/commitments/{id}
-POST /v1/commitments/{id}/cancel
+POST /v1/commitments/{id}/cancel     # owner-only, unsigned only; active/completed 거부. idempotent
+POST /v1/internal/jobs/money-maintenance   # x-internal-job-secret (JWT/quote/webhook과 분리)
+GET  /v1/admin/money/cases                 # x-admin-secret. refund_delayed | unknown_payment | expired_awaiting_refund
+GET  /v1/admin/money/cases/{id}
+POST /v1/admin/money/cases/{id}/retry
+POST /v1/admin/money/cases/{id}/reconcile
 ```
 
 `POST /v1/commitments` 요청 payload의 핵심 필드:
@@ -591,7 +596,7 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 ### Phase 4 — Payment/Settlement (완료, MockPaymentProvider 기준)
 - MONEY activation gating: `payment_pending` → charge 성공 → `signature_pending` → `/sign` → `active`. 결제 성공만으로 활성화하지 않음.
 - Rolling loss cap: 미종료 funded/unknown 건은 maxTotal 전액 reserve, 종료 건은 실현 forfeit만. 동일 Commitment를 이중 계산하지 않음.
-- 서명 전 결제 만료/취소는 Phase 5 blocker — 실 PG 출시 전 완료 필수.
+- 서명 전 취소/만료/전액 환불, JobLease maintenance, admin money ops (Phase 5A)
 - PaymentService: charge / full·partial refund / webhook dedupe / idempotency / refund retry / reconcile hook
 - SettlementService: PASS·VOID → `refund_earned`, FAIL → `forfeit`, UNCERTAIN·system_hold → 정산 금지
 - 약속 종료 시 aggregate refund 1회: `refundTotal = upfrontCharge − forfeitedTotal`
@@ -600,10 +605,13 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - iOS: 결제 단계(회차당/총 횟수/최대 손실/지금 결제할 금액), money status 칩, History money summary
 - 실제 한국 PG 연동은 provider/credentials 확정 후 (`KoreanPgPaymentProvider` 골격만 존재)
 
-### Phase 5 — Appeal / Admin / Weekly Recap (예정)
-- **Blocker (실 PG 출시 전 필수):** 서명되지 않은 funded 결제의 만료/취소/자동 환불
+### Phase 5A — Unsigned recovery / money ops (완료, MockPaymentProvider)
+- `signature_expires_at` (기본 30분, `SIGNATURE_EXPIRY_SECONDS`)
+- 서명 전 취소/만료: 미충전은 no-PG, 충전은 전액 환불 1회. JobLease maintenance.
+- Admin money cases + append-only audit. `INTERNAL_JOB_SECRET` / `ADMIN_API_SECRET` 분리.
+
+### Phase 5B — Appeal / Weekly Recap (예정)
 - Appeal → settlement `reversal`
-- Admin / `refund_delayed` ops
 - Weekly Recap
 
 ### Phase 6 — Social 완전판 + Friend Verify (예정)

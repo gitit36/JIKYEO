@@ -192,6 +192,15 @@ public struct SignCommitmentResponse: Codable {
     public let signedAt: Date
 }
 
+public struct CancelCommitmentResponse: Codable {
+    public let commitmentId: String
+    public let status: String
+    public let cancellationReason: String?
+    public let idempotent: Bool?
+    public let money: MoneyView?
+    public let refund: PaymentView?
+}
+
 public struct SafetyResponse: Codable {
     public let decision: String  // "safe" | "stake_disallowed" | "blocked"
     public let reasonCode: String

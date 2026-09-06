@@ -1066,15 +1066,16 @@ private struct SignatureStep: View {
     @ObservedObject var model: CreateCommitmentModel
     let container: AppContainer
     @State private var strokes: [[CGPoint]] = []
+    @State private var confirmCancel = false
     var body: some View {
         WizardContainer(
             title: Copy.Wizard.step9Title,
             primaryTitle: Copy.Wizard.step9CTA,
             primaryEnabled: hasStrokes && model.isSubmittable && !model.isSubmitting,
             primaryLoading: model.isSubmitting,
+            secondaryTitle: model.enforcementMode == .money ? Copy.Wizard.step9Cancel : nil,
+            onSecondary: model.enforcementMode == .money ? { confirmCancel = true } : nil,
             onPrimary: {
-                // MONEY: commitment already exists and is funded → just record the ritual.
-                // SELF/SOCIAL: signature is the moment of creation + activation.
                 Task {
                     if model.enforcementMode == .money { await model.sign(container: container) }
                     else { await model.submit(container: container) }
@@ -1087,6 +1088,10 @@ private struct SignatureStep: View {
                     MoneyText(model.upfrontKrw, intent: .atRisk, size: .body)
                     Spacer()
                 }
+                Text(Copy.Wizard.step9Expiry)
+                    .font(Typo.body).foregroundStyle(DS.Color.text)
+                Text(Copy.Wizard.step9ExpiryRefund)
+                    .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
             }
             Text(Copy.Wizard.step9Hint)
                 .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
@@ -1103,6 +1108,14 @@ private struct SignatureStep: View {
             if let err = model.errorMessage {
                 Text(err).font(Typo.caption).foregroundStyle(DS.Color.moneyLost)
             }
+        }
+        .confirmationDialog(Copy.Wizard.step9CancelTitle, isPresented: $confirmCancel, titleVisibility: .visible) {
+            Button(Copy.Wizard.step9CancelYes, role: .destructive) {
+                Task { await model.cancelUnsigned(container: container) }
+            }
+            Button("닫기", role: .cancel) { }
+        } message: {
+            Text(Copy.Wizard.step9CancelBody)
         }
     }
     private var hasStrokes: Bool { strokes.contains(where: { !$0.isEmpty }) }
@@ -1141,19 +1154,24 @@ private struct DoneStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.lg) {
             Spacer()
-            Text(Copy.Wizard.step10Title)
+            Text(model.unsignedCancelled ? Copy.Wizard.step10Cancelled : Copy.Wizard.step10Title)
                 .font(Typo.display).foregroundStyle(DS.Color.text)
             if model.createdEnforcementMode == .money {
                 Card {
                     VStack(alignment: .leading, spacing: DS.Space.sm) {
                         HStack {
-                            Text(Copy.Wizard.step10SubMoney).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                            Text(model.unsignedCancelled ? Copy.Wizard.step10CancelledSub : Copy.Wizard.step10SubMoney)
+                                .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
                             Spacer()
                             MoneyStatusChip(model.moneyView?.status ?? .funded)
                         }
-                        MoneyText(model.createdMaxLossKrw, intent: .atRisk, size: .hero)
-                        Text("약속이 끝나면 지킨 회차만큼 한 번에 돌려받아요.")
-                            .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                        if !model.unsignedCancelled {
+                            MoneyText(model.createdMaxLossKrw, intent: .atRisk, size: .hero)
+                            Text("약속이 끝나면 지킨 회차만큼 한 번에 돌려받아요.")
+                                .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                        } else if let paid = Int64(model.moneyView?.refundPaidKrw ?? "0"), paid > 0 {
+                            MoneyText(paid, intent: .protected, size: .hero)
+                        }
                     }
                 }
             } else {
@@ -1180,6 +1198,8 @@ struct WizardContainer<Content: View>: View {
     let primaryTitle: String
     let primaryEnabled: Bool
     var primaryLoading: Bool = false
+    var secondaryTitle: String? = nil
+    var onSecondary: (() -> Void)? = nil
     let onPrimary: () -> Void
     @ViewBuilder let content: () -> Content
 
@@ -1196,9 +1216,14 @@ struct WizardContainer<Content: View>: View {
                 .padding(.top, DS.Space.md)
                 .padding(.bottom, DS.Space.xl)
             }
-            PrimaryButton(primaryTitle, isLoading: primaryLoading, isDisabled: !primaryEnabled, action: onPrimary)
-                .padding(.horizontal, DS.Space.lg)
-                .padding(.bottom, DS.Space.md)
+            VStack(spacing: DS.Space.sm) {
+                PrimaryButton(primaryTitle, isLoading: primaryLoading, isDisabled: !primaryEnabled, action: onPrimary)
+                if let secondaryTitle, let onSecondary {
+                    SecondaryButton(secondaryTitle, action: onSecondary)
+                }
+            }
+            .padding(.horizontal, DS.Space.lg)
+            .padding(.bottom, DS.Space.md)
         }
     }
 }

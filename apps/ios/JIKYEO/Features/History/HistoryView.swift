@@ -89,7 +89,8 @@ final class HistoryViewModel: ObservableObject {
         func row(_ id: String, _ title: String, _ status: String, _ mode: EnforcementMode, _ m: MoneyView?) -> CommitmentAPI.MyCommitment {
             CommitmentAPI.MyCommitment(id: id, title: title, category: "workout", status: status, enforcementMode: mode,
                                        timezone: "Asia/Seoul", maxLossKrw: m?.upfrontKrw, verificationMethod: "gps",
-                                       perOccurrenceKrw: m?.perOccurrenceKrw, occurrenceCount: 3, money: m)
+                                       perOccurrenceKrw: m?.perOccurrenceKrw, occurrenceCount: 3, money: m,
+                                       signatureExpiresAt: nil, cancellationReason: nil)
         }
         items = [
             row("c1", "헬스장 가기",        "active",          .money, money(.funded, refundable: "5000", forfeited: "0", paid: "0")),
@@ -172,7 +173,7 @@ private struct MoneySummary: View {
                     CardRow("지금까지 지킨 금액", value: MoneyText.format(krw(money.refundableKrw)))
                 }
             case .refund_scheduled, .refund_in_progress, .refund_delayed:
-                CardRow("환불 예정 금액", value: MoneyText.format(krw(money.refundableKrw)))
+                CardRow("환불 예정 금액", value: MoneyText.format(refundDue))
                 if krw(money.forfeitedKrw) > 0 {
                     CardRow("돌려받지 못한 금액", value: MoneyText.format(krw(money.forfeitedKrw)))
                 }
@@ -193,6 +194,11 @@ private struct MoneySummary: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+    private var refundDue: Int64 {
+        let earned = krw(money.refundableKrw)
+        if earned > 0 { return earned }
+        return max(0, krw(money.depositKrw) - krw(money.forfeitedKrw) - krw(money.refundPaidKrw))
     }
     private func krw(_ s: String) -> Int64 { Int64(s) ?? 0 }
 }

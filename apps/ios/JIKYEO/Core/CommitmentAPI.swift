@@ -27,6 +27,8 @@ public struct CommitmentAPI {
         public let occurrenceCount: Int
         /// MONEY-only derived money state (결제 중 / 약속금 걸림 / 환불 예정 …). `nil` otherwise.
         public let money: MoneyView?
+        public let signatureExpiresAt: Date?
+        public let cancellationReason: String?
     }
 
     public func listMine() async throws -> [MyCommitment] {
@@ -36,6 +38,13 @@ public struct CommitmentAPI {
     /// Signature ritual for a MONEY commitment after payment. Idempotent.
     public func sign(commitmentId: String) async throws -> SignCommitmentResponse {
         try await api.post("commitments/\(commitmentId)/sign")
+    }
+
+    public func cancel(commitmentId: String, simulateRefundFail: Bool = false) async throws -> CancelCommitmentResponse {
+        try await api.post(
+            "commitments/\(commitmentId)/cancel",
+            body: simulateRefundFail ? PayCommitmentRequest(simulate: "refund_fail") : PayCommitmentRequest(simulate: nil)
+        )
     }
 }
 

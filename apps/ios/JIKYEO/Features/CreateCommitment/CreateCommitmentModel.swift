@@ -106,6 +106,8 @@ public final class CreateCommitmentModel: ObservableObject {
     @Published public var paymentState: PaymentState = .idle
     @Published public var moneyView: MoneyView?
     @Published public var lastPayment: PaymentView?
+    @Published public var unsignedCancelled = false
+    @Published public var isCancelling = false
     #if DEBUG
     /// Dev toggle on the payment screen: make the mock PG decline once.
     @Published public var debugSimulatePaymentFailure = false
@@ -363,9 +365,43 @@ public final class CreateCommitmentModel: ObservableObject {
         }
     }
 
+    public func cancelUnsigned(container: AppContainer, simulateRefundFail: Bool = false) async {
+        guard let id = createdCommitmentId else { return }
+        errorMessage = nil
+        isCancelling = true
+        defer { isCancelling = false }
+        do {
+            let res = try await container.commitmentAPI.cancel(commitmentId: id, simulateRefundFail: simulateRefundFail)
+            CreateCommitmentModel.clearUnsigned()
+            moneyView = res.money
+            lastPayment = res.refund
+            createdEnforcementMode = .money
+            unsignedCancelled = true
+            step = .done
+        } catch let e as APIError {
+            errorMessage = e.message
+            await refreshMoneyView(container: container)
+        } catch {
+            errorMessage = "다시 시도해주세요."
+        }
+    }
+
     /// After relaunch, resume Signature if a funded-but-unsigned MONEY commitment exists.
     public func resumeUnsignedIfNeeded(container: AppContainer) async {
         let items = (try? await container.commitmentAPI.listMine()) ?? []
+        if let expired = items.first(where: {
+            $0.status == "cancelled" && ($0.id == CreateCommitmentModel.pendingUnsignedId() || $0.cancellationReason == "signature_expired")
+        }) {
+            createdCommitmentId = expired.id
+            createdEnforcementMode = .money
+            createdMaxLossKrw = Int64(expired.maxLossKrw ?? "0") ?? 0
+            enforcementMode = .money
+            moneyView = expired.money
+            unsignedCancelled = true
+            CreateCommitmentModel.clearUnsigned()
+            step = .done
+            return
+        }
         let pending = items.first(where: { $0.status == "signature_pending" })
             ?? items.first(where: { $0.id == CreateCommitmentModel.pendingUnsignedId() && $0.status != "active" && $0.status != "completed" && $0.status != "cancelled" })
         guard let pending else { return }

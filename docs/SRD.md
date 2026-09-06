@@ -57,7 +57,7 @@
 
 ### SR-FR-004 결제 (MONEY 모드 전용)
 - 선결제 성공은 Stake funded + `signature_pending`까지만 만든다. `/sign`이 끝나야 `active`가 된다. 결제 성공만으로 활성화하지 않는다.
-- 서명 전 결제 만료/취소는 Phase 5 blocker이며 실 PG 출시 전 완료해야 한다.
+- 서명 전 취소/만료: `payment_pending`(미충전)은 PG/ledger 없이 취소. `signature_pending`(충전됨)은 원결제 수단으로 전액 환불 1회. 만료는 동일 환불 경로. forfeit/refund_earned를 만들지 않는다. 환불 실패는 기존 `refund_delayed` 재시도. 손실 한도 예약은 환불 성공 전까지 유지. 서명 vs 취소/만료는 원자적으로 하나만 성공한다.
 - 중복 결제를 막기 위해 idempotency key를 사용해야 한다.
 - 서버 서명 quote를 사용해야 하며, 각 quote는 unique `jti`로 식별되고 한 번만 소비된다 (`consumed_quotes`).
 - Quote 서명 시크릿(`QUOTE_SIGNING_SECRET`)은 JWT 시크릿과 분리되어야 한다.

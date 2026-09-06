@@ -38,7 +38,7 @@ function make() {
   const cfg = { nodeEnv: 'test' } as any;
   const settlement = new SettlementService(prisma, ledger, payments, clock, cfg);
   const money = new MoneyStatusService(prisma, ledger);
-  const commitments = new CommitmentService(prisma, {} as any, {} as any, {} as any, users, policy, clock, { log: async () => undefined } as any, money);
+  const commitments = new CommitmentService(prisma, {} as any, {} as any, {} as any, users, policy, clock, { log: async () => undefined } as any, money, payments);
   return { db, clock, provider, ledger, payments, settlement, money, policy, commitments };
 }
 

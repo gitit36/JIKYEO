@@ -70,6 +70,11 @@ enum CommitmentStatus {
   cancelled
 }
 
+enum CancellationReason {
+  user_cancelled
+  signature_expired
+}
+
 // SELF: no money, no observer required. SOCIAL: no money, observer required.
 // MONEY: server-quote + stake + payment (Phase 4).
 enum EnforcementMode {
@@ -285,6 +290,10 @@ model Commitment {
   currency            String?             @db.Char(3)
   signedAt            DateTime?           @map("signed_at") @db.Timestamptz
   signatureCompleted  Boolean             @default(false) @map("signature_completed")
+  // MONEY: set when the upfront charge succeeds. Server-authoritative.
+  signatureExpiresAt  DateTime?           @map("signature_expires_at") @db.Timestamptz
+  cancelledAt         DateTime?           @map("cancelled_at") @db.Timestamptz
+  cancellationReason  CancellationReason? @map("cancellation_reason")
   contractVersion     String              @default("v1") @map("contract_version")
   // NOTE: We intentionally do NOT store the raw signature drawing. The
   // signature is a behavioral commitment ritual, not a legal signature.
@@ -302,6 +311,7 @@ model Commitment {
   ledgerEntries       PaymentLedger[]
 
   @@index([userId, status])
+  @@index([status, signatureExpiresAt])
   @@map("commitments")
 }
 
@@ -609,6 +619,15 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([actorId, createdAt])
   @@map("audit_logs")
+}
+
+// Cross-process lease for money maintenance. Overlapping workers must lose.
+model JobLease {
+  name      String   @id
+  holder    String
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+
+  @@map("job_leases")
 }
 
 // Generic idempotency store for HTTP endpoints and webhooks

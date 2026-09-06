@@ -1,6 +1,8 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { Commitment, EnforcementMode, Prisma, VerificationMethod } from '@prisma/client';
+import { CancellationReason, Commitment, EnforcementMode, Prisma, VerificationMethod } from '@prisma/client';
+import { AppConfig } from '../config/app-config';
 import { MoneyStatusService, MoneyView } from '../payments/money-status.service';
+import { PaymentService, PaymentView } from '../payments/payment.service';
 import { Clock } from '../common/clock/clock';
 import { DomainError, ForbiddenError, NotFoundError, ValidationError } from '../common/errors/domain-errors';
 import { Money } from '../common/money/money';
@@ -13,6 +15,15 @@ import { UsersService } from '../users/users.service';
 import { CreateCommitmentDraftDto } from './dto/create-commitment.dto';
 import { QuoteCacheService } from './quote/quote-cache.service';
 import { ScheduleService } from './schedule/schedule.service';
+
+export interface CancelUnsignedResult {
+  commitmentId: string;
+  status: CommitmentState;
+  cancellationReason: CancellationReason | null;
+  idempotent: boolean;
+  money: MoneyView | null;
+  refund: PaymentView | null;
+}
 
 interface ActivateResult {
   commitmentId: string;
@@ -50,7 +61,13 @@ export class CommitmentService {
     private readonly clock: Clock,
     private readonly audit: AuditService,
     @Optional() private readonly moneyStatus?: MoneyStatusService,
+    @Optional() private readonly payments?: PaymentService,
+    @Optional() private readonly cfg?: AppConfig,
   ) {}
+
+  get signatureExpirySeconds(): number {
+    return this.cfg?.signatureExpirySeconds ?? 1_800;
+  }
 
   async createAndActivate(userId: string, dto: CreateCommitmentDraftDto): Promise<ActivateResult> {
     // 1. Safety pre-check (server-authoritative). Applies to every mode.
@@ -284,41 +301,184 @@ export class CommitmentService {
       return { commitmentId: c.id, status: 'active', signedAt: c.signedAt.toISOString() };
     }
     const signedAt = c.signedAt ?? this.clock.now();
-    const next: CommitmentState = c.status === 'signature_pending' ? 'active' : (c.status as CommitmentState);
-    if (c.status === 'signature_pending') {
-      commitmentSM.assert('signature_pending', 'active');
-    }
-    await this.prisma.commitment.update({
-      where: { id: c.id },
-      data: {
-        signedAt,
-        signatureCompleted: true,
-        ...(next !== c.status ? { status: next } : {}),
-      },
+    commitmentSM.assert('signature_pending', 'active');
+    const won = await this.prisma.commitment.updateMany({
+      where: { id: c.id, status: 'signature_pending' },
+      data: { status: 'active', signedAt, signatureCompleted: true },
     });
-    return { commitmentId: c.id, status: next, signedAt: signedAt.toISOString() };
+    if (won.count === 0) {
+      const again = await this.prisma.commitment.findUnique({ where: { id: c.id } });
+      if (again?.status === 'active' && again.signatureCompleted && again.signedAt) {
+        return { commitmentId: c.id, status: 'active', signedAt: again.signedAt.toISOString() };
+      }
+      throw new DomainError('INVALID_STATE_TRANSITION', '이 약속은 이미 취소되었거나 시작할 수 없어요.');
+    }
+    return { commitmentId: c.id, status: 'active', signedAt: signedAt.toISOString() };
   }
 
-  async cancel(userId: string, commitmentId: string): Promise<void> {
+  /**
+   * Owner cancel of an unsigned MONEY/SELF draft. Active/completed cannot use
+   * this path. Funded signature_pending issues one full refund; uncharged
+   * payment_pending cancels with no PG/ledger write.
+   */
+  async cancel(
+    userId: string,
+    commitmentId: string,
+    opts: { simulateRefundFail?: boolean } = {},
+  ): Promise<CancelUnsignedResult> {
     const c = await this.getOwned(userId, commitmentId);
-    commitmentSM.assert(c.status as CommitmentState, 'cancelled');
-    await this.prisma.$transaction(async (tx) => {
-      await tx.commitment.update({ where: { id: c.id }, data: { status: 'cancelled' } });
-      await tx.occurrence.updateMany({
-        where: { commitmentId: c.id, status: 'scheduled' },
-        data: { status: 'void' },
-      });
-    });
-    // A funded MONEY commitment that is cancelled has its remaining
-    // occurrences voided (→ refundable). The settlement sweep picks the
-    // commitment up and issues the aggregate refund; no money moves here.
-    await this.audit.log({
+    return this.cancelUnsigned({
+      commitmentId: c.id,
       actorType: 'user',
       actorId: userId,
+      reason: 'user_cancelled',
+      simulateRefundFail: opts.simulateRefundFail,
+    });
+  }
+
+  async expireOverdue(): Promise<{ expired: number }> {
+    const now = this.clock.now();
+    const due = await this.prisma.commitment.findMany({
+      where: { status: 'signature_pending', signatureExpiresAt: { lte: now } },
+      select: { id: true },
+      take: 200,
+    });
+    let expired = 0;
+    for (const row of due) {
+      try {
+        const r = await this.cancelUnsigned({
+          commitmentId: row.id,
+          actorType: 'system',
+          actorId: null,
+          reason: 'signature_expired',
+        });
+        if (r.status === 'cancelled' && r.cancellationReason === 'signature_expired') expired += 1;
+      } catch (e) {
+        if ((e as DomainError).code === 'INVALID_STATE_TRANSITION') continue;
+        throw e;
+      }
+    }
+    return { expired };
+  }
+
+  async cancelUnsigned(input: {
+    commitmentId: string;
+    actorType: 'user' | 'system' | 'admin';
+    actorId: string | null;
+    reason: CancellationReason;
+    simulateRefundFail?: boolean;
+  }): Promise<CancelUnsignedResult> {
+    let c = await this.prisma.commitment.findUnique({
+      where: { id: input.commitmentId },
+      include: { stake: true },
+    });
+    if (!c) throw new NotFoundError('Commitment not found');
+    if (c.status === 'active' || c.status === 'completed') {
+      throw new DomainError('INVALID_STATE_TRANSITION', '이미 시작된 약속은 이 방법으로 취소할 수 없어요.');
+    }
+    if (c.status === 'cancelled') {
+      return this.cancelView(c.id, true);
+    }
+    if (c.status !== 'payment_pending' && c.status !== 'signature_pending' && c.status !== 'draft') {
+      throw new DomainError('INVALID_STATE_TRANSITION', '이 약속은 취소할 수 없어요.');
+    }
+
+    if (c.status === 'payment_pending' && this.payments) {
+      const unknown = await this.prisma.payment.findMany({
+        where: { commitmentId: c.id, type: 'charge', status: 'requested' },
+      });
+      for (const p of unknown) await this.payments.reconcilePayment(p);
+      c = await this.prisma.commitment.findUnique({
+        where: { id: c.id },
+        include: { stake: true },
+      });
+      if (!c) throw new NotFoundError('Commitment not found');
+      if (c.status === 'active' || c.status === 'completed') {
+        throw new DomainError('INVALID_STATE_TRANSITION', '이미 시작된 약속은 이 방법으로 취소할 수 없어요.');
+      }
+      if (c.status === 'cancelled') return this.cancelView(c.id, true);
+    }
+
+    const stillUnknown = await this.prisma.payment.findFirst({
+      where: { commitmentId: c.id, type: 'charge', status: 'requested', providerPaymentKey: { not: null } },
+    });
+    if (stillUnknown) {
+      throw new DomainError('PAYMENT_PROVIDER_ERROR', '결제 결과를 확인한 뒤 다시 시도해주세요.');
+    }
+
+    const charge = await this.prisma.payment.findFirst({
+      where: { commitmentId: c.id, type: 'charge', status: 'succeeded' },
+    });
+    const now = this.clock.now();
+    commitmentSM.assert(c.status as CommitmentState, 'cancelled');
+
+    const won = await this.prisma.$transaction(async (tx) => {
+      const moved = await tx.commitment.updateMany({
+        where: { id: c!.id, status: { in: ['draft', 'payment_pending', 'signature_pending'] } },
+        data: {
+          status: 'cancelled',
+          cancelledAt: now,
+          cancellationReason: input.reason,
+        },
+      });
+      if (moved.count === 0) return 0;
+      await tx.occurrence.updateMany({
+        where: { commitmentId: c!.id, status: { in: ['scheduled', 'active'] } },
+        data: { status: 'void' },
+      });
+      if (charge && c!.stake) {
+        await tx.stake.updateMany({
+          where: { id: c!.stake.id, status: 'funded' },
+          data: { status: 'settling', settledAt: now },
+        });
+      }
+      return moved.count;
+    });
+
+    if (won === 0) {
+      const again = await this.prisma.commitment.findUnique({ where: { id: c.id } });
+      if (again?.status === 'cancelled') return this.cancelView(c.id, true);
+      throw new DomainError('INVALID_STATE_TRANSITION', '이 약속은 이미 시작되었어요.');
+    }
+
+    let refund: PaymentView | null = null;
+    if (charge && this.payments) {
+      const reason = input.simulateRefundFail
+        ? `unsigned_cancel:${c.id}:simulate:refund_fail`
+        : `unsigned_cancel:${c.id}`;
+      refund = await this.payments.refundAggregate(c.id, charge.amount, reason);
+    }
+
+    await this.audit.log({
+      actorType: input.actorType,
+      actorId: input.actorId,
       entityType: 'commitment',
       entityId: c.id,
-      action: 'cancel',
+      action: input.reason === 'signature_expired' ? 'signature_expired' : 'cancel_unsigned',
+      after: { reason: input.reason, refunded: refund?.status ?? null },
     });
+
+    return this.cancelView(c.id, false, refund);
+  }
+
+  private async cancelView(
+    commitmentId: string,
+    idempotent: boolean,
+    refund: PaymentView | null = null,
+  ): Promise<CancelUnsignedResult> {
+    const c = await this.prisma.commitment.findUnique({ where: { id: commitmentId } });
+    const money = this.moneyStatus ? await this.moneyStatus.forCommitment(commitmentId) : null;
+    if (!refund && this.payments) {
+      refund = await this.payments.findSucceededRefund(commitmentId);
+    }
+    return {
+      commitmentId,
+      status: (c?.status ?? 'cancelled') as CommitmentState,
+      cancellationReason: (c?.cancellationReason ?? null) as CancellationReason | null,
+      idempotent,
+      money,
+      refund,
+    };
   }
 
   async getOwned(userId: string, commitmentId: string): Promise<Commitment> {
@@ -352,6 +512,8 @@ export class CommitmentService {
       verificationMethod: r.verificationRule?.method ?? null,
       perOccurrenceKrw: r.stake?.perOccurrenceAmount.toString() ?? null,
       occurrenceCount: r._count.occurrences,
+      signatureExpiresAt: r.signatureExpiresAt?.toISOString() ?? null,
+      cancellationReason: r.cancellationReason,
       // MONEY-only derived money state (결제 중 / 약속금 걸림 / 환불 예정 …). null otherwise.
       money: moneyViews.get(r.id) ?? null,
     }));
@@ -383,6 +545,8 @@ export class CommitmentService {
       status: c.status,
       enforcementMode: c.enforcementMode,
       signatureCompleted: c.signatureCompleted,
+      signatureExpiresAt: c.signatureExpiresAt?.toISOString() ?? null,
+      cancellationReason: c.cancellationReason,
       money,
       timezone: c.timezone,
       startAt: c.startAt.toISOString(),

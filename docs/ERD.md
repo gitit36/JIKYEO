@@ -96,6 +96,9 @@ erDiagram
 | currency | char(3) nullable | KRW — MONEY 전용 |
 | signed_at | timestamptz | 서명 완료 시각 |
 | signature_completed | boolean | true when the signature ritual finished |
+| signature_expires_at | timestamptz nullable | MONEY: 선결제 성공 시각 + 설정 만료(기본 30분) |
+| cancelled_at | timestamptz nullable | 서명 전 취소/만료 시각 |
+| cancellation_reason | enum nullable | user_cancelled / signature_expired |
 | contract_version | varchar | "v1" 등 계약 문구 버전 |
 | created_at | timestamptz | |
 | updated_at | timestamptz | |
@@ -514,7 +517,7 @@ completed
 draft/payment_pending/signature_pending → cancelled
 active → cancelled (future occurrences only)
 
-결제 성공만으로 active가 되지 않는다. 서명 전 결제 만료/취소는 Phase 5 blocker (실 PG 출시 전 필수).
+결제 성공만으로 active가 되지 않는다. 서명 전 취소/만료는 원결제 수단으로 전액 환불한다 (forfeit/refund_earned 없음). 서명 vs 취소/만료는 원자적으로 하나만 성공한다.
 ```
 
 ### Occurrence
@@ -548,6 +551,17 @@ pending → funded → settling → settled
 ```
 
 SELF/SOCIAL Commitment는 이 상태 머신을 실행하지 않는다 (Stake row 자체가 없다).
+
+---
+
+### JOB_LEASE
+겹치는 money maintenance 워커를 직렬화하는 DB lease. in-process timer만으로 배타성을 보장하지 않는다.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| name | varchar | PK (`money_maintenance`) |
+| holder | varchar | 이번 실행 id |
+| expires_at | timestamptz | lease 만료 |
 
 ---
 

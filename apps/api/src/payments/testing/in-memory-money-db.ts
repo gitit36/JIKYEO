@@ -129,6 +129,12 @@ class Table {
     return { ...row };
   }
 
+  async deleteMany(args: { where: Row }): Promise<{ count: number }> {
+    const before = this.rows.length;
+    this.rows = this.rows.filter((r) => !matches(r, args.where));
+    return { count: before - this.rows.length };
+  }
+
   async updateMany(args: { where: Row; data: Row }): Promise<{ count: number }> {
     let count = 0;
     for (const row of this.rows) {
@@ -160,6 +166,8 @@ export class InMemoryMoneyDb {
   readonly paymentLedger = new Table('led', [['idempotencyKey']]);
   readonly settlement = new Table('set', [['idempotencyKey']]);
   readonly paymentWebhookEvent = new Table('whk', [['provider', 'eventId']]);
+  readonly jobLease = new Table('lease', [['name']]);
+  readonly auditLog = new Table('aud');
   readonly commitment = new Table('cmt', [], {
     include: (row, include) => {
       if (include.stake) row.stake = this.stake.rows.find((s) => s.commitmentId === row.id) ?? null;

@@ -96,6 +96,42 @@ export class AppConfig {
     return Number(this.cfg.get<string>('NETWORK_GRACE_SECONDS') ?? 180);
   }
 
+  /** Server-authoritative window to sign after a successful MONEY charge. */
+  get signatureExpirySeconds(): number {
+    return Number(this.cfg.get<string>('SIGNATURE_EXPIRY_SECONDS') ?? 1800);
+  }
+
+  /**
+   * Protects `POST /internal/jobs/*`. Distinct from JWT, quote signing,
+   * and payment-webhook authenticity.
+   */
+  get internalJobSecret(): string {
+    const v = this.cfg.get<string>('INTERNAL_JOB_SECRET');
+    if (!v || v.length === 0) {
+      throw new Error('Missing required env var: INTERNAL_JOB_SECRET');
+    }
+    if (v === this.cfg.get<string>('JWT_SECRET') || v === this.cfg.get<string>('QUOTE_SIGNING_SECRET')) {
+      throw new Error('INTERNAL_JOB_SECRET must not equal JWT_SECRET or QUOTE_SIGNING_SECRET');
+    }
+    return v;
+  }
+
+  /** Protects `/admin/*` ops APIs. Distinct from JWT and the job secret. */
+  get adminApiSecret(): string {
+    const v = this.cfg.get<string>('ADMIN_API_SECRET');
+    if (!v || v.length === 0) {
+      throw new Error('Missing required env var: ADMIN_API_SECRET');
+    }
+    if (
+      v === this.cfg.get<string>('JWT_SECRET') ||
+      v === this.cfg.get<string>('INTERNAL_JOB_SECRET') ||
+      v === this.cfg.get<string>('QUOTE_SIGNING_SECRET')
+    ) {
+      throw new Error('ADMIN_API_SECRET must not equal JWT_SECRET, INTERNAL_JOB_SECRET, or QUOTE_SIGNING_SECRET');
+    }
+    return v;
+  }
+
   private required(key: string): string {
     const v = this.cfg.get<string>(key);
     if (!v || v.length === 0) {

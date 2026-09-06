@@ -30,13 +30,16 @@ export class SettlementController {
   @Post('commitments/:id/settle')
   @HttpCode(200)
   async settle(@Req() req: AuthedRequest, @Param('id') id: string): Promise<unknown> {
-    await this.assertOwner(req.userId, id);
-    return this.settlement.settleCommitment(id);
+    const c = await this.assertOwner(req.userId, id);
+    return c.status === 'cancelled'
+      ? this.settlement.retryRefund(id)
+      : this.settlement.settleCommitment(id);
   }
 
-  private async assertOwner(userId: string, commitmentId: string): Promise<void> {
-    const c = await this.prisma.commitment.findUnique({ where: { id: commitmentId }, select: { userId: true } });
+  private async assertOwner(userId: string, commitmentId: string): Promise<{ status: string }> {
+    const c = await this.prisma.commitment.findUnique({ where: { id: commitmentId }, select: { userId: true, status: true } });
     if (!c) throw new NotFoundError('Commitment not found');
     if (c.userId !== userId) throw new ForbiddenError();
+    return c;
   }
 }
