@@ -42,6 +42,8 @@ public struct CommitmentAPI {
         public let originalResult: String?
         public let effectiveResult: String?
         public let appeal: AppealSummary?
+        public let appealOpenedAt: Date?
+        public let appealDeadlineAt: Date?
     }
 
     public struct CommitmentDetail: Decodable, Identifiable {
@@ -67,6 +69,18 @@ public struct CommitmentAPI {
     /// Signature ritual for a MONEY commitment after payment. Idempotent.
     public func sign(commitmentId: String) async throws -> SignCommitmentResponse {
         try await api.post("commitments/\(commitmentId)/sign")
+    }
+
+    public func termsPreview(commitmentId: String) async throws -> TermsContractResponse {
+        try await api.get("commitments/\(commitmentId)/terms")
+    }
+
+    public func acceptTerms(commitmentId: String, documentVersion: String, snapshotHash: String) async throws -> TermsContractResponse {
+        try await api.post("commitments/\(commitmentId)/terms/accept", body: TermsAcceptRequest(documentVersion: documentVersion, snapshotHash: snapshotHash))
+    }
+
+    public func acceptedContract(commitmentId: String) async throws -> TermsContractResponse {
+        try await api.get("commitments/\(commitmentId)/contract")
     }
 
     public func cancelPreview(commitmentId: String) async throws -> CancelCommitmentResponse {

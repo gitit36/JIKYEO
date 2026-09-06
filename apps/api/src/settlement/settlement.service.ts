@@ -6,6 +6,7 @@ import { AppConfig } from '../config/app-config';
 import { LedgerService, LedgerTotals } from '../payments/ledger.service';
 import { PaymentService, PaymentView } from '../payments/payment.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { financialStatus } from './financial-finality';
 
 /** Occurrence states that carry a final behavioral verdict. Everything else never settles. */
 const FINAL_STATES: ReadonlySet<OccurrenceStatus> = new Set<OccurrenceStatus>(['pass', 'fail', 'void']);
@@ -124,26 +125,19 @@ export class SettlementService {
       where: { occurrenceId: { in: c.occurrences.map((o) => o.id) } },
     });
     const appealByOcc = new Map(appeals.map((a) => [a.occurrenceId, a]));
+    const now = this.clock.now();
 
     let settled = 0;
     let pending = 0;
     for (const occ of c.occurrences) {
       const appeal = appealByOcc.get(occ.id);
-      if (appeal && (appeal.status === 'submitted' || appeal.status === 'reviewing')) {
-        pending += 1;
-        continue;
-      }
-      if (!FINAL_STATES.has(occ.status)) {
+      const effective = financialStatus(occ, appeal, now);
+      if (effective === 'pending') {
         pending += 1;
         continue;
       }
       if (occ.stakeAmount === null) {
         this.logger.error(`MONEY occurrence ${occ.id} has NULL stakeAmount; refusing to settle`);
-        pending += 1;
-        continue;
-      }
-      const effective = effectiveSettlementStatus(occ.status, appeal?.status, appeal?.correctedResult);
-      if (!effective) {
         pending += 1;
         continue;
       }
@@ -175,7 +169,6 @@ export class SettlementService {
     }
 
     // Every occurrence is final → close the commitment and pay the aggregate refund.
-    const now = this.clock.now();
     await this.prisma.$transaction(async (tx) => {
       await tx.commitment.updateMany({ where: { id: c.id, status: 'active' }, data: { status: 'completed' } });
       await tx.stake.updateMany({ where: { id: c.stake!.id, status: 'funded' }, data: { status: 'settling', settledAt: now } });
@@ -320,16 +313,10 @@ export class SettlementService {
     try {
       await this.prisma.$transaction(async (tx) => {
         await lockOccurrence(tx, input.occurrenceId);
+        const fresh = await tx.occurrence.findUnique({ where: { id: input.occurrenceId } });
         const appeal = await tx.appeal.findUnique({ where: { occurrenceId: input.occurrenceId } });
-        if (appeal && (appeal.status === 'submitted' || appeal.status === 'reviewing')) {
-          return;
-        }
-        const effective = effectiveSettlementStatus(
-          input.status,
-          appeal?.status,
-          appeal?.correctedResult,
-        );
-        if (!effective) return;
+        const effective = fresh ? financialStatus(fresh, appeal, now) : null;
+        if (!effective || effective === 'pending') return;
         const settledResult: SettlementResult =
           effective === 'pass' ? 'refundable' : effective === 'fail' ? 'forfeited' : 'void';
         const settledEntry = effective === 'fail' ? 'forfeit' : 'refund_earned';
@@ -364,18 +351,6 @@ export class SettlementService {
       throw e;
     }
   }
-}
-
-function effectiveSettlementStatus(
-  original: string,
-  appealStatus?: string,
-  correctedResult?: string | null,
-): 'pass' | 'fail' | 'void' | null {
-  if (appealStatus === 'approved' && (correctedResult === 'pass' || correctedResult === 'void')) {
-    return correctedResult;
-  }
-  if (original === 'pass' || original === 'fail' || original === 'void') return original;
-  return null;
 }
 
 async function lockOccurrence(

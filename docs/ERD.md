@@ -66,7 +66,9 @@ erDiagram
 | email | varchar | 이메일 |
 | auth_provider | enum | apple/google/email |
 | display_name | varchar | 이름 |
-| birth_date | date nullable | 미성년 확인 |
+| birth_date | date nullable | 표시용. MONEY 성인 게이트의 근거가 아님 |
+| age_verification_status | enum | unknown / verified_adult / underage |
+| age_verified_at | timestamptz nullable | 서버 확인 시각 |
 | locale | varchar | ko-KR |
 | timezone | varchar | Asia/Seoul |
 | status | enum | active/suspended/deleted |
@@ -98,7 +100,7 @@ erDiagram
 | signature_completed | boolean | true when the signature ritual finished |
 | signature_expires_at | timestamptz nullable | MONEY: 선결제 성공 시각 + 설정 만료(기본 30분) |
 | cancelled_at | timestamptz nullable | 서명 전 취소/만료 시각 |
-| cancellation_requested_at | timestamptz nullable | 활성 취소 요청 시각 |
+| cancellation_requested_at | timestamptz nullable | 활성 취소 요청이자 금전 컷오프 |
 | cancellation_effective_at | timestamptz nullable | 미래 회차 VOID 기준 시각. MONEY는 요청+24h |
 | cancellation_reason | enum nullable | user_cancelled / signature_expired |
 | contract_version | varchar | "v1" 등 계약 문구 버전 |
@@ -128,6 +130,8 @@ erDiagram
 | stake_amount | bigint | 회차당 약속금 |
 | failure_reason_code | varchar nullable | 실패 이유 |
 | decided_at | timestamptz nullable | 판정 시각 |
+| appeal_opened_at | timestamptz nullable | FAIL 시 항소 창 시작. 이후 설정으로 재계산하지 않음 |
+| appeal_deadline_at | timestamptz nullable | FAIL 확정 시각. persisted |
 | created_at | timestamptz | |
 
 ---
@@ -273,7 +277,8 @@ Commitment 1 → **0..1** Stake. MONEY 모드 Commitment에만 존재한다. SEL
 | user_id | UUID | FK |
 | stake_id | UUID nullable | FK |
 | commitment_id | UUID nullable | FK (조회용 비정규화) |
-| provider | varchar | PG |
+| provider | varchar | PG (mock / kcp). 카카오페이는 provider가 아님 |
+| payment_method | varchar nullable | CARD / KAKAOPAY / BANK |
 | provider_payment_key | varchar | PG payment key |
 | idempotency_key | varchar | unique. charge: `charge:{commitmentId}:{attempt}`, refund: `refund:{commitmentId}:{attempt}` |
 | attempt | int | 재시도 순번 |

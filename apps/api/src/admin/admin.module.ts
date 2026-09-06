@@ -7,10 +7,12 @@ import { AdminAppealsController } from './admin-appeals.controller';
 import { AdminGuard } from './admin.guard';
 import { AdminMoneyController } from './admin-money.controller';
 import { AdminMoneyService } from './admin-money.service';
+import { AdminUsersController } from './admin-users.controller';
+import { UsersModule } from '../users/users.module';
 
 @Module({
-  imports: [PaymentsModule, SettlementModule, AuditModule, AppealsModule],
-  controllers: [AdminMoneyController, AdminAppealsController],
+  imports: [PaymentsModule, SettlementModule, AuditModule, AppealsModule, UsersModule],
+  controllers: [AdminMoneyController, AdminAppealsController, AdminUsersController],
   providers: [AdminGuard, AdminMoneyService],
 })
 export class AdminModule {}

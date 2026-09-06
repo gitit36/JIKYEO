@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { AppConfig } from '../../config/app-config';
 import { Clock } from '../../common/clock/clock';
 import { DomainError, ValidationError } from '../../common/errors/domain-errors';
@@ -6,6 +6,7 @@ import { Money } from '../../common/money/money';
 import { StakePolicyService } from '../../stake-policy/stake-policy.service';
 import { ScheduleService } from '../schedule/schedule.service';
 import { ScheduleInput } from '../schedule/schedule.types';
+import { MoneyGateService } from '../../users/money-gate.service';
 import { QuoteCacheService } from './quote-cache.service';
 
 export interface QuoteInput {
@@ -38,9 +39,11 @@ export class QuoteService {
     private readonly clock: Clock,
     private readonly quoteCache: QuoteCacheService,
     private readonly stakePolicy: StakePolicyService,
+    @Optional() private readonly moneyGate?: MoneyGateService,
   ) {}
 
   async compute(input: QuoteInput): Promise<Quote> {
+    await this.moneyGate?.assertCanUseMoney(input.userId);
     const perOccurrence = Money.fromNumber(input.stakePerOccurrenceKrw);
     if (perOccurrence <= 0n) {
       throw new ValidationError('Stake must be greater than 0');

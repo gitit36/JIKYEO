@@ -241,6 +241,8 @@ public enum Copy {
             case .delayed: return "승인됨 · 추가 환불 지연"
             }
         }
+        public static let provisional = "결과 확정 대기"
+        public static func deadline(_ when: String) -> String { "이의 제기 마감 \(when)" }
         public static func resultLabel(_ raw: String) -> String {
             switch raw {
             case "pass": return "지킴"
@@ -251,17 +253,27 @@ public enum Copy {
         }
     }
 
+    public enum Terms {
+        public static let title = "결제 전 확인"
+        public static let accept = "내용을 확인했고, 결제할게요"
+        public static let body = "회차별 금액, 최대 결제액, 지킨 금액 환불, 실패는 7일 이의 후 확정, 취소 시점 이후 회차는 환불됩니다. 상금이나 다른 사람 지급은 없어요."
+    }
+
+    public enum Age {
+        public static let rejected = "만 19세 이상만 약속금을 걸 수 있어요. 확인이 끝나면 다시 시도해주세요."
+    }
+
     public enum Cancel {
         public static let cta = "약속 그만하기"
         public static let selfConfirm = "이미 시작된 회차는 그대로 두고,\n앞으로의 약속을 그만할게요."
-        public static let moneyNotice = "취소는 24시간 뒤 적용돼요."
-        public static func moneyBinding(_ n: Int) -> String { "그전에 시작되는 \(n)번은 그대로 진행돼요." }
+        public static let moneyNotice = "아직 시작 전 회차는 바로 취소돼요."
+        public static func moneyBinding(_ n: Int) -> String { "이미 시작된 \(n)번은 그대로 진행돼요." }
         public static func moneyRefund(_ n: Int, _ amount: String) -> String {
             "이후 \(n)번의 약속금 \(amount)원은 최종 정산 때 환불돼요."
         }
         public static let confirm = "그만할게요"
         public static let keep = "계속 지킬게요"
-        public static let scheduled = "취소 예정"
+        public static let scheduled = "취소됨 · 남은 회차만 진행"
         public static func effective(_ when: String) -> String { "적용 시각 \(when)" }
         public static func remaining(_ n: Int) -> String { "남은 진행 회차 \(n)번" }
         public static func futureRefund(_ amount: String) -> String { "최종 정산 때 환불 예정 \(amount)원" }

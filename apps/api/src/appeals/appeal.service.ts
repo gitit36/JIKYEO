@@ -8,6 +8,7 @@ import { NotificationService } from '../notifications/notification.service';
 import { LedgerService } from '../payments/ledger.service';
 import { ledgerKeys, PaymentService } from '../payments/payment.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { isAppealOpen } from '../settlement/financial-finality';
 import { APPEAL_REASON_CATEGORIES, AppealReasonCategory } from './dto/submit-appeal.dto';
 
 export type SupplementalRefundStatus = 'none' | 'pending' | 'succeeded' | 'delayed';
@@ -77,7 +78,7 @@ export class AppealService {
     if (!occ) throw new NotFoundError('Occurrence not found');
     if (occ.commitment.userId !== userId) throw new ForbiddenError();
     this.assertEligible(occ.commitment.enforcementMode, occ.status, occ.appeal);
-    if (!this.withinWindow(occ.decidedAt)) {
+    if (!isAppealOpen(occ, this.clock.now())) {
       throw new DomainError('APPEAL_WINDOW_CLOSED', '이의 제기 기간이 지났어요.');
     }
 
@@ -339,12 +340,12 @@ export class AppealService {
     enforcementMode: string,
     occurrenceStatus: string,
     appeal: Appeal | null,
-    decidedAt: Date | null,
+    occ: { status: string; appealDeadlineAt?: Date | null },
   ): boolean {
     if (enforcementMode !== 'money') return false;
     if (occurrenceStatus !== 'fail') return false;
     if (appeal) return false;
-    return this.withinWindow(decidedAt);
+    return isAppealOpen(occ, this.clock.now());
   }
 
   private assertEligible(mode: string, status: string, appeal: Appeal | null): void {
@@ -359,18 +360,13 @@ export class AppealService {
     }
   }
 
-  private withinWindow(decidedAt: Date | null): boolean {
-    if (!decidedAt) return false;
-    const elapsed = this.clock.now().getTime() - decidedAt.getTime();
-    return elapsed <= this.windowSeconds * 1000;
-  }
-
   private summaryFor(
     occ: {
       id: string;
       sequenceNo: number;
       status: string;
       decidedAt: Date | null;
+      appealDeadlineAt?: Date | null;
       commitment: { enforcementMode: string } | { enforcementMode?: string };
       appeal?: Appeal | null;
     },
@@ -386,7 +382,7 @@ export class AppealService {
       originalResult: original,
       effectiveResult: effective,
       status: appeal?.status ?? null,
-      eligible: this.isEligible(mode, occ.status, appeal, occ.decidedAt),
+      eligible: this.isEligible(mode, occ.status, appeal, occ),
       rejectReason: appeal?.status === 'rejected' ? appeal.decisionReason : null,
       supplementalRefundStatus: 'none',
     };

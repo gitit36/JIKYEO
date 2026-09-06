@@ -11,11 +11,12 @@ import { QuoteCacheService } from './quote/quote-cache.service';
 import { QuoteService } from './quote/quote.service';
 import { ScheduleService } from './schedule/schedule.service';
 import { CommitmentTemplatesController } from './templates/commitment-templates.controller';
+import { TermsService } from './terms.service';
 
 @Module({
   imports: [AuthModule, SafetyModule, UsersModule, StakePolicyModule, PaymentsModule, AppealsModule],
   controllers: [CommitmentsController, CommitmentTemplatesController],
-  providers: [ScheduleService, QuoteService, QuoteCacheService, CommitmentService],
-  exports: [ScheduleService, QuoteService, QuoteCacheService, CommitmentService],
+  providers: [ScheduleService, QuoteService, QuoteCacheService, CommitmentService, TermsService],
+  exports: [ScheduleService, QuoteService, QuoteCacheService, CommitmentService, TermsService],
 })
 export class CommitmentsModule {}

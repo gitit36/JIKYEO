@@ -33,6 +33,12 @@ enum UserStatus {
   deleted
 }
 
+enum AgeVerificationStatus {
+  unknown
+  verified_adult
+  underage
+}
+
 enum CommitmentCategory {
   wakeup
   workout
@@ -271,6 +277,9 @@ model User {
   authSubject   String        @map("auth_subject")
   displayName   String        @map("display_name")
   birthDate     DateTime?     @map("birth_date") @db.Date
+  // Server-verified adult gate. Client birthDate is never authoritative.
+  ageVerificationStatus AgeVerificationStatus @default(unknown) @map("age_verification_status")
+  ageVerifiedAt         DateTime?             @map("age_verified_at") @db.Timestamptz
   locale        String        @default("ko-KR")
   timezone      String        @default("Asia/Seoul")
   status        UserStatus    @default(active)
@@ -291,6 +300,7 @@ model User {
   notificationPrefs  NotificationPreference?
   notificationOutbox NotificationOutbox[]
   weeklyRecaps       WeeklyRecap[]
+  contracts          CommitmentContract[]
 
   @@unique([authProvider, authSubject])
   @@index([email])
@@ -339,10 +349,12 @@ model Commitment {
   observers           CommitmentObserver[]
   notifications       NotificationSchedule[]
   ledgerEntries       PaymentLedger[]
+  contract            CommitmentContract?
 
   @@index([userId, status])
   @@index([status, signatureExpiresAt])
   @@index([status, cancellationEffectiveAt])
+  @@index([status, cancellationRequestedAt])
   @@map("commitments")
 }
 
@@ -357,6 +369,8 @@ model Occurrence {
   stakeAmount         BigInt?           @map("stake_amount")
   failureReasonCode   String?           @map("failure_reason_code")
   decidedAt           DateTime?         @map("decided_at") @db.Timestamptz
+  appealOpenedAt      DateTime?         @map("appeal_opened_at") @db.Timestamptz
+  appealDeadlineAt    DateTime?         @map("appeal_deadline_at") @db.Timestamptz
   createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz
 
   commitment          Commitment              @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
@@ -486,6 +500,8 @@ model Payment {
   // Denormalised for fast "money status" lookups per commitment (MONEY only).
   commitmentId          String?         @map("commitment_id") @db.Uuid
   provider              String
+  // Method behind the provider (CARD / KAKAOPAY / BANK). Never a separate PG.
+  paymentMethod         String?         @map("payment_method")
   providerPaymentKey    String?         @map("provider_payment_key")
   type                  PaymentType
   amount                BigInt
@@ -783,4 +799,30 @@ model WeeklyRecap {
 
   @@unique([userId, localWeekStart])
   @@map("weekly_recaps")
+}
+
+// Server-issued MONEY terms. Versioned; accepted snapshots are immutable.
+model TermsDocument {
+  version     String   @id
+  bodyHash    String   @map("body_hash")
+  bodyJson    Json     @map("body_json")
+  publishedAt DateTime @map("published_at") @db.Timestamptz
+
+  @@map("terms_documents")
+}
+
+model CommitmentContract {
+  id               String   @id @default(uuid()) @db.Uuid
+  commitmentId     String   @unique @map("commitment_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  documentVersion  String   @map("document_version")
+  snapshotJson     Json     @map("snapshot_json")
+  snapshotHash     String   @map("snapshot_hash")
+  acceptedAt       DateTime @map("accepted_at") @db.Timestamptz
+
+  commitment       Commitment @relation(fields: [commitmentId], references: [id], onDelete: Cascade)
+  user             User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@map("commitment_contracts")
 }

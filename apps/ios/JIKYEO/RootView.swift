@@ -21,6 +21,8 @@ struct RootView: View {
                 NavigationStack { DeletedEvidencePlaceholder() }
             } else if let stage = DebugLaunch.stage, stage == "notify-deeplink" {
                 MainTabView(debugStage: "notify-deeplink")
+            } else if let stage = DebugLaunch.stage, ["terms-accept", "age-reject", "fail-provisional", "cancel-immediate"].contains(stage) {
+                ComplianceDebugView(stage: stage)
             } else if let stage = DebugLaunch.stage, stage.hasPrefix("cancel-") {
                 CancelDebugView(stage: stage)
             } else if let stage = DebugLaunch.stage, stage == "maintenance-retry" {

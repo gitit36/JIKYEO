@@ -9,6 +9,8 @@
  * Test-only. Not used by production code.
  */
 
+import { defaultTermsSnapshot, hashSnapshot } from '../../commitments/terms.service';
+
 type Row = Record<string, any>;
 
 const OPS = new Set(['in', 'notIn', 'not', 'lt', 'lte', 'gt', 'gte', 'startsWith']);
@@ -228,7 +230,7 @@ export class InMemoryMoneyDb {
       this.user, this.stake, this.occurrence, this.payment, this.paymentLedger, this.settlement,
       this.paymentWebhookEvent, this.jobLease, this.auditLog, this.appeal, this.evidence,
       this.verificationResult, this.commitment, this.deviceToken, this.notificationPreference,
-      this.notificationOutbox, this.weeklyRecap,
+      this.notificationOutbox, this.weeklyRecap, this.commitmentContract,
     ];
   }
 
@@ -317,6 +319,7 @@ export class InMemoryMoneyDb {
   readonly notificationPreference = new Table('npref', [['userId']]);
   readonly notificationOutbox = new Table('nout', [['dedupeKey']]);
   readonly weeklyRecap = new Table('recap', [['userId', 'localWeekStart']]);
+  readonly commitmentContract = new Table('ccon', [['commitmentId']]);
   readonly commitment = new Table('cmt', [], {
     include: (row, include) => {
       if (include.stake) row.stake = this.stake.rows.find((s) => s.commitmentId === row.id) ?? null;
@@ -381,6 +384,18 @@ export class InMemoryMoneyDb {
         },
       });
     }
+    const snap = defaultTermsSnapshot(opts.perOccurrence.toString(), opts.count, maxLoss.toString());
+    await this.commitmentContract.create({
+      data: {
+        id: `contract_${opts.id}`,
+        commitmentId: opts.id,
+        userId: opts.userId,
+        documentVersion: snap.documentVersion,
+        snapshotJson: snap,
+        snapshotHash: hashSnapshot(snap),
+        acceptedAt: new Date('2026-09-01T00:00:00Z'),
+      },
+    });
   }
 
   async seedSelfCommitment(opts: { id: string; userId: string; count: number }): Promise<void> {
@@ -403,11 +418,18 @@ export class InMemoryMoneyDb {
     }
   }
 
-  async setOccurrenceStatus(occurrenceId: string, status: string, decidedAt?: Date): Promise<void> {
+  async setOccurrenceStatus(occurrenceId: string, status: string, decidedAt?: Date, appealDeadlineAt?: Date): Promise<void> {
     const final = status === 'pass' || status === 'fail' || status === 'void';
+    const decided = decidedAt ?? (final ? new Date() : null);
     await this.occurrence.update({
       where: { id: occurrenceId },
-      data: { status, decidedAt: decidedAt ?? (final ? new Date() : null) },
+      data: {
+        status,
+        decidedAt: decided,
+        ...(status === 'fail' && decided
+          ? { appealOpenedAt: decided, appealDeadlineAt: appealDeadlineAt ?? decided }
+          : {}),
+      },
     });
   }
 

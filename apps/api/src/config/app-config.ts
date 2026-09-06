@@ -69,7 +69,24 @@ export class AppConfig {
   }
 
   get paymentProvider(): ProviderChoice {
-    return (this.cfg.get<string>('PAYMENT_PROVIDER') as ProviderChoice) ?? 'mock';
+    const raw = this.cfg.get<string>('PAYMENT_PROVIDER') ?? 'mock';
+    if (raw === 'kcp' || raw === 'kr_pg') return 'kr_pg';
+    return (raw as ProviderChoice) ?? 'mock';
+  }
+
+  /**
+   * Production MONEY is fail-closed. Not a hidden remote review switch.
+   * Dev/test default on so fixtures can run; production requires MONEY_ENABLED=true.
+   */
+  get moneyEnabled(): boolean {
+    const raw = this.cfg.get<string>('MONEY_ENABLED');
+    if (this.nodeEnv === 'production') return raw === 'true';
+    return raw !== 'false';
+  }
+
+  /** Dev/admin age fixtures only. Production always requires verified_adult. */
+  get allowAgeFixture(): boolean {
+    return this.nodeEnv !== 'production';
   }
 
   get verificationProvider(): ProviderChoice {
@@ -101,9 +118,9 @@ export class AppConfig {
     return Number(this.cfg.get<string>('SIGNATURE_EXPIRY_SECONDS') ?? 1800);
   }
 
-  /** MONEY active-cancel notice before future occurrences VOID. Default 24h. */
+  /** Deprecated notice window. Financial cutoff is cancellationRequestedAt. */
   get activeCancellationNoticeSeconds(): number {
-    return Number(this.cfg.get<string>('ACTIVE_CANCELLATION_NOTICE_SECONDS') ?? 86_400);
+    return Number(this.cfg.get<string>('ACTIVE_CANCELLATION_NOTICE_SECONDS') ?? 0);
   }
 
   /** Owner may appeal a final MONEY FAIL within this many seconds of decidedAt. */

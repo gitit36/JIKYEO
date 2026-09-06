@@ -53,7 +53,8 @@ async function active(ctx = make()) {
 
 async function verdicts(ctx: ReturnType<typeof make>, statuses: string[], decidedAt = NOW): Promise<void> {
   for (let i = 0; i < statuses.length; i += 1) {
-    await ctx.db.setOccurrenceStatus(`${C}_o${i + 1}`, statuses[i], decidedAt);
+    const deadline = statuses[i] === 'fail' ? new Date(decidedAt.getTime() + WINDOW * 1000) : undefined;
+    await ctx.db.setOccurrenceStatus(`${C}_o${i + 1}`, statuses[i], decidedAt, deadline);
   }
 }
 
@@ -63,6 +64,28 @@ function ledgerOf(ctx: ReturnType<typeof make>, type?: string) {
 
 async function submitFail(ctx: ReturnType<typeof make>, occ = `${C}_o2`) {
   return ctx.appeals.submit(USER, occ, { reasonCategory: 'verification_error', explanation: '사진이 잘못 읽힌 것 같아요.' });
+}
+
+async function expireFails(ctx: ReturnType<typeof make>): Promise<void> {
+  for (const o of ctx.db.occurrence.rows.filter((r) => r.status === 'fail')) {
+    await ctx.db.occurrence.update({ where: { id: o.id }, data: { appealDeadlineAt: NOW } });
+  }
+}
+
+async function lateAppeal(ctx: ReturnType<typeof make>, occ = `${C}_o2`) {
+  const row = await ctx.db.appeal.create({
+    data: {
+      id: `ap_${occ}`,
+      occurrenceId: occ,
+      userId: USER,
+      reasonCategory: 'verification_error',
+      reasonText: 'legacy correction',
+      originalResult: 'fail',
+      status: 'submitted',
+      submittedAt: NOW,
+    },
+  });
+  return ctx.appeals.getOwnedById(USER, row.id);
 }
 
 describe('Phase 5B — MONEY appeal eligibility', () => {
@@ -100,9 +123,9 @@ describe('Phase 5B — MONEY appeal eligibility', () => {
     const ctx = await active();
     const exactly = new Date(NOW.getTime() - WINDOW * 1000);
     const tooLate = new Date(NOW.getTime() - WINDOW * 1000 - 1);
-    await ctx.db.setOccurrenceStatus(`${C}_o1`, 'fail', exactly);
-    await ctx.db.setOccurrenceStatus(`${C}_o2`, 'fail', tooLate);
-    await ctx.db.setOccurrenceStatus(`${C}_o3`, 'fail', NOW);
+    await ctx.db.setOccurrenceStatus(`${C}_o1`, 'fail', exactly, new Date(NOW.getTime() + 1));
+    await ctx.db.setOccurrenceStatus(`${C}_o2`, 'fail', tooLate, NOW);
+    await ctx.db.setOccurrenceStatus(`${C}_o3`, 'fail', NOW, new Date(NOW.getTime() + WINDOW * 1000));
     await expect(submitFail(ctx, `${C}_o1`)).resolves.toMatchObject({ status: 'submitted' });
     await expect(submitFail(ctx, `${C}_o2`)).rejects.toMatchObject({ code: 'APPEAL_WINDOW_CLOSED' });
     await expect(submitFail(ctx, `${C}_o1`)).rejects.toMatchObject({ code: 'APPEAL_ALREADY_EXISTS' });
@@ -170,6 +193,7 @@ describe('Phase 5B — admin reject / approve', () => {
     await verdicts(ctx, ['fail', 'fail', 'fail']);
     const a = await submitFail(ctx, `${C}_o1`);
     await ctx.appeals.approve(a.appealId, 'void', 'admin-1');
+    await expireFails(ctx);
     const report = await ctx.settlement.settleCommitment(C);
     expect(report.completed).toBe(true);
     expect(ctx.db.settlement.rows.find((s) => s.occurrenceId === `${C}_o1`)!.result).toBe('void');
@@ -181,10 +205,11 @@ describe('Phase 5B — admin reject / approve', () => {
   it('approve after settlement appends one reversal and one supplemental refund', async () => {
     const ctx = await active();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
+    await expireFails(ctx);
     await ctx.settlement.settleCommitment(C);
     expect(ledgerOf(ctx, 'forfeit')).toHaveLength(1);
     expect(ledgerOf(ctx, 'refund_paid')[0].amount).toBe(10_000n);
-    const a = await submitFail(ctx);
+    const a = await lateAppeal(ctx);
     const decided = await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
     expect(decided.effectiveResult).toBe('pass');
     expect(decided.originalResult).toBe('fail');
@@ -201,9 +226,10 @@ describe('Phase 5B — admin reject / approve', () => {
   it('all-FAIL then approved appeal refunds one occurrence amount', async () => {
     const ctx = await active();
     await verdicts(ctx, ['fail', 'fail', 'fail']);
+    await expireFails(ctx);
     await ctx.settlement.settleCommitment(C);
     expect(ledgerOf(ctx, 'refund_paid')).toHaveLength(0);
-    const a = await submitFail(ctx, `${C}_o1`);
+    const a = await lateAppeal(ctx, `${C}_o1`);
     await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
     expect(ledgerOf(ctx, 'reversal')).toHaveLength(1);
     expect(ledgerOf(ctx, 'refund_paid')).toEqual([
@@ -217,8 +243,9 @@ describe('Phase 5B — admin reject / approve', () => {
   it('duplicate admin decision, retry, and reconcile stay idempotent', async () => {
     const ctx = await active();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
+    await expireFails(ctx);
     await ctx.settlement.settleCommitment(C);
-    const a = await submitFail(ctx);
+    const a = await lateAppeal(ctx);
     await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
     await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
     await ctx.settlement.retryRefund(C);
@@ -231,8 +258,9 @@ describe('Phase 5B — admin reject / approve', () => {
   it('lost supplemental refund response does not duplicate reversal or refund', async () => {
     const ctx = await active();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
+    await expireFails(ctx);
     await ctx.settlement.settleCommitment(C);
-    const a = await submitFail(ctx);
+    const a = await lateAppeal(ctx);
     ctx.provider.loseNextRefund = true;
     await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
     expect(ledgerOf(ctx, 'reversal')).toHaveLength(1);
@@ -248,11 +276,12 @@ describe('Phase 5B — admin reject / approve', () => {
   it('cumulative successful refunds cannot exceed the charge', async () => {
     const ctx = await active();
     await verdicts(ctx, ['pass', 'fail', 'pass']);
+    await expireFails(ctx);
     await ctx.settlement.settleCommitment(C);
     await expect(ctx.payments.refundSupplemental(C, `${C}_o2`, 10_000n, 'too-much')).rejects.toMatchObject({
       code: 'VALIDATION',
     });
-    const a = await submitFail(ctx);
+    const a = await lateAppeal(ctx);
     await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
     const totals = await ctx.ledger.totalsForCommitment(C);
     expect(totals.refundPaid).toBeLessThanOrEqual(totals.deposit);
@@ -262,10 +291,11 @@ describe('Phase 5B — admin reject / approve', () => {
   it('rolling loss-cap credit waits for the supplemental refund to succeed', async () => {
     const ctx = await active();
     await verdicts(ctx, ['fail', 'fail', 'fail']);
+    await expireFails(ctx);
     await ctx.settlement.settleCommitment(C);
     for (const r of ctx.db.paymentLedger.rows) r.createdAt = NOW;
     expect((await ctx.policy.rollingExposure(USER)).realizedForfeitKrw).toBe(15_000);
-    const a = await submitFail(ctx, `${C}_o1`);
+    const a = await lateAppeal(ctx, `${C}_o1`);
     ctx.provider.failNextRefund = true;
     await ctx.appeals.approve(a.appealId, 'pass', 'admin-1');
     for (const r of ctx.db.paymentLedger.rows) r.createdAt = NOW;

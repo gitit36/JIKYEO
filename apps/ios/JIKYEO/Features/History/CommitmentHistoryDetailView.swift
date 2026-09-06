@@ -186,11 +186,28 @@ private struct OccurrenceAppealCard: View {
     var evidenceDeleted = false
     let onAppeal: () -> Void
 
+    private static func formatDeadline(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ko_KR")
+        f.dateFormat = "M월 d일 HH:mm"
+        return f.string(from: date)
+    }
+
     var body: some View {
         Card {
             VStack(alignment: .leading, spacing: DS.Space.sm) {
                 Text("\(occurrence.sequenceNo)회차")
                     .font(Typo.bodyStrong)
+                if mode == .money, occurrence.status == "fail", occurrence.appealDeadlineAt != nil, occurrence.appeal?.status == nil {
+                    Text(Copy.Appeal.provisional)
+                        .font(Typo.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
+                    if let at = occurrence.appealDeadlineAt {
+                        Text(Copy.Appeal.deadline(Self.formatDeadline(at)))
+                            .font(Typo.caption)
+                            .foregroundStyle(DS.Color.textSecondary)
+                    }
+                }
                 if mode == .money {
                     Text("원래 결과 · \(Copy.Appeal.resultLabel(occurrence.originalResult ?? occurrence.status))")
                         .font(Typo.caption)
@@ -311,6 +328,33 @@ enum AppealCopy {
 }
 
 #if DEBUG
+struct ComplianceDebugView: View {
+    let stage: String
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.Space.md) {
+                    if stage == "terms-accept" {
+                        Text(Copy.Terms.title).font(Typo.title)
+                        Text(Copy.Terms.body).font(Typo.body)
+                        Text(Copy.Terms.accept).font(Typo.bodyStrong)
+                    } else if stage == "age-reject" {
+                        Text(Copy.Age.rejected).font(Typo.body)
+                    } else if stage == "fail-provisional" {
+                        Text(Copy.Appeal.provisional).font(Typo.title)
+                        Text(Copy.Appeal.deadline("9월 21일 21:00")).font(Typo.body)
+                    } else {
+                        Text(Copy.Cancel.moneyNotice).font(Typo.title)
+                        Text(Copy.Cancel.moneyBinding(1)).font(Typo.body)
+                    }
+                }
+                .padding(DS.Space.lg)
+            }
+            .background(DS.Color.surfaceBackground.ignoresSafeArea())
+        }
+    }
+}
+
 struct CancelDebugView: View {
     let stage: String
     var body: some View {

@@ -321,6 +321,14 @@ public final class CreateCommitmentModel: ObservableObject {
                 createdMaxLossKrw = Int64(result.maxLossKrw ?? "0") ?? 0
             }
             guard let id = createdCommitmentId else { return }
+            let preview = try await container.commitmentAPI.termsPreview(commitmentId: id)
+            if preview.acceptedAt == nil {
+                _ = try await container.commitmentAPI.acceptTerms(
+                    commitmentId: id,
+                    documentVersion: preview.documentVersion,
+                    snapshotHash: preview.snapshotHash
+                )
+            }
             #if DEBUG
             let simulate = debugSimulatePaymentFailure
             #else
@@ -338,7 +346,9 @@ public final class CreateCommitmentModel: ObservableObject {
                 paymentState = .failed(message: "결제 확인을 기다리고 있어요. 잠시 후 다시 시도해주세요.")
             }
         } catch let e as APIError {
-            paymentState = .failed(message: e.code == "PAYMENT_FAILED"
+            paymentState = .failed(message: e.code == "AGE_UNVERIFIED" || e.code == "MONEY_DISABLED"
+                ? Copy.Age.rejected
+                : e.code == "PAYMENT_FAILED"
                 ? "결제가 완료되지 않았어요. 카드 정보를 확인하고 다시 시도해주세요."
                 : e.message)
             await refreshMoneyView(container: container)

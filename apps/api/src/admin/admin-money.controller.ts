@@ -9,6 +9,11 @@ import { AdminMoneyService, MoneyCaseKind } from './admin-money.service';
 export class AdminMoneyController {
   constructor(private readonly admin: AdminMoneyService) {}
 
+  @Get('accounting')
+  async accounting() {
+    return this.admin.accountingSummary();
+  }
+
   @Get('cases')
   async list(@Query('kind') kind?: MoneyCaseKind) {
     return this.admin.list(kind);

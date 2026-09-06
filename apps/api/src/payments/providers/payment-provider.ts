@@ -1,9 +1,9 @@
 /**
  * PaymentProvider abstraction.
  *
- * Every real Korean PG (토스페이먼츠 / 포트원 / 카카오페이 등) must implement this
- * interface. MVP ships with `MockPaymentProvider`. Real PG credentials are NOT
- * hardcoded anywhere; provider is chosen via `AppConfig.paymentProvider`.
+ * Selected production PG is NHN KCP. KakaoPay and cards are payment methods
+ * behind KCP, not separate providers. MVP ships `MockPaymentProvider`.
+ * Real KCP credentials and network calls are not implemented in this phase.
  *
  * All amounts are integer KRW (`bigint`).
  * All calls MUST be idempotent on `idempotencyKey`.
@@ -31,6 +31,8 @@ export interface PaymentProviderResult {
   providerPaymentKey: string;
   status: PaymentProviderStatus;
   failureCode?: string;
+  /** CARD / KAKAOPAY / BANK — method behind the provider, never a second PG. */
+  paymentMethod?: string;
   raw?: unknown;
 }
 

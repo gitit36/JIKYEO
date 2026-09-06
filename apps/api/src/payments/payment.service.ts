@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from './ledger.service';
 import { LostProviderResponseError, PaymentProvider, PaymentProviderResult, WebhookEvent } from './providers/payment-provider';
 import { StakePolicyService } from '../stake-policy/stake-policy.service';
+import { MoneyGateService } from '../users/money-gate.service';
 
 export interface PaymentView {
   paymentId: string;
@@ -15,6 +16,7 @@ export interface PaymentView {
   status: PaymentStatus;
   amountKrw: string;
   provider: string;
+  paymentMethod: string | null;
   failureCode: string | null;
   attempt: number;
   createdAt: string;
@@ -70,6 +72,7 @@ export class PaymentService {
     private readonly clock: Clock,
     private readonly stakePolicy: StakePolicyService,
     @Optional() private readonly cfg?: AppConfig,
+    @Optional() private readonly moneyGate?: MoneyGateService,
   ) {}
 
   private get signatureExpirySeconds(): number {
@@ -101,6 +104,11 @@ export class PaymentService {
     if (c.status === 'cancelled') {
       throw new DomainError('INVALID_STATE_TRANSITION', '취소된 약속에는 결제할 수 없어요.');
     }
+    await this.moneyGate?.assertCanUseMoney(userId);
+    const accepted = await this.prisma.commitmentContract.findUnique({ where: { commitmentId } });
+    if (!accepted) {
+      throw new DomainError('TERMS_REQUIRED', '결제 전에 약관에 동의해주세요.');
+    }
 
     const charges = await this.prisma.payment.findMany({
       where: { stakeId: c.stake.id, type: 'charge' },
@@ -130,6 +138,7 @@ export class PaymentService {
             stakeId: c.stake!.id,
             commitmentId: c.id,
             provider: this.provider.name,
+            paymentMethod: null,
             type: 'charge',
             amount,
             currency: 'KRW',
@@ -186,7 +195,13 @@ export class PaymentService {
       throw new DomainError('PAYMENT_PROVIDER_ERROR', '결제사 연결에 문제가 있어요. 잠시 후 다시 시도해주세요.');
     }
 
-    const updated = await this.applyChargeResult(payment.id, result.status, result.providerPaymentKey, result.failureCode ?? null);
+    const updated = await this.applyChargeResult(
+      payment.id,
+      result.status,
+      result.providerPaymentKey,
+      result.failureCode ?? null,
+      result.paymentMethod ?? 'CARD',
+    );
     if (updated.status === 'failed') {
       throw new DomainError('PAYMENT_FAILED', '결제가 완료되지 않았어요. 다시 시도해주세요.', {
         paymentId: updated.id,
@@ -205,6 +220,7 @@ export class PaymentService {
     status: PaymentProviderResult['status'],
     providerPaymentKey: string | null,
     failureCode: string | null,
+    paymentMethod?: string | null,
   ): Promise<Payment> {
     return this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findUnique({ where: { id: paymentId } });
@@ -237,7 +253,12 @@ export class PaymentService {
       }
       const saved = await tx.payment.update({
         where: { id: paymentId },
-        data: { status: 'succeeded', providerPaymentKey, completedAt: now },
+        data: {
+          status: 'succeeded',
+          providerPaymentKey,
+          completedAt: now,
+          paymentMethod: paymentMethod ?? payment.paymentMethod ?? 'CARD',
+        },
       });
       await this.ledger.append(
         {
@@ -597,6 +618,7 @@ export function toView(p: Payment): PaymentView {
     status: p.status,
     amountKrw: p.amount.toString(),
     provider: p.provider,
+    paymentMethod: p.paymentMethod ?? null,
     failureCode: p.failureCode,
     attempt: p.attempt,
     createdAt: p.createdAt.toISOString(),

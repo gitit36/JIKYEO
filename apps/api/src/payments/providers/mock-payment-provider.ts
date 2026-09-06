@@ -64,6 +64,7 @@ export class MockPaymentProvider extends PaymentProvider {
     const result: PaymentProviderResult = {
       providerPaymentKey,
       status: 'succeeded',
+      paymentMethod: input.metadata?.method ?? 'CARD',
     };
     this.idempotency.set(input.idempotencyKey, result);
     if (this.loseNextCharge || input.metadata?.simulate === 'charge_lost') {

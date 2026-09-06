@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Prisma, VerificationOutcome, VerifierType } from '@prisma/client';
 import { Clock } from '../common/clock/clock';
+import { AppConfig } from '../config/app-config';
 import { DomainError } from '../common/errors/domain-errors';
 import { PrismaService } from '../prisma/prisma.service';
+import { appealWindowFields } from '../settlement/financial-finality';
 import { VerificationDecision, VerificationProvider } from './providers/verification-provider';
 
 /**
@@ -22,6 +24,7 @@ export class VerificationOrchestrator {
     private readonly prisma: PrismaService,
     private readonly provider: VerificationProvider,
     private readonly clock: Clock,
+    @Optional() private readonly cfg?: AppConfig,
   ) {}
 
   /**
@@ -206,12 +209,19 @@ export class VerificationOrchestrator {
           modelVersion: decision.modelVersion ?? null,
         },
       });
+      const now = this.clock.now();
+      const current = await tx.occurrence.findUnique({ where: { id: occurrenceId } });
+      const moneyFail = isMoneyCommitment && decision.result === 'fail';
+      const window = moneyFail
+        ? appealWindowFields(now, this.cfg?.appealWindowSeconds ?? 7 * 24 * 3600, current ?? undefined)
+        : null;
       await tx.occurrence.update({
         where: { id: occurrenceId },
         data: {
           status,
-          decidedAt: this.clock.now(),
+          decidedAt: now,
           failureReasonCode: decision.result === 'fail' ? decision.reasonCode : null,
+          ...(window ? window : {}),
         },
       });
       return created;

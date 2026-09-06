@@ -1006,6 +1006,9 @@ private struct PaymentStep: View {
             onPrimary: { Task { await model.createAndPay(container: container) } }
         ) {
             MoneyBreakdownCard(model: model)
+            Text(Copy.Terms.title).font(Typo.bodyStrong)
+            Text(Copy.Terms.body)
+                .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
             Text(Copy.Wizard.step8Explain)
                 .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
 
@@ -1035,7 +1038,7 @@ private struct PaymentStep: View {
     }
     private var primaryTitle: String {
         if case .failed = model.paymentState { return Copy.Wizard.step8Retry }
-        return Copy.Wizard.step8CTA(MoneyText.format(model.upfrontKrw))
+        return Copy.Terms.accept
     }
 }
 

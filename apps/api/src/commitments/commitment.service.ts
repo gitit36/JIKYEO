@@ -13,6 +13,7 @@ import { GoalSafetyClassifier } from '../safety/goal-safety.classifier';
 import { StakePolicyService } from '../stake-policy/stake-policy.service';
 import { UsersService } from '../users/users.service';
 import { AppealService, OccurrenceAppealSummary } from '../appeals/appeal.service';
+import { MoneyGateService } from '../users/money-gate.service';
 import { CreateCommitmentDraftDto } from './dto/create-commitment.dto';
 import { QuoteCacheService } from './quote/quote-cache.service';
 import { ScheduleService } from './schedule/schedule.service';
@@ -70,6 +71,7 @@ export class CommitmentService {
     @Optional() private readonly payments?: PaymentService,
     @Optional() private readonly cfg?: AppConfig,
     @Optional() private readonly appeals?: AppealService,
+    @Optional() private readonly moneyGate?: MoneyGateService,
   ) {}
 
   get signatureExpirySeconds(): number {
@@ -94,10 +96,7 @@ export class CommitmentService {
       if (!dto.stakePerOccurrenceKrw || dto.stakePerOccurrenceKrw <= 0) {
         throw new ValidationError('stakePerOccurrenceKrw is required for MONEY');
       }
-      const user = await this.users.findById(userId);
-      if (this.users.isMinor(user, this.clock.now())) {
-        throw new DomainError('MINOR_STAKE_DISALLOWED', '미성년자는 약속금 기능을 사용할 수 없어요.');
-      }
+      await this.moneyGate?.assertCanUseMoney(userId);
     } else {
       // SELF / SOCIAL: quote and stake fields must not be present at all.
       if (dto.quoteId) {
@@ -388,7 +387,7 @@ export class CommitmentService {
     const due = await this.prisma.commitment.findMany({
       where: {
         status: 'active',
-        cancellationEffectiveAt: { lte: now },
+        cancellationRequestedAt: { lte: now },
         cancellationReason: 'user_cancelled',
       },
       select: { id: true },
@@ -434,7 +433,7 @@ export class CommitmentService {
       throw new DomainError('INVALID_STATE_TRANSITION', '이 약속은 취소할 수 없어요.');
     }
 
-    if (c.enforcementMode !== 'money' && effectiveAt.getTime() <= now.getTime()) {
+    if (effectiveAt.getTime() <= now.getTime()) {
       await this.voidEligibleFuture(c.id);
       await this.completeIfResolved(c.id);
     }
@@ -564,11 +563,7 @@ export class CommitmentService {
     return this.cancelSnapshot(commitmentId, idempotent, refund, effectiveAt);
   }
 
-  private computeEffectiveAt(mode: EnforcementMode, now: Date): Date {
-    if (mode === 'money') {
-      const sec = this.cfg?.activeCancellationNoticeSeconds ?? 86_400;
-      return new Date(now.getTime() + sec * 1000);
-    }
+  private computeEffectiveAt(_mode: EnforcementMode, now: Date): Date {
     return now;
   }
 
@@ -579,18 +574,19 @@ export class CommitmentService {
         occurrences: { include: { evidence: { select: { id: true }, take: 1 }, appeal: true } },
       },
     });
-    if (!c?.cancellationEffectiveAt) return 0;
+    const cutoff = c?.cancellationRequestedAt ?? c?.cancellationEffectiveAt;
+    if (!c || !cutoff) return 0;
     const now = this.clock.now();
-    if (c.cancellationEffectiveAt.getTime() > now.getTime()) return 0;
+    if (cutoff.getTime() > now.getTime()) return 0;
     let voided = 0;
     for (const occ of c.occurrences) {
-      if (!this.canVoidForCancel(occ, c.cancellationEffectiveAt)) continue;
+      if (!this.canVoidForCancel(occ, cutoff)) continue;
       const won = await this.prisma.$transaction(async (tx) => {
         const fresh = await tx.occurrence.findUnique({
           where: { id: occ.id },
           include: { evidence: { select: { id: true }, take: 1 }, appeal: true },
         });
-        if (!fresh || !this.canVoidForCancel(fresh, c.cancellationEffectiveAt!)) return 0;
+        if (!fresh || !this.canVoidForCancel(fresh, cutoff)) return 0;
         const moved = await tx.occurrence.updateMany({
           where: { id: occ.id, status: { in: ['scheduled', 'active'] } },
           data: { status: 'void', failureReasonCode: 'commitment_cancelled', decidedAt: now },
@@ -652,7 +648,7 @@ export class CommitmentService {
     if (!refund && this.payments) {
       refund = await this.payments.findSucceededRefund(commitmentId);
     }
-    const cutoff = effectiveAt ?? c?.cancellationEffectiveAt ?? c?.cancelledAt ?? this.clock.now();
+    const cutoff = c?.cancellationRequestedAt ?? effectiveAt ?? c?.cancellationEffectiveAt ?? c?.cancelledAt ?? this.clock.now();
     let binding = 0;
     let voidN = 0;
     let bindingAmt = 0n;
@@ -798,6 +794,8 @@ export class CommitmentService {
           stakeKrw: o.stakeAmount?.toString() ?? null,
           originalResult: a?.originalResult ?? o.status,
           effectiveResult: a?.effectiveResult ?? o.status,
+          appealOpenedAt: o.appealOpenedAt?.toISOString() ?? null,
+          appealDeadlineAt: o.appealDeadlineAt?.toISOString() ?? null,
           appeal: a ?? null,
         };
       }),

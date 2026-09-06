@@ -5,6 +5,8 @@ import { PaymentService } from '../payments/payment.service';
 import { MoneyStatusService } from '../payments/money-status.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettlementService } from '../settlement/settlement.service';
+import { financialStatus } from '../settlement/financial-finality';
+import { Clock } from '../common/clock/clock';
 
 export type MoneyCaseKind = 'refund_delayed' | 'unknown_payment' | 'expired_awaiting_refund';
 
@@ -16,7 +18,58 @@ export class AdminMoneyService {
     private readonly payments: PaymentService,
     private readonly settlement: SettlementService,
     private readonly audit: AuditService,
+    private readonly clock: Clock,
   ) {}
+
+  /**
+   * Operational accounting view. Ledger is source of truth.
+   * Does not claim bank/PG reconciliation succeeded.
+   */
+  async accountingSummary() {
+    const now = this.clock.now();
+    const [ledger, occs, appeals, delayed] = await Promise.all([
+      this.prisma.paymentLedger.findMany(),
+      this.prisma.occurrence.findMany({ where: { stakeAmount: { not: null } } }),
+      this.prisma.appeal.findMany(),
+      this.prisma.payment.findMany({
+        where: { type: 'refund', status: 'failed' },
+        select: { amount: true },
+      }),
+    ]);
+    const appealByOcc = new Map(appeals.map((a) => [a.occurrenceId, a]));
+    let held = 0n;
+    let refundable = 0n;
+    let provisionalFail = 0n;
+    let finalForfeit = 0n;
+    let refundPaid = 0n;
+    let reversal = 0n;
+    for (const e of ledger) {
+      if (e.entryType === 'deposit') held += e.amount;
+      if (e.entryType === 'refund_earned') refundable += e.amount;
+      if (e.entryType === 'forfeit') finalForfeit += e.amount;
+      if (e.entryType === 'refund_paid') {
+        refundPaid += e.amount;
+        held -= e.amount;
+      }
+      if (e.entryType === 'reversal') reversal += e.amount;
+    }
+    for (const o of occs) {
+      if (financialStatus(o, appealByOcc.get(o.id), now) === 'pending' && o.status === 'fail' && o.stakeAmount) {
+        provisionalFail += o.stakeAmount;
+      }
+    }
+    const refundDelayed = delayed.reduce((a, p) => a + p.amount, 0n);
+    return {
+      heldDepositsKrw: held.toString(),
+      refundableKrw: refundable.toString(),
+      provisionalFailKrw: provisionalFail.toString(),
+      finalForfeitKrw: finalForfeit.toString(),
+      refundPaidKrw: refundPaid.toString(),
+      refundDelayedKrw: refundDelayed.toString(),
+      reversalKrw: reversal.toString(),
+      reconciledWithBankOrPg: false,
+    };
+  }
 
   async list(kind?: MoneyCaseKind) {
     const kinds = kind ? [kind] : (['refund_delayed', 'unknown_payment', 'expired_awaiting_refund'] as MoneyCaseKind[]);

@@ -92,32 +92,26 @@ describe('Phase 5D — active cancellation', () => {
     expect(again.effectiveAt).toBe(r.effectiveAt);
   });
 
-  it('MONEY uses a 24h cutoff and voids the exact boundary', async () => {
+  it('MONEY voids at cancellationRequestedAt including the exact boundary', async () => {
     const ctx = await fundedActive(3);
-    const effective = new Date(NOW.getTime() + NOTICE * 1000);
     await windows(ctx.db, C, [
-      new Date(effective.getTime() - 1),
-      effective,
-      new Date(effective.getTime() + 1),
+      new Date(NOW.getTime() - 1),
+      NOW,
+      new Date(NOW.getTime() + 1),
     ]);
     const preview = await ctx.commitments.previewCancel(USER, C);
-    expect(preview.effectiveAt).toBe(effective.toISOString());
+    expect(preview.effectiveAt).toBe(NOW.toISOString());
     expect(preview.bindingOccurrenceCount).toBe(1);
     expect(preview.voidOccurrenceCount).toBe(2);
     const r = await ctx.commitments.cancel(USER, C, { simulateRefundFail: true });
     expect(r.status).toBe('active');
-    expect(ctx.db.occurrence.rows.every((o) => o.status === 'scheduled')).toBe(true);
-    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'forfeit' || x.entryType === 'refund_earned')).toHaveLength(0);
-    expect(ctx.provider.calls.refund).toBe(0);
-
-    await ctx.commitments.applyCancellationEffective();
-    expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o1` } }))!.status).toBe('scheduled');
-    clockAdvance(ctx, NOTICE * 1000);
-    await ctx.db.occurrence.update({ where: { id: `${C}_o3` }, data: { status: 'active' } });
-    await ctx.commitments.applyCancellationEffective();
     expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o1` } }))!.status).toBe('scheduled');
     expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o2` } }))!.status).toBe('void');
     expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o3` } }))!.status).toBe('void');
+    expect(ctx.db.paymentLedger.rows.filter((x) => x.entryType === 'forfeit' || x.entryType === 'refund_earned')).toHaveLength(0);
+    expect(ctx.provider.calls.refund).toBe(0);
+    await ctx.commitments.applyCancellationEffective();
+    expect((await ctx.db.occurrence.findUnique({ where: { id: `${C}_o1` } }))!.status).toBe('scheduled');
   });
 
   it('rejects client effectiveAt and recomputes on confirm', async () => {
@@ -126,20 +120,18 @@ describe('Phase 5D — active cancellation', () => {
     const preview = await ctx.commitments.previewCancel(USER, C);
     const confirmed = await ctx.commitments.cancel(USER, C);
     expect(confirmed.effectiveAt).toBe(preview.effectiveAt);
-    expect(confirmed.effectiveAt).toBe(new Date(NOW.getTime() + NOTICE * 1000).toISOString());
-    expect(confirmed.effectiveAt).not.toBe(NOW.toISOString());
+    expect(confirmed.effectiveAt).toBe(NOW.toISOString());
     expect(confirmed.bindingOccurrenceCount).toBe(preview.bindingOccurrenceCount);
   });
 
   it('5×5,000 with four VOID and one FAIL refunds 20,000 once', async () => {
     const ctx = await fundedActive(5);
-    const effective = new Date(NOW.getTime() + NOTICE * 1000);
     await windows(ctx.db, C, [
       new Date(NOW.getTime() - 3_600_000),
-      effective,
-      new Date(effective.getTime() + 86_400_000),
-      new Date(effective.getTime() + 2 * 86_400_000),
-      new Date(effective.getTime() + 3 * 86_400_000),
+      NOW,
+      new Date(NOW.getTime() + 3_600_000),
+      new Date(NOW.getTime() + 86_400_000),
+      new Date(NOW.getTime() + 2 * 86_400_000),
     ]);
     const r = await ctx.commitments.cancel(USER, C);
     expect(r.bindingOccurrenceCount).toBe(1);
@@ -152,7 +144,6 @@ describe('Phase 5D — active cancellation', () => {
     expect(early.refund).toBeNull();
     expect(ctx.provider.calls.refund).toBe(0);
 
-    ctx.clock.advance(NOTICE * 1000);
     await ctx.maintenance.run();
     expect(ctx.db.occurrence.rows.filter((o) => o.status === 'void')).toHaveLength(4);
     expect((await ctx.policy.rollingExposure(USER)).reservedKrw).toBe(25_000);

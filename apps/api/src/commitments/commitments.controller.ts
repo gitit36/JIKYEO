@@ -5,6 +5,7 @@ import { CommitmentService } from './commitment.service';
 import { CreateCommitmentDraftDto } from './dto/create-commitment.dto';
 import { QuoteRequestDto } from './dto/schedule.dto';
 import { QuoteService } from './quote/quote.service';
+import { TermsService } from './terms.service';
 
 @ApiTags('commitments')
 @ApiBearerAuth()
@@ -14,6 +15,7 @@ export class CommitmentsController {
   constructor(
     private readonly quote: QuoteService,
     private readonly commitment: CommitmentService,
+    private readonly terms: TermsService,
   ) {}
 
   @Post('quote')
@@ -43,6 +45,29 @@ export class CommitmentsController {
   @Get()
   async listMine(@Req() req: AuthedRequest): Promise<unknown> {
     return this.commitment.getOwnedList(req.userId);
+  }
+
+  @Get(':id/terms')
+  async termsPreview(@Req() req: AuthedRequest, @Param('id') id: string): Promise<unknown> {
+    return this.terms.preview(req.userId, id);
+  }
+
+  @Post(':id/terms/accept')
+  @HttpCode(200)
+  async termsAccept(
+    @Req() req: AuthedRequest,
+    @Param('id') id: string,
+    @Body() body: { documentVersion?: string; snapshotHash?: string },
+  ): Promise<unknown> {
+    return this.terms.accept(req.userId, id, {
+      documentVersion: body?.documentVersion ?? '',
+      snapshotHash: body?.snapshotHash ?? '',
+    });
+  }
+
+  @Get(':id/contract')
+  async contract(@Req() req: AuthedRequest, @Param('id') id: string): Promise<unknown> {
+    return this.terms.getAccepted(req.userId, id);
   }
 
   @Get(':id/cancel')

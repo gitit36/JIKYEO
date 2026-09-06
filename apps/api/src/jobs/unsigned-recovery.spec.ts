@@ -37,7 +37,7 @@ function make() {
   );
   const lease = new JobLeaseService(prisma, clock);
   const maintenance = new MoneyMaintenanceService(lease, commitments, settlement, payments, cfg);
-  const admin = new AdminMoneyService(prisma, money, payments, settlement, audit);
+  const admin = new AdminMoneyService(prisma, money, payments, settlement, audit, clock);
   return { db, clock, provider, ledger, payments, settlement, money, policy, commitments, lease, maintenance, admin };
 }
 

@@ -168,6 +168,9 @@ POST /v1/commitments/quote            # MONEY 모드에서만 호출
 POST /v1/commitments                  # 생성 + 활성화 (SELF/SOCIAL/MONEY 분기)
 GET  /v1/commitments
 GET  /v1/commitments/{id}
+GET  /v1/commitments/{id}/terms      # server-issued immutable financial/terms snapshot
+POST /v1/commitments/{id}/terms/accept
+GET  /v1/commitments/{id}/contract   # accepted snapshot
 GET  /v1/commitments/{id}/cancel     # owner preview (effectiveAt, binding/void counts, MONEY amounts)
 POST /v1/commitments/{id}/cancel     # unsigned Phase 5A or active future-only cutoff. idempotent. completed 거부
 POST /v1/internal/jobs/money-maintenance   # x-internal-job-secret (JWT/quote/webhook과 분리)
@@ -645,8 +648,13 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 ### Phase 5D — Active cancellation (완료)
 - 활성 약속 미래 회차만 취소. SELF 즉시 / MONEY 24h notice. 기존 `/cancel` + preview. VOID는 maintenance, 합산 환불은 기존 settlement.
 
-### Phase 5E — remaining (예정)
-- 실 PG, 실 APNs, 실 vision, admin web UI, 소셜
+### Phase 5E — Compliance / financial finality (완료, 실 KCP 없음)
+- 취소 컷오프=`cancellationRequestedAt`. FAIL는 persisted `appealDeadlineAt` 또는 기각 후에만 확정.
+- 결제 전 terms snapshot, 서버 19+ 게이트, 운영 MONEY fail-closed. Provider=KCP, method=CARD/KAKAOPAY 분리.
+- Admin accounting export. Launch gates는 서면 증거 없이 체크하지 않음.
+
+### Phase 5F — remaining (예정)
+- 실 KCP 네트워크/자격증명, StoreKit entitlement, 실 APNs, 실 vision, admin web UI, 소셜
 
 ### Phase 6 — Social 완전판 + Friend Verify (예정)
 
@@ -669,7 +677,8 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - [x] SELF/SOCIAL/MONEY 강제력 모드 분기
 - [x] GPS target `userSelected` 강제
 - [x] timezone freeze test
-- [x] 활성 약속 취소 (Phase 5D, 미래 회차만, SELF 즉시 / MONEY 24h)
+- [x] 활성 약속 취소 (컷오프=`cancellationRequestedAt`)
+- [x] 결제 전 약관 스냅샷 / 19+ 게이트 / 운영 MONEY fail-closed (Phase 5E)
 - [ ] offline evidence retry
 - [x] 위험 목표 filter (Goal Safety classifier)
 - [ ] monitoring dashboard

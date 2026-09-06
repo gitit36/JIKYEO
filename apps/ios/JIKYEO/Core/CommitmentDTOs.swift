@@ -206,6 +206,31 @@ public struct CancelCommitmentResponse: Codable {
     public let futureRefundableAmountKrw: String?
 }
 
+public struct TermsAcceptRequest: Codable {
+    public let documentVersion: String
+    public let snapshotHash: String
+    public init(documentVersion: String, snapshotHash: String) {
+        self.documentVersion = documentVersion
+        self.snapshotHash = snapshotHash
+    }
+}
+
+public struct TermsSnapshotDTO: Codable {
+    public let documentVersion: String
+    public let perOccurrenceKrw: String
+    public let occurrenceCount: Int
+    public let maxChargeKrw: String
+    public let appealDays: Int
+    public let refundHandling: String
+}
+
+public struct TermsContractResponse: Codable {
+    public let documentVersion: String
+    public let snapshot: TermsSnapshotDTO
+    public let snapshotHash: String
+    public let acceptedAt: Date?
+}
+
 public struct SafetyResponse: Codable {
     public let decision: String  // "safe" | "stake_disallowed" | "blocked"
     public let reasonCode: String
