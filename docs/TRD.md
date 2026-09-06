@@ -215,7 +215,12 @@ POST /v1/occurrences/{id}/timer/finish
 ### Appeal
 ```http
 POST /v1/occurrences/{id}/appeals
+GET  /v1/occurrences/{id}/appeal
 GET  /v1/appeals/{id}
+GET  /v1/admin/appeals
+GET  /v1/admin/appeals/{id}
+POST /v1/admin/appeals/{id}/approve
+POST /v1/admin/appeals/{id}/reject
 ```
 
 ### Friend
@@ -610,9 +615,17 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - 서명 전 취소/만료: 미충전은 no-PG, 충전은 전액 환불 1회. JobLease maintenance.
 - Admin money cases + append-only audit. `INTERNAL_JOB_SECRET` / `ADMIN_API_SECRET` 분리.
 
-### Phase 5B — Appeal / Weekly Recap (예정)
-- Appeal → settlement `reversal`
+### Phase 5B — MONEY Appeal (완료, MockPaymentProvider)
+- `APPEAL_WINDOW_SECONDS` (기본 7일). owner submit/status + admin pending/detail/approve/reject
+- 대기 Appeal은 회차·약속 정산 완료를 차단. 정산 전 승인 → correctedResult 소비, reversal 없음
+- 몰수 후 승인 → `reversal:<occ>` 1건 + `refund:appeal:<occ>` 추가 환불 1건. 합산 종료 환불은 그대로 1회
+- originalResult / effectiveResult 분리. 원 VerificationResult·Settlement·Ledger 불변
+- 누적 환불 ≤ 선결제. cap credit는 추가 환불 성공 후. 실패는 refund_delayed + retry/reconcile
+- iOS: MONEY FAIL `[결과에 이의 제기하기]`, 검토 중 / 승인됨·추가 환불 / 기각됨
+
+### Phase 5C — Weekly Recap / remaining (예정)
 - Weekly Recap
+- 실 PG, 푸시, 증거 삭제, 실 vision, 활성 약속 취소, 소셜
 
 ### Phase 6 — Social 완전판 + Friend Verify (예정)
 
@@ -628,7 +641,7 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - [x] 중복 charge / 중복 정산 / 중복 환불 방지 (idempotency key)
 - [x] 장애 중 자동 FAIL 차단 (Verification/Deadline)
 - [x] AI UNCERTAIN 처리 (Mock provider, PASS/UNCERTAIN/FAIL)
-- [ ] Appeal reversal (Phase 5)
+- [x] Appeal reversal (Phase 5B, MockPaymentProvider)
 - [ ] Evidence auto-delete
 - [x] Stake 상한 server-side validation (StakePolicy)
 - [x] `QUOTE_SIGNING_SECRET` 분리 및 single-use quote

@@ -29,9 +29,14 @@ struct HistoryView: View {
                         }
                     }
                     ForEach(model.items) { item in
-                        CommitmentHistoryCard(item: item, onRetryRefund: {
-                            Task { await model.retryRefund(item.id, container: container) }
-                        })
+                        NavigationLink {
+                            CommitmentHistoryDetailView(commitmentId: item.id, preview: item)
+                        } label: {
+                            CommitmentHistoryCard(item: item, onRetryRefund: {
+                                Task { await model.retryRefund(item.id, container: container) }
+                            })
+                        }
+                        .buttonStyle(.plain)
                     }
                     if model.isLoading { ProgressView().frame(maxWidth: .infinity) }
                     if let err = model.errorMessage {
@@ -90,7 +95,7 @@ final class HistoryViewModel: ObservableObject {
             CommitmentAPI.MyCommitment(id: id, title: title, category: "workout", status: status, enforcementMode: mode,
                                        timezone: "Asia/Seoul", maxLossKrw: m?.upfrontKrw, verificationMethod: "gps",
                                        perOccurrenceKrw: m?.perOccurrenceKrw, occurrenceCount: 3, money: m,
-                                       signatureExpiresAt: nil, cancellationReason: nil)
+                                       signatureExpiresAt: nil, cancellationReason: nil, appeals: nil)
         }
         items = [
             row("c1", "헬스장 가기",        "active",          .money, money(.funded, refundable: "5000", forfeited: "0", paid: "0")),
@@ -134,6 +139,11 @@ private struct CommitmentHistoryCard: View {
                         SecondaryButton("환불 다시 시도", action: onRetryRefund)
                     }
                 }
+                if let line = AppealCopy.listLine(item.appeals) {
+                    Text(line)
+                        .font(Typo.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
+                }
             }
         }
     }
@@ -160,7 +170,7 @@ private struct CommitmentHistoryCard: View {
 
 /// Money numbers straight from the ledger. Refundable/forfeited only grow as
 /// settlement runs; a behavioral FAIL alone changes nothing here.
-private struct MoneySummary: View {
+struct MoneySummary: View {
     let money: MoneyView
     var body: some View {
         VStack(spacing: DS.Space.xxs) {

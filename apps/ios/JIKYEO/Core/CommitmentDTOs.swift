@@ -307,6 +307,62 @@ public struct VerificationResultResponse: Codable {
 }
 
 /// Response from `GET /occurrences/:id/result`.
+public enum AppealStatus: String, Codable {
+    case submitted, reviewing, approved, rejected
+}
+
+public enum AppealReasonCategory: String, Codable, CaseIterable, Identifiable {
+    case verification_error, evidence_misread, other
+    public var id: String { rawValue }
+    public var label: String {
+        switch self {
+        case .verification_error: return Copy.Appeal.reasonVerification
+        case .evidence_misread: return Copy.Appeal.reasonEvidence
+        case .other: return Copy.Appeal.reasonOther
+        }
+    }
+}
+
+public enum SupplementalRefundStatus: String, Codable {
+    case none, pending, succeeded, delayed
+}
+
+public struct AppealSummary: Codable, Identifiable {
+    public var id: String { occurrenceId }
+    public let occurrenceId: String
+    public let sequenceNo: Int
+    public let originalResult: String
+    public let effectiveResult: String
+    public let status: AppealStatus?
+    public let eligible: Bool
+    public let rejectReason: String?
+    public let supplementalRefundStatus: SupplementalRefundStatus
+}
+
+public struct AppealView: Codable, Identifiable {
+    public var id: String { appealId }
+    public let appealId: String
+    public let occurrenceId: String
+    public let commitmentId: String
+    public let sequenceNo: Int
+    public let status: AppealStatus
+    public let reasonCategory: String
+    public let explanation: String
+    public let originalResult: String
+    public let effectiveResult: String
+    public let correctedResult: String?
+    public let rejectReason: String?
+    public let supplementalRefundStatus: SupplementalRefundStatus
+    public let submittedAt: Date
+    public let decidedAt: Date?
+    public let eligible: Bool
+}
+
+public struct SubmitAppealRequest: Codable {
+    public let reasonCategory: AppealReasonCategory
+    public let explanation: String
+}
+
 public struct OccurrenceResultResponse: Codable {
     public let occurrenceId: String
     public let status: String

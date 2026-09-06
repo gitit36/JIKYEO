@@ -216,6 +216,41 @@ public enum Copy {
         public static let checkAgainLater  = "잠시 후 다시 확인해요."
     }
 
+    // MARK: - Appeal (MONEY FAIL only)
+    public enum Appeal {
+        public static let cta = "결과에 이의 제기하기"
+        public static let title = "결과에 이의 제기하기"
+        public static let body = "이미 제출한 증명과 판정 내용만 다시 살펴봐요. 새 사진은 받지 않아요."
+        public static let reasonLabel = "어떤 부분이 잘못된 것 같나요?"
+        public static let reasonVerification = "판정이 잘못된 것 같아요"
+        public static let reasonEvidence = "증거가 잘못 읽힌 것 같아요"
+        public static let reasonOther = "다른 이유예요"
+        public static let explanationLabel = "짧게 알려주세요"
+        public static let explanationHint = "다시 봐주었으면 하는 점을 적어주세요."
+        public static let submit = "제출하기"
+        public static let reviewing = "검토 중"
+        public static let rejectedPrefix = "기각됨"
+        public static let originalFail = "원래 결과 · 놓침"
+        public static let correctedPass = "정정 결과 · 지킴"
+        public static let correctedVoid = "정정 결과 · 무효"
+        public static func approved(_ refund: SupplementalRefundStatus) -> String {
+            switch refund {
+            case .none: return "승인됨"
+            case .pending: return "승인됨 · 추가 환불 예정"
+            case .succeeded: return "승인됨 · 추가 환불 완료"
+            case .delayed: return "승인됨 · 추가 환불 지연"
+            }
+        }
+        public static func resultLabel(_ raw: String) -> String {
+            switch raw {
+            case "pass": return "지킴"
+            case "void": return "무효"
+            case "fail": return "놓침"
+            default: return raw
+            }
+        }
+    }
+
     // MARK: - Days
     public static let weekdayShort: [String: String] = [
         "MON": "월", "TUE": "화", "WED": "수", "THU": "목",

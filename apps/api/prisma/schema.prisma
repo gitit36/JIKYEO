@@ -538,20 +538,26 @@ model Settlement {
 }
 
 model Appeal {
-  id             String        @id @default(uuid()) @db.Uuid
-  occurrenceId   String        @unique @map("occurrence_id") @db.Uuid
-  userId         String        @map("user_id") @db.Uuid
-  reasonText     String        @map("reason_text")
-  status         AppealStatus  @default(submitted)
-  reviewerType   VerifierType  @default(human) @map("reviewer_type")
-  reviewerId     String?       @map("reviewer_id") @db.Uuid
-  decisionReason String?       @map("decision_reason")
-  submittedAt    DateTime      @default(now()) @map("submitted_at") @db.Timestamptz
-  decidedAt      DateTime?     @map("decided_at") @db.Timestamptz
+  id              String        @id @default(uuid()) @db.Uuid
+  occurrenceId    String        @unique @map("occurrence_id") @db.Uuid
+  userId          String        @map("user_id") @db.Uuid
+  reasonCategory  String        @map("reason_category")
+  reasonText      String        @map("reason_text")
+  // Behavioral FAIL at submit time. Never overwritten.
+  originalResult  String        @map("original_result")
+  // PASS or VOID when approved; null until then.
+  correctedResult String?       @map("corrected_result")
+  status          AppealStatus  @default(submitted)
+  reviewerType    VerifierType  @default(human) @map("reviewer_type")
+  reviewerId      String?       @map("reviewer_id") @db.Uuid
+  decisionReason  String?       @map("decision_reason")
+  submittedAt     DateTime      @default(now()) @map("submitted_at") @db.Timestamptz
+  decidedAt       DateTime?     @map("decided_at") @db.Timestamptz
 
-  occurrence     Occurrence    @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
-  user           User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  occurrence      Occurrence    @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Restrict)
 
+  @@index([status, submittedAt])
   @@map("appeals")
 }
 

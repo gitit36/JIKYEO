@@ -101,6 +101,11 @@ export class AppConfig {
     return Number(this.cfg.get<string>('SIGNATURE_EXPIRY_SECONDS') ?? 1800);
   }
 
+  /** Owner may appeal a final MONEY FAIL within this many seconds of decidedAt. */
+  get appealWindowSeconds(): number {
+    return Number(this.cfg.get<string>('APPEAL_WINDOW_SECONDS') ?? 7 * 24 * 3600);
+  }
+
   /**
    * Protects `POST /internal/jobs/*`. Distinct from JWT, quote signing,
    * and payment-webhook authenticity.

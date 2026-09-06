@@ -17,6 +17,7 @@ import { DeadlineModule } from './deadline/deadline.module';
 import { SettlementModule } from './settlement/settlement.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AdminModule } from './admin/admin.module';
+import { AppealsModule } from './appeals/appeals.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AdminModule } from './admin/admin.module';
     DeadlineModule,
     SettlementModule,
     JobsModule,
+    AppealsModule,
     AdminModule,
   ],
   controllers: [HealthController],

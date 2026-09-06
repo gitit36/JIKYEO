@@ -34,6 +34,10 @@ export type DomainErrorCode =
   | 'OCCURRENCE_PAST_DEADLINE'
   | 'TIMER_SESSION_INVALID'
   | 'SYSTEM_HOLD'
+  | 'APPEAL_NOT_ELIGIBLE'
+  | 'APPEAL_WINDOW_CLOSED'
+  | 'APPEAL_ALREADY_EXISTS'
+  | 'APPEAL_ALREADY_DECIDED'
   | 'INTERNAL';
 
 export class DomainError extends Error {

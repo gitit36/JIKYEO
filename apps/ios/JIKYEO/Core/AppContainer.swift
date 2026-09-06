@@ -14,6 +14,7 @@ public final class AppContainer: ObservableObject {
     public let evidenceAPI: EvidenceAPI
     public let paymentAPI: PaymentAPI
     public let timerAPI: TimerAPI
+    public let appealAPI: AppealAPI
 
     public init(environment: AppEnvironment = .live) {
         self.environment = environment
@@ -29,5 +30,6 @@ public final class AppContainer: ObservableObject {
         self.evidenceAPI = EvidenceAPI(api: api)
         self.paymentAPI = PaymentAPI(api: api)
         self.timerAPI = TimerAPI(api: api)
+        self.appealAPI = AppealAPI(api: api)
     }
 }

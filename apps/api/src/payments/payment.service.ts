@@ -27,11 +27,18 @@ export interface WebhookOutcome {
   paymentId: string | null;
 }
 
-/** Fixed ledger keys — one per commitment, so retries can never double-post. */
+/** Fixed ledger keys — one per commitment (or per appeal occurrence). */
 export const ledgerKeys = {
   deposit: (commitmentId: string) => `deposit:${commitmentId}`,
   refundPaid: (commitmentId: string) => `refund_paid:${commitmentId}`,
+  refundPaidAppeal: (occurrenceId: string) => `refund_paid:appeal:${occurrenceId}`,
+  reversal: (occurrenceId: string) => `reversal:${occurrenceId}`,
 };
+
+export function appealOccurrenceFromRefundKey(idempotencyKey: string): string | null {
+  const m = /^refund:appeal:([^:]+)/.exec(idempotencyKey);
+  return m?.[1] ?? null;
+}
 
 /**
  * Owns the Payment lifecycle for MONEY commitments (SRD §5, TRD §10):
@@ -298,6 +305,80 @@ export class PaymentService {
     return this.finishRefund(payment, charge.providerPaymentKey, amount, reason);
   }
 
+  /**
+   * Appeal correction only. Distinct from the one-shot commitment-end aggregate
+   * refund. Idempotent per occurrence (`refund:appeal:<occurrenceId>:*`).
+   * Cumulative successful `refund_paid` can never exceed the deposit.
+   */
+  async refundSupplemental(
+    commitmentId: string,
+    occurrenceId: string,
+    amount: bigint,
+    reason: string,
+  ): Promise<PaymentView> {
+    if (amount <= 0n) throw new DomainError('VALIDATION', 'refund amount must be positive');
+    const totals = await this.ledger.totalsForCommitment(commitmentId);
+    if (totals.refundPaid + amount > totals.deposit) {
+      throw new DomainError('VALIDATION', '환불 금액이 결제액을 넘을 수 없어요.');
+    }
+    const charge = await this.prisma.payment.findFirst({
+      where: { commitmentId, type: 'charge', status: 'succeeded' },
+    });
+    if (!charge || !charge.providerPaymentKey) {
+      throw new DomainError('SETTLEMENT_NOT_READY', 'No successful charge to refund against');
+    }
+    const prefix = `refund:appeal:${occurrenceId}`;
+    const refunds = await this.prisma.payment.findMany({
+      where: { commitmentId, type: 'refund', idempotencyKey: { startsWith: prefix } },
+      orderBy: { attempt: 'desc' },
+    });
+    const done = refunds.find((p) => p.status === 'succeeded');
+    if (done) return toView(done);
+    const inFlight = refunds.find((p) => p.status === 'requested');
+    if (inFlight) {
+      return this.finishRefund(inFlight, charge.providerPaymentKey, amount, reason);
+    }
+
+    const attempt = (refunds[0]?.attempt ?? 0) + 1;
+    const payment = await this.prisma.payment.create({
+      data: {
+        userId: charge.userId,
+        stakeId: charge.stakeId,
+        commitmentId,
+        provider: this.provider.name,
+        type: 'refund',
+        amount,
+        currency: 'KRW',
+        status: 'requested',
+        attempt,
+        idempotencyKey: `${prefix}:${attempt}`,
+      },
+    });
+    return this.finishRefund(payment, charge.providerPaymentKey, amount, reason);
+  }
+
+  /** Retry every reversal that still lacks `refund_paid:appeal:<occ>`. */
+  async refundUnpaidAppealSupplements(commitmentId: string): Promise<PaymentView | null> {
+    const reversals = await this.prisma.paymentLedger.findMany({
+      where: { commitmentId, entryType: 'reversal' },
+    });
+    let last: PaymentView | null = null;
+    for (const r of reversals) {
+      if (!r.occurrenceId) continue;
+      const paid = await this.prisma.paymentLedger.findUnique({
+        where: { idempotencyKey: ledgerKeys.refundPaidAppeal(r.occurrenceId) },
+      });
+      if (paid) continue;
+      last = await this.refundSupplemental(
+        commitmentId,
+        r.occurrenceId,
+        r.amount,
+        `appeal_supplemental:${r.occurrenceId}`,
+      );
+    }
+    return last;
+  }
+
   private async finishRefund(
     payment: Payment,
     providerPaymentKey: string,
@@ -350,14 +431,18 @@ export class PaymentService {
         where: { id: paymentId },
         data: { status: 'succeeded', completedAt: now },
       });
+      const appealOcc = appealOccurrenceFromRefundKey(payment.idempotencyKey);
       await this.ledger.append(
         {
           userId: payment.userId,
           commitmentId: payment.commitmentId,
+          occurrenceId: appealOcc,
           paymentId: payment.id,
           entryType: 'refund_paid',
           amount: payment.amount,
-          idempotencyKey: ledgerKeys.refundPaid(payment.commitmentId),
+          idempotencyKey: appealOcc
+            ? ledgerKeys.refundPaidAppeal(appealOcc)
+            : ledgerKeys.refundPaid(payment.commitmentId),
         },
         tx,
       );

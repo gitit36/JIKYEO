@@ -339,13 +339,18 @@ PG inbound webhook의 중복 처리 방지 기록.
 | id | UUID | PK |
 | occurrence_id | UUID | FK unique |
 | user_id | UUID | FK |
-| reason_text | text | |
+| reason_category | varchar | verification_error / evidence_misread / other |
+| reason_text | text | 짧은 설명 |
+| original_result | varchar | 제출 시점 원판정 (FAIL). 불변 |
+| corrected_result | varchar nullable | 승인 시 PASS 또는 VOID |
 | status | enum | submitted/reviewing/approved/rejected |
 | reviewer_type | enum | ai/human |
 | reviewer_id | UUID nullable | |
-| decision_reason | text nullable | |
+| decision_reason | text nullable | 기각 시 사용자 문구 |
 | submitted_at | timestamptz | |
 | decided_at | timestamptz nullable | |
+
+원 VerificationResult / Settlement / Ledger 행은 수정하지 않는다. 몰수 후 승인만 `reversal` ledger + 추가 `refund_paid:appeal:<occurrenceId>`를 append한다.
 
 ---
 

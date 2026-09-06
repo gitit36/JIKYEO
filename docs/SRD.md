@@ -92,9 +92,14 @@
 - 승인/거절 이력을 감사로그에 저장해야 한다.
 
 ### SR-FR-009 Appeal
-- FAIL 회차에 대해 Appeal을 생성할 수 있어야 한다.
-- Appeal 승인 시 settlement를 reversal할 수 있어야 한다.
-- 환불/재정산까지 원자적 상태 전이를 보장해야 한다.
+- MONEY 최종 FAIL에 한해 소유자가 Appeal을 1회 생성할 수 있다 (7일, 서버 설정).
+- UNCERTAIN / system_hold / PASS / VOID / SELF / SOCIAL은 대상이 아니다.
+- 제출은 원장·결제·원판정을 바꾸지 않는다. 기간 내 제출분은 만료 후에도 검토 가능하다.
+- 관리자는 기각(사용자 문구) 또는 승인(`correctedResult` = PASS|VOID)한다. 원 VerificationResult / Settlement / Ledger는 불변이며 originalResult와 effectiveResult를 분리한다.
+- 대기 중 Appeal은 해당 회차 정산과 약속 재정 완료를 막는다.
+- 정산 전 승인: 정산이 correctedResult를 소비하고 reversal을 만들지 않는다.
+- 몰수 후 승인: 원래 forfeit을 참조하는 reversal 1건 + 회차 금액 추가 환불 1건. 누적 환불은 선결제액을 넘지 않는다.
+- 추가 환불 실패는 `refund_delayed`와 기존 retry/reconcile을 따른다. 손실한도 크레딧은 추가 환불 성공 후에만 복구된다.
 
 ### SR-FR-010 Notification
 - 24h/1h/10m/deadline/result/refund 이벤트 기반 알림
@@ -230,7 +235,7 @@ Verification은 behavioral 결과만 기록한다. SettlementService가 별도�
 - occurrence PASS → refundable amount 누적
 - occurrence FAIL → forfeited amount 누적
 - 기간 종료 → refundable total 환불
-- appeal 승인 → 환불액 재계산 및 추가 refund
+- appeal 승인 → 정산 전이면 correctedResult로 정산(reversal 없음). 몰수 후면 reversal 1 + 추가 refund 1
 
 ### 요구
 - webhook signature verification

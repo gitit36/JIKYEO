@@ -97,7 +97,7 @@ export class StakePolicyService {
   ): Promise<{ reservedKrw: number; realizedForfeitKrw: number }> {
     const db = tx ?? this.prisma;
     const since = new Date(this.clock.now().getTime() - 30 * 24 * 60 * 60 * 1000);
-    const [commitments, inFlight, forfeits] = await Promise.all([
+    const [commitments, inFlight, moneyRows] = await Promise.all([
       db.commitment.findMany({
         where: { userId, enforcementMode: 'money' },
         include: { stake: true },
@@ -107,8 +107,12 @@ export class StakePolicyService {
         select: { commitmentId: true },
       }),
       db.paymentLedger.findMany({
-        where: { userId, entryType: 'forfeit', createdAt: { gte: since } },
-        select: { commitmentId: true, amount: true },
+        where: {
+          userId,
+          entryType: { in: ['forfeit', 'reversal', 'refund_paid'] },
+          createdAt: { gte: since },
+        },
+        select: { commitmentId: true, occurrenceId: true, amount: true, entryType: true, idempotencyKey: true },
       }),
     ]);
     const requestedIds = new Set(inFlight.map((p) => p.commitmentId).filter(Boolean) as string[]);
@@ -132,11 +136,26 @@ export class StakePolicyService {
     const completedIds = new Set(
       commitments.filter((c) => c.status === 'completed').map((c) => c.id),
     );
-    for (const r of forfeits) {
+    const creditedReversals = new Set<string>();
+    for (const r of moneyRows) {
+      if (r.entryType === 'refund_paid' && r.idempotencyKey?.startsWith('refund_paid:appeal:') && r.occurrenceId) {
+        creditedReversals.add(r.occurrenceId);
+      }
+    }
+    for (const r of moneyRows) {
+      if (r.entryType !== 'forfeit') continue;
       if (reservedIds.has(r.commitmentId)) continue;
       if (!completedIds.has(r.commitmentId)) continue;
       realizedForfeitKrw += Number(r.amount);
     }
+    for (const r of moneyRows) {
+      if (r.entryType !== 'reversal' || !r.occurrenceId) continue;
+      if (reservedIds.has(r.commitmentId)) continue;
+      if (!completedIds.has(r.commitmentId)) continue;
+      if (!creditedReversals.has(r.occurrenceId)) continue;
+      realizedForfeitKrw -= Number(r.amount);
+    }
+    if (realizedForfeitKrw < 0) realizedForfeitKrw = 0;
     return { reservedKrw, realizedForfeitKrw };
   }
 

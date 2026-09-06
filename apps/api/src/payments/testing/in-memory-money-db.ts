@@ -22,6 +22,7 @@ function matchesValue(actual: any, cond: any): boolean {
     if ('lte' in cond) return actual <= cond.lte;
     if ('gt' in cond) return actual > cond.gt;
     if ('gte' in cond) return actual >= cond.gte;
+    if ('startsWith' in cond) return typeof actual === 'string' && actual.startsWith(cond.startsWith);
     return false;
   }
   return actual === cond;
@@ -106,6 +107,10 @@ class Table {
     return this.withInclude(sortBy(this.rows.filter((r) => matches(r, args?.where)), args?.orderBy)[0] ?? null, args ?? {});
   }
 
+  async count(args: { where?: Row } = {}): Promise<number> {
+    return this.rows.filter((r) => matches(r, args.where)).length;
+  }
+
   async findMany(args: { where?: Row; orderBy?: Row; include?: Row; select?: Row; take?: number } = {}): Promise<Row[]> {
     let out = sortBy(this.rows.filter((r) => matches(r, args.where)), args.orderBy);
     if (args.take) out = out.slice(0, args.take);
@@ -161,13 +166,51 @@ export class InMemoryMoneyDb {
   }
 
   readonly stake = new Table('stake', [['commitmentId']]);
-  readonly occurrence = new Table('occ', [['commitmentId', 'sequenceNo']]);
+  readonly occurrence = new Table('occ', [['commitmentId', 'sequenceNo']], {
+    include: (row, include) => {
+      if (include.commitment) {
+        const c = this.commitment.rows.find((x) => x.id === row.commitmentId);
+        row.commitment = c
+          ? (include.commitment.select
+            ? Object.fromEntries(Object.entries(include.commitment.select).filter(([, v]) => v).map(([k]) => [k, (c as Row)[k]]))
+            : { ...c })
+          : null;
+        if (include.commitment.include?.stake && row.commitment) {
+          row.commitment.stake = this.stake.rows.find((s) => s.commitmentId === row.commitmentId) ?? null;
+        }
+      }
+      if (include.appeal) {
+        row.appeal = this.appeal.rows.find((a) => a.occurrenceId === row.id) ?? null;
+      }
+      return row;
+    },
+  });
   readonly payment = new Table('pay', [['idempotencyKey']]);
   readonly paymentLedger = new Table('led', [['idempotencyKey']]);
   readonly settlement = new Table('set', [['idempotencyKey']]);
   readonly paymentWebhookEvent = new Table('whk', [['provider', 'eventId']]);
   readonly jobLease = new Table('lease', [['name']]);
   readonly auditLog = new Table('aud');
+  readonly appeal = new Table('apl', [['occurrenceId']], {
+    include: (row, include) => {
+      if (include.occurrence) {
+        const occ = this.occurrence.rows.find((o) => o.id === row.occurrenceId);
+        if (occ) {
+          row.occurrence = { ...occ };
+          const occInc = include.occurrence.include;
+          if (occInc?.commitment) {
+            const c = this.commitment.rows.find((x) => x.id === occ.commitmentId);
+            row.occurrence.commitment = c ? { ...c } : null;
+          }
+        } else {
+          row.occurrence = null;
+        }
+      }
+      return row;
+    },
+  });
+  readonly evidence = new Table('evd');
+  readonly verificationResult = new Table('vrs');
   readonly commitment = new Table('cmt', [], {
     include: (row, include) => {
       if (include.stake) row.stake = this.stake.rows.find((s) => s.commitmentId === row.id) ?? null;
@@ -253,8 +296,12 @@ export class InMemoryMoneyDb {
     }
   }
 
-  async setOccurrenceStatus(occurrenceId: string, status: string): Promise<void> {
-    await this.occurrence.update({ where: { id: occurrenceId }, data: { status } });
+  async setOccurrenceStatus(occurrenceId: string, status: string, decidedAt?: Date): Promise<void> {
+    const final = status === 'pass' || status === 'fail' || status === 'void';
+    await this.occurrence.update({
+      where: { id: occurrenceId },
+      data: { status, decidedAt: decidedAt ?? (final ? new Date() : null) },
+    });
   }
 
   async activateSigned(commitmentId: string): Promise<void> {

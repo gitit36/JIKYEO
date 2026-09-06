@@ -54,10 +54,18 @@ export function deriveMoneyStatus(input: MoneyStatusInput): MoneyStatus | null {
       if (refund.status === 'failed') return 'refund_delayed';
       return 'refund_in_progress';
     }
-    case 'settled':
+    case 'settled': {
+      const refund = latest('refund');
+      if (input.refundableRemaining > 0n && refund?.status === 'failed') return 'refund_delayed';
+      if (input.refundableRemaining > 0n && refund?.status === 'requested') return 'refund_in_progress';
       return input.refundableRemaining > 0n ? 'refund_scheduled' : 'settled_no_refund';
-    case 'refunded':
+    }
+    case 'refunded': {
+      const refund = latest('refund');
+      if (input.refundableRemaining > 0n && refund?.status === 'failed') return 'refund_delayed';
+      if (input.refundableRemaining > 0n && refund?.status === 'requested') return 'refund_in_progress';
       return 'refunded';
+    }
     default:
       return null;
   }

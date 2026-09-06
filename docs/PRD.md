@@ -450,32 +450,38 @@ CTA (양쪽 모두): `이대로 약속할게요`
 ## 9. Appeal
 
 ### 진입
-FAIL 상세 화면 → `다시 확인 요청`
+MONEY 최종 FAIL 기록/상세 → `결과에 이의 제기하기`
+(UNCERTAIN, system_hold, PASS, VOID, SELF, SOCIAL에는 노출하지 않는다.)
 
 ### 입력
-- 사유
-- 추가 사진/문서
-- 선택적 코멘트
+- 사유 카테고리
+- 짧은 설명
+- 새 증거 업로드 없음. 기존 증거와 판정 메타데이터만 검토한다.
+
+### 자격
+- 소유자만, 회차당 1회
+- FAIL 확정 후 7일 (서버 `APPEAL_WINDOW_SECONDS`). 기간 내 제출분은 만료 후에도 검토 가능.
+- 제출만으로 돈·판정은 바뀌지 않는다.
 
 ### 상태
-- 제출
 - 검토 중
-- 승인
-- 기각
+- 승인됨 · 추가 환불 예정/완료/지연
+- 기각됨 + 사용자에게 보이는 이유
 
 ### 결과
-승인:
-- FAIL → PASS 또는 VOID
-- 환불액 재계산
-- 성공률/스트릭 복구
+승인 (`correctedResult` = PASS 또는 VOID):
+- 원래 VerificationResult / Settlement / Ledger는 불변. `originalResult`와 `effectiveResult`를 분리 노출.
+- 정산 전 승인: 정산이 `correctedResult`를 소비. PASS/VOID는 환불 대상. reversal 없음.
+- 몰수 후 승인: 원래 forfeit을 가리키는 reversal 1건 + 해당 회차 금액의 추가 환불 1건 (원래 결제 수단). payout/유저 간 이체 아님.
+- 일반 종료 환불은 계속 합산 1회. 추가 환불은 이의 정정에만 허용.
 
 기각:
-- 미환불 유지
+- 원장·결제 변동 없음.
 
 ### 원칙
 - 사용자가 돈을 잃는 구조이므로 Appeal은 핵심 기능
 - AI만으로 최종 기각하지 않는 정책을 장기적으로 고려
-- MVP 초기에는 운영자 수동 검토 가능
+- MVP 초기에는 운영자 수동 검토 (기존 admin auth + append-only audit)
 
 ---
 
@@ -572,7 +578,7 @@ CTA:
 - `Evidence submission` → `했다는 걸 보여주세요`
 - `Penalty amount` → `못 지키면 얼마를 걸까요?`
 - `Forfeit failed` → `약속을 놓쳤어요`
-- `Appeal` → `다시 확인 요청`
+- `Appeal` → `결과에 이의 제기하기`
 - `Refund pending` → `환불하고 있어요`
 
 ### 버튼

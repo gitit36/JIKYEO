@@ -89,7 +89,7 @@ export class MoneyStatusService {
         perOccurrenceKrw: c.stake.perOccurrenceAmount.toString(),
         upfrontKrw: c.stake.maxTotalAmount.toString(),
         refundableKrw: (totals.refundEarned + totals.reversal).toString(),
-        forfeitedKrw: totals.forfeit.toString(),
+        forfeitedKrw: (totals.forfeit - totals.reversal > 0n ? totals.forfeit - totals.reversal : 0n).toString(),
         refundPaidKrw: totals.refundPaid.toString(),
         depositKrw: totals.deposit.toString(),
       });

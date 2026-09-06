@@ -120,9 +120,19 @@ export class SettlementService {
     // never via occurrence forfeit/refund_earned.
     if (c.status !== 'active' && c.status !== 'completed') return { ...base, skipped: 'not_active' };
 
+    const appeals = await this.prisma.appeal.findMany({
+      where: { occurrenceId: { in: c.occurrences.map((o) => o.id) } },
+    });
+    const appealByOcc = new Map(appeals.map((a) => [a.occurrenceId, a]));
+
     let settled = 0;
     let pending = 0;
     for (const occ of c.occurrences) {
+      const appeal = appealByOcc.get(occ.id);
+      if (appeal && (appeal.status === 'submitted' || appeal.status === 'reviewing')) {
+        pending += 1;
+        continue;
+      }
       if (!FINAL_STATES.has(occ.status)) {
         pending += 1;
         continue;
@@ -132,19 +142,36 @@ export class SettlementService {
         pending += 1;
         continue;
       }
+      const effective = effectiveSettlementStatus(occ.status, appeal?.status, appeal?.correctedResult);
+      if (!effective) {
+        pending += 1;
+        continue;
+      }
       const didSettle = await this.settleOccurrence({
         userId: c.userId,
         commitmentId: c.id,
         occurrenceId: occ.id,
-        status: occ.status as 'pass' | 'fail' | 'void',
+        status: effective,
         amount: occ.stakeAmount,
       });
       if (didSettle) settled += 1;
     }
 
-    if (pending > 0) {
+    const blockingAppeals = await this.prisma.appeal.count({
+      where: {
+        occurrenceId: { in: c.occurrences.map((o) => o.id) },
+        status: { in: ['submitted', 'reviewing'] },
+      },
+    });
+
+    if (pending > 0 || blockingAppeals > 0) {
       const totals = await this.ledger.totalsForCommitment(c.id);
-      return { ...base, occurrencesSettled: settled, occurrencesPending: pending, totals: view(totals) };
+      return {
+        ...base,
+        occurrencesSettled: settled,
+        occurrencesPending: Math.max(pending, blockingAppeals),
+        totals: view(totals),
+      };
     }
 
     // Every occurrence is final → close the commitment and pay the aggregate refund.
@@ -155,12 +182,13 @@ export class SettlementService {
     });
 
     const totals = await this.ledger.totalsForCommitment(c.id);
-    const refundTotal = totals.deposit - totals.forfeit;
+    const netForfeit = totals.forfeit - totals.reversal;
+    const refundTotal = totals.deposit - netForfeit;
     const earned = totals.refundEarned + totals.reversal;
     if (refundTotal !== earned) {
       // Ledger disagreement — do not guess. Leave Stake in `settling` (환불 지연) for reconciliation.
       this.logger.error(
-        `ledger mismatch on ${c.id}: deposit-forfeit=${refundTotal} but refund_earned=${earned}; holding refund`,
+        `ledger mismatch on ${c.id}: deposit-netForfeit=${refundTotal} but refund_earned=${earned}; holding refund`,
       );
       return { ...base, occurrencesSettled: settled, completed: true, totals: view(totals) };
     }
@@ -171,9 +199,17 @@ export class SettlementService {
     }
 
     const remaining = this.ledger.refundableRemaining(totals);
-    const refund: PaymentView | null = remaining > 0n
-      ? await this.payments.refundAggregate(c.id, remaining, `commitment_end:${c.id}`)
-      : await this.payments.findSucceededRefund(c.id); // already paid out on an earlier pass
+    let refund: PaymentView | null = null;
+    if (remaining > 0n) {
+      const unpaidAppeal = await this.payments.refundUnpaidAppealSupplements(c.id);
+      if (unpaidAppeal) {
+        refund = unpaidAppeal;
+      } else {
+        refund = await this.payments.refundAggregate(c.id, remaining, `commitment_end:${c.id}`);
+      }
+    } else {
+      refund = await this.payments.findSucceededRefund(c.id);
+    }
     return {
       ...base,
       occurrencesSettled: settled,
@@ -280,15 +316,27 @@ export class SettlementService {
     amount: bigint;
   }): Promise<boolean> {
     const key = settlementKeys.occurrence(input.occurrenceId);
-    const result: SettlementResult = input.status === 'pass' ? 'refundable' : input.status === 'fail' ? 'forfeited' : 'void';
-    const entryType = input.status === 'fail' ? 'forfeit' : 'refund_earned';
     const now = this.clock.now();
     try {
       await this.prisma.$transaction(async (tx) => {
+        await lockOccurrence(tx, input.occurrenceId);
+        const appeal = await tx.appeal.findUnique({ where: { occurrenceId: input.occurrenceId } });
+        if (appeal && (appeal.status === 'submitted' || appeal.status === 'reviewing')) {
+          return;
+        }
+        const effective = effectiveSettlementStatus(
+          input.status,
+          appeal?.status,
+          appeal?.correctedResult,
+        );
+        if (!effective) return;
+        const settledResult: SettlementResult =
+          effective === 'pass' ? 'refundable' : effective === 'fail' ? 'forfeited' : 'void';
+        const settledEntry = effective === 'fail' ? 'forfeit' : 'refund_earned';
         await tx.settlement.create({
           data: {
             occurrenceId: input.occurrenceId,
-            result,
+            result: settledResult,
             amount: input.amount,
             status: 'processed',
             idempotencyKey: key,
@@ -300,20 +348,45 @@ export class SettlementService {
             userId: input.userId,
             commitmentId: input.commitmentId,
             occurrenceId: input.occurrenceId,
-            entryType,
+            entryType: settledEntry,
             amount: input.amount,
             idempotencyKey: key,
           },
           tx,
         );
       });
-      return true;
+      const existing = await this.prisma.settlement.findUnique({ where: { idempotencyKey: key } });
+      return !!existing;
     } catch (e) {
       if ((e as Prisma.PrismaClientKnownRequestError | { code?: string }).code === 'P2002') {
         return false; // already settled — double settlement prevented
       }
       throw e;
     }
+  }
+}
+
+function effectiveSettlementStatus(
+  original: string,
+  appealStatus?: string,
+  correctedResult?: string | null,
+): 'pass' | 'fail' | 'void' | null {
+  if (appealStatus === 'approved' && (correctedResult === 'pass' || correctedResult === 'void')) {
+    return correctedResult;
+  }
+  if (original === 'pass' || original === 'fail' || original === 'void') return original;
+  return null;
+}
+
+async function lockOccurrence(
+  tx: { $executeRaw?: (q: TemplateStringsArray, ...v: unknown[]) => Promise<unknown> },
+  occurrenceId: string,
+): Promise<void> {
+  if (typeof tx.$executeRaw !== 'function') return;
+  try {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${occurrenceId})::bigint)`;
+  } catch {
+    // In-memory test DB has no advisory locks; $transaction serialisation covers it.
   }
 }
 

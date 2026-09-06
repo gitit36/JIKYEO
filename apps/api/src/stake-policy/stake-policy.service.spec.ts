@@ -8,7 +8,13 @@ function makeService(tier: 'tier_1' | 'tier_2' | 'tier_3' = 'tier_1', forfeitedT
     paymentLedger: {
       findMany: async () =>
         forfeitedThisMonthKrw > 0
-          ? [{ commitmentId: 'done1', amount: BigInt(forfeitedThisMonthKrw) }]
+          ? [{
+              commitmentId: 'done1',
+              occurrenceId: 'o1',
+              amount: BigInt(forfeitedThisMonthKrw),
+              entryType: 'forfeit',
+              idempotencyKey: 'settle:o1',
+            }]
           : [],
       aggregate: async () => ({ _sum: { amount: BigInt(forfeitedThisMonthKrw) } }),
     },

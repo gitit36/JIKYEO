@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GoalSafetyClassifier } from '../safety/goal-safety.classifier';
 import { StakePolicyService } from '../stake-policy/stake-policy.service';
 import { UsersService } from '../users/users.service';
+import { AppealService, OccurrenceAppealSummary } from '../appeals/appeal.service';
 import { CreateCommitmentDraftDto } from './dto/create-commitment.dto';
 import { QuoteCacheService } from './quote/quote-cache.service';
 import { ScheduleService } from './schedule/schedule.service';
@@ -63,6 +64,7 @@ export class CommitmentService {
     @Optional() private readonly moneyStatus?: MoneyStatusService,
     @Optional() private readonly payments?: PaymentService,
     @Optional() private readonly cfg?: AppConfig,
+    @Optional() private readonly appeals?: AppealService,
   ) {}
 
   get signatureExpirySeconds(): number {
@@ -499,6 +501,7 @@ export class CommitmentService {
       },
     });
     const moneyViews = await this.moneyViewsFor(rows.filter((r) => r.enforcementMode === 'money').map((r) => r.id));
+    const appealMap = await this.appealSummaries(rows.map((r) => r.id));
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
@@ -516,7 +519,13 @@ export class CommitmentService {
       cancellationReason: r.cancellationReason,
       // MONEY-only derived money state (결제 중 / 약속금 걸림 / 환불 예정 …). null otherwise.
       money: moneyViews.get(r.id) ?? null,
+      appeals: r.enforcementMode === 'money' ? appealMap.get(r.id) ?? [] : [],
     }));
+  }
+
+  private async appealSummaries(commitmentIds: string[]): Promise<Map<string, OccurrenceAppealSummary[]>> {
+    if (!this.appeals || commitmentIds.length === 0) return new Map();
+    return this.appeals.summariesForCommitments(commitmentIds);
   }
 
   private async moneyViewsFor(commitmentIds: string[]): Promise<Map<string, MoneyView>> {
@@ -537,6 +546,9 @@ export class CommitmentService {
     if (!c) throw new NotFoundError('Commitment not found');
     if (c.userId !== userId) throw new ForbiddenError();
     const money = c.enforcementMode === 'money' ? (await this.moneyViewsFor([c.id])).get(c.id) ?? null : null;
+    const appealMap = await this.appealSummaries([c.id]);
+    const appeals = appealMap.get(c.id) ?? [];
+    const appealByOcc = new Map(appeals.map((a) => [a.occurrenceId, a]));
     return {
       id: c.id,
       title: c.title,
@@ -566,14 +578,21 @@ export class CommitmentService {
         role: o.role,
         observerUserId: o.observerUserId,
       })),
-      occurrences: c.occurrences.map((o) => ({
-        id: o.id,
-        sequenceNo: o.sequenceNo,
-        windowStartAt: o.windowStartAt.toISOString(),
-        deadlineAt: o.deadlineAt.toISOString(),
-        status: o.status,
-        stakeKrw: o.stakeAmount?.toString() ?? null,
-      })),
+      appeals,
+      occurrences: c.occurrences.map((o) => {
+        const a = appealByOcc.get(o.id);
+        return {
+          id: o.id,
+          sequenceNo: o.sequenceNo,
+          windowStartAt: o.windowStartAt.toISOString(),
+          deadlineAt: o.deadlineAt.toISOString(),
+          status: o.status,
+          stakeKrw: o.stakeAmount?.toString() ?? null,
+          originalResult: a?.originalResult ?? o.status,
+          effectiveResult: a?.effectiveResult ?? o.status,
+          appeal: a ?? null,
+        };
+      }),
     };
   }
 

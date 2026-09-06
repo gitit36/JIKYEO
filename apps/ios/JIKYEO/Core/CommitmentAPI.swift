@@ -29,10 +29,35 @@ public struct CommitmentAPI {
         public let money: MoneyView?
         public let signatureExpiresAt: Date?
         public let cancellationReason: String?
+        public let appeals: [AppealSummary]?
+    }
+
+    public struct OccurrenceDetail: Decodable, Identifiable {
+        public let id: String
+        public let sequenceNo: Int
+        public let status: String
+        public let stakeKrw: String?
+        public let originalResult: String?
+        public let effectiveResult: String?
+        public let appeal: AppealSummary?
+    }
+
+    public struct CommitmentDetail: Decodable, Identifiable {
+        public let id: String
+        public let title: String
+        public let status: String
+        public let enforcementMode: EnforcementMode
+        public let money: MoneyView?
+        public let appeals: [AppealSummary]?
+        public let occurrences: [OccurrenceDetail]
     }
 
     public func listMine() async throws -> [MyCommitment] {
         try await api.get("commitments")
+    }
+
+    public func getOne(id: String) async throws -> CommitmentDetail {
+        try await api.get("commitments/\(id)")
     }
 
     /// Signature ritual for a MONEY commitment after payment. Idempotent.
@@ -149,5 +174,21 @@ public struct TimerAPI {
 
     public func finish(sessionId: String, terminated: Bool = false) async throws -> VerificationResultResponse {
         try await api.post("timer/sessions/\(sessionId)/finish", body: FinishBody(terminated: terminated))
+    }
+}
+
+public struct AppealAPI {
+    private let api: APIClient
+    public init(api: APIClient) { self.api = api }
+
+    public func submit(occurrenceId: String, category: AppealReasonCategory, explanation: String) async throws -> AppealView {
+        try await api.post(
+            "occurrences/\(occurrenceId)/appeals",
+            body: SubmitAppealRequest(reasonCategory: category, explanation: explanation)
+        )
+    }
+
+    public func status(occurrenceId: String) async throws -> AppealView {
+        try await api.get("occurrences/\(occurrenceId)/appeal")
     }
 }
