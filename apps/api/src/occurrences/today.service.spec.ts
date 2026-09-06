@@ -21,6 +21,7 @@ interface StubOccurrence {
     title: string;
     category: string;
     enforcementMode: 'self' | 'social' | 'money';
+    status?: 'active' | 'payment_pending' | 'signature_pending' | 'completed' | 'cancelled';
     verificationRule: { method: string };
   };
 }
@@ -33,6 +34,8 @@ function makeService(occurrences: StubOccurrence[], now: Date) {
         const end = where.deadlineAt.lte.getTime();
         return occurrences.filter((o) => {
           const t = o.deadlineAt.getTime();
+          const commitmentStatus = o.commitment.status ?? 'active';
+          if (where.commitment?.status && commitmentStatus !== where.commitment.status) return false;
           return t >= start && t <= end && (where.status.in as string[]).includes(o.status);
         });
       },
@@ -146,6 +149,26 @@ describe('TodayService (Home money semantics)', () => {
     expect(byId['a'].stakeAmountKrw).toBeNull();
     expect(byId['b'].stakeAmountKrw).toBe('5000');
     expect(byId['c'].stakeAmountKrw).toBeNull();
+  });
+
+  it('excludes signature_pending (and payment_pending) MONEY commitments from Today', async () => {
+    const now = new Date(Date.UTC(2026, 8, 7, 3, 0, 0));
+    const today = kstAt('2026-09-07', '21:00');
+    const rows: StubOccurrence[] = [
+      { id: 'pending', commitmentId: 'c1', sequenceNo: 1, status: 'scheduled',
+        windowStartAt: kstAt('2026-09-07', '18:00'), deadlineAt: today,
+        stakeAmount: 5000n,
+        commitment: { id: 'c1', title: '헬스장', category: 'workout', enforcementMode: 'money', status: 'signature_pending', verificationRule: { method: 'gps' } } },
+      { id: 'live', commitmentId: 'c2', sequenceNo: 1, status: 'scheduled',
+        windowStartAt: kstAt('2026-09-07', '19:00'), deadlineAt: today,
+        stakeAmount: 3000n,
+        commitment: { id: 'c2', title: '명상', category: 'meditate', enforcementMode: 'money', status: 'active', verificationRule: { method: 'timer' } } },
+    ];
+    const svc = makeService(rows, now);
+    const s = await svc.forUser('u1', 'Asia/Seoul');
+    expect(s.count).toBe(1);
+    expect(s.items[0].id).toBe('live');
+    expect(s.atRiskKrw).toBe('3000');
   });
 
   it('exposes moneyCount = 0 when only SELF/SOCIAL commitments are scheduled today', async () => {

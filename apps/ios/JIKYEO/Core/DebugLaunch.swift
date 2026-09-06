@@ -13,7 +13,7 @@ import SwiftUI
 ///                    wizard-proof, wizard-enforcement, wizard-stake,
 ///                    wizard-observer, wizard-review-money, wizard-review-self,
 ///                    wizard-payment, wizard-payment-failed, wizard-signature,
-///                    wizard-done-money, wizard-done-self
+///                    wizard-resume-signature, wizard-done-money, wizard-done-self
 ///   Money status  — history-money (기록 tab with every MoneyStatus)
 ///   Proof + Result — proof-photo, proof-gps, proof-timer, proof-self,
 ///                    result-pass-money, result-pass-self,

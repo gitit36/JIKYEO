@@ -232,8 +232,9 @@ POST /v1/webhooks/payment            # 서명 검증 + (provider, eventId) 중�
 ```
 
 Money status (파생값, `deriveMoneyStatus`):
-`payment_pending` · `payment_failed` · `funded` · `refund_scheduled` · `refunding` · `refunded` · `refund_delayed`
-→ 결제 중 / 결제 실패 / 약속금 걸림 / 환불 예정 / 환불 중 / 환불 완료 / 환불 지연
+`payment_pending` · `payment_failed` · `funded` · `refund_scheduled` · `refund_in_progress` · `refunded` · `refund_delayed` · `settled_no_refund`
+→ 결제 중 / 결제 실패 / 약속금 걸림 / 환불 예정 / 환불 중 / 환불 완료 / 환불 지연 / 정산 완료
+전액 몰수(all FAIL)는 `settled_no_refund` (`정산 완료`). “환불 완료 0원”을 쓰지 않는다. 환불 호출도 하지 않는다.
 
 ---
 

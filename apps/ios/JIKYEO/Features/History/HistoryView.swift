@@ -2,8 +2,8 @@ import SwiftUI
 
 /// "기록" tab — every commitment the user has made, with the server-derived
 /// money state for MONEY commitments (결제 중 · 약속금 걸림 · 환불 예정 ·
-/// 환불 중 · 환불 완료 · 결제 실패 · 환불 지연). SELF/SOCIAL rows never show
-/// money UI.
+/// 환불 중 · 환불 완료 · 결제 실패 · 환불 지연 · 정산 완료). SELF/SOCIAL
+/// rows never show money UI.
 struct HistoryView: View {
     @EnvironmentObject private var container: AppContainer
     @StateObject private var model = HistoryViewModel()

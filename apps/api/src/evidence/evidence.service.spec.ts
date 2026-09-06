@@ -174,4 +174,16 @@ describe('EvidenceService — ownership', () => {
     await expect(svc.submit('u1', 'o1', { kind: 'self', self: { answer: 'kept' } }))
       .rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
+
+  it('rejects verification on a signature_pending commitment', async () => {
+    const { svc } = makeService({
+      occurrence: {
+        id: 'o1', status: 'scheduled' as const,
+        deadlineAt: new Date('2026-09-07T13:00:00Z'),
+        commitment: { userId: 'u1', status: 'signature_pending' as const },
+      },
+    });
+    await expect(svc.submit('u1', 'o1', { kind: 'self', self: { answer: 'kept' } }))
+      .rejects.toMatchObject({ code: 'CONFLICT' });
+  });
 });

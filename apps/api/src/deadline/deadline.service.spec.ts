@@ -21,7 +21,7 @@ describe('DeadlineService.sweep', () => {
       id: string;
       status: 'scheduled' | 'active' | 'evidence_submitted' | 'reviewing' | 'uncertain';
       deadlineAt: Date;
-      commitment: { id: string; userId: string; enforcementMode: 'self' | 'money'; status: 'active' | 'cancelled' | 'completed' };
+      commitment: { id: string; userId: string; enforcementMode: 'self' | 'money'; status: 'active' | 'cancelled' | 'completed' | 'signature_pending' | 'payment_pending' };
       evidence?: Array<{ id: string }>;
       verificationResults?: Array<{ id: string }>;
     }>;
@@ -118,6 +118,21 @@ describe('DeadlineService.sweep', () => {
     expect(r.failed).toBe(0);
     expect(orchestratorCalls).toEqual([]);
     expect(updates).toEqual([{ id: 'o1', status: 'reviewing' }]);
+  });
+
+  it('skips signature_pending (funded but unsigned) commitments', async () => {
+    const now = new Date('2026-09-07T13:00:00Z');
+    const deadline = new Date('2026-09-07T12:00:00Z');
+    const { svc, orchestratorCalls } = make({
+      now,
+      occurrences: [
+        { id: 'o1', status: 'active', deadlineAt: deadline,
+          commitment: { id: 'c1', userId: 'u1', enforcementMode: 'money', status: 'signature_pending' } },
+      ],
+    });
+    const r = await svc.sweep();
+    expect(r.alreadyResolved).toBe(1);
+    expect(orchestratorCalls).toEqual([]);
   });
 
   it('skips commitments that are no longer active (e.g. cancelled)', async () => {

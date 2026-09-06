@@ -217,7 +217,7 @@ Verification은 behavioral 결과만 기록한다. SettlementService가 별도�
 - 모든 회차 종결 시 aggregate refund 1회: `upfrontCharge − forfeitedTotal`. 회차마다 환불하지 않는다.
 - 환불 실패 → `refund_delayed`, 재시도는 idempotent.
 
-사용자 화면의 금전 상태(결제 중·약속금 걸림·환불 예정·환불 중·환불 완료·결제 실패·환불 지연)는 항상 정산/ledger에서 파생하며, behavioral FAIL 시점에 "돈을 잃었다"고 표현하지 않는다.
+사용자 화면의 금전 상태(결제 중·약속금 걸림·환불 예정·환불 중·환불 완료·결제 실패·환불 지연·정산 완료)는 항상 정산/ledger에서 파생하며, behavioral FAIL 시점에 "돈을 잃었다"고 표현하지 않는다. 전액 몰수는 `정산 완료`이며 “환불 완료 0원”을 쓰지 않는다.
 
 ---
 

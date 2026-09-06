@@ -47,7 +47,7 @@ export class TodayService {
 
     const rows = await this.prisma.occurrence.findMany({
       where: {
-        // Only live commitments. A MONEY commitment still in payment_pending
+        // Only live commitments. payment_pending / signature_pending MONEY
         // is not enforceable yet and must not appear as "due today".
         commitment: { userId, status: 'active' },
         status: { in: ACTIVE_STATES },
