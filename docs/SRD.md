@@ -35,7 +35,9 @@
 - 사용자 지정 deadline과 timezone을 저장해야 한다.
 - 약속 확정 후 과거/현재 회차 조건은 임의 수정할 수 없어야 한다.
 - 사용자는 각 약속마다 강제력 모드(**SELF / SOCIAL / MONEY**) 중 하나를 지정한다.
-- SOCIAL 모드는 실제 verifier 관계가 존재해야 활성화될 수 있다. Release 빌드에서 verifier가 없으면 서버는 활성화를 거부한다 (`FRIEND_NOT_SELECTED`).
+- SOCIAL 모드는 수락된 친구 1명을 viewer로 지정해야 활성화된다 (`FRIEND_NOT_SELECTED`). Friend Verify는 Phase 5.2.
+- Shared Commitment는 공통 목표만 소유한다. 참가자 Commitment는 독립이며 한 명의 FAIL/취소가 다른 사람을 바꾸지 않는다.
+- 친구 그래프는 invite code로만 발견한다. 연락처/공개 검색 없음. 차단은 이후 소셜 가시성을 끊는다.
 - MONEY 모드는 서버 확인 만 19세+와 결제 전 약관 스냅샷 동의가 필요하다. 운영 환경 MONEY는 기본 비활성(fail-closed). SELF는 나이 확인 없이 가능하다.
 - 활성 약속 취소의 컷오프는 `cancellationRequestedAt`이다. 요청 철회/재일정은 없다.
 
@@ -173,6 +175,7 @@
 ### 개인정보
 - Evidence는 최소 기간 보존
 - 친구에게 기본적으로 결과만 공유
+- SOCIAL/Shared 가시성은 title·기간·진행 수·상태만. Stake/Payment/Ledger/Appeal/증거/GPS/메모는 소셜 API에 노출하지 않는다.
 - 증거사진 공유는 opt-in
 - 위치정보는 목적과 기간을 명확히 고지
 

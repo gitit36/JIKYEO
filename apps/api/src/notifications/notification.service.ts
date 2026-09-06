@@ -14,6 +14,12 @@ const CATEGORIES: NotificationCategory[] = [
   'refund',
   'appeal',
   'weekly_recap',
+  'friend_request',
+  'friend_accepted',
+  'shared_invite',
+  'shared_accepted',
+  'accountability_partner',
+  'shared_progress',
 ];
 
 export interface EnqueueInput {
@@ -56,6 +62,7 @@ export class NotificationService {
         refund: true,
         appeal: true,
         weeklyRecap: true,
+        social: true,
       },
       update: {},
     });
@@ -79,6 +86,7 @@ export class NotificationService {
       refund: row?.refund ?? false,
       appeal: row?.appeal ?? false,
       weeklyRecap: row?.weeklyRecap ?? false,
+      social: row?.social ?? true,
     };
   }
 
@@ -88,6 +96,7 @@ export class NotificationService {
     refund: boolean;
     appeal: boolean;
     weeklyRecap: boolean;
+    social: boolean;
   }>) {
     const row = await this.prisma.notificationPreference.upsert({
       where: { userId },
@@ -98,6 +107,7 @@ export class NotificationService {
         refund: prefs.refund ?? true,
         appeal: prefs.appeal ?? true,
         weeklyRecap: prefs.weeklyRecap ?? true,
+        social: prefs.social ?? true,
       },
       update: {
         ...(prefs.deadlineReminder !== undefined ? { deadlineReminder: prefs.deadlineReminder } : {}),
@@ -105,6 +115,7 @@ export class NotificationService {
         ...(prefs.refund !== undefined ? { refund: prefs.refund } : {}),
         ...(prefs.appeal !== undefined ? { appeal: prefs.appeal } : {}),
         ...(prefs.weeklyRecap !== undefined ? { weeklyRecap: prefs.weeklyRecap } : {}),
+        ...(prefs.social !== undefined ? { social: prefs.social } : {}),
       },
     });
     return this.getPreferences(userId);
@@ -321,6 +332,7 @@ function optedIn(prefs: {
   refund: boolean;
   appeal: boolean;
   weeklyRecap: boolean;
+  social?: boolean;
 }, category: NotificationCategory): boolean {
   switch (category) {
     case 'deadline_reminder': return prefs.deadlineReminder;
@@ -328,6 +340,13 @@ function optedIn(prefs: {
     case 'refund': return prefs.refund;
     case 'appeal': return prefs.appeal;
     case 'weekly_recap': return prefs.weeklyRecap;
+    case 'friend_request':
+    case 'friend_accepted':
+    case 'shared_invite':
+    case 'shared_accepted':
+    case 'accountability_partner':
+    case 'shared_progress':
+      return prefs.social ?? true;
     default: return false;
   }
 }

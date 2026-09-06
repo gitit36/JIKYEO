@@ -151,6 +151,12 @@ enum NotificationCategory {
   refund
   appeal
   weekly_recap
+  friend_request
+  friend_accepted
+  shared_invite
+  shared_accepted
+  accountability_partner
+  shared_progress
 }
 
 enum NotificationOutboxStatus {
@@ -262,7 +268,21 @@ enum ObserverRole {
 enum FriendshipStatus {
   pending
   accepted
+  declined
   blocked
+}
+
+enum SharedCommitmentStatus {
+  open
+  locked
+  completed
+}
+
+enum SharedParticipantStatus {
+  invited
+  accepted
+  declined
+  left
 }
 
 enum NotificationType {
@@ -300,12 +320,16 @@ model User {
   status        UserStatus    @default(active)
   // All new users start at TIER_1. Promotion is manual/admin-only in MVP.
   stakeTier     StakeTier     @default(tier_1) @map("stake_tier")
+  inviteCode    String?       @unique @map("invite_code")
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
   commitments        Commitment[]
   friendshipsSent    Friendship[]         @relation("FriendRequester")
   friendshipsRecv    Friendship[]         @relation("FriendAddressee")
+  blockedFriends     Friendship[]         @relation("FriendBlockedBy")
+  sharedCreated      SharedCommitment[]   @relation("SharedCreator")
+  sharedParticipations SharedParticipant[]
   observers          CommitmentObserver[]
   appeals            Appeal[]
   auditLogs          AuditLog[]
@@ -354,6 +378,7 @@ model Commitment {
   contractStrictness  ContractStrictness? @map("contract_strictness")
   allowedFailCount    Int?                @map("allowed_fail_count")
   contractOutcome     ContractOutcome     @default(pending) @map("contract_outcome")
+  sharedCommitmentId  String?             @map("shared_commitment_id") @db.Uuid
   // NOTE: We intentionally do NOT store the raw signature drawing. The
   // signature is a behavioral commitment ritual, not a legal signature.
   // Only `signedAt`, `signatureCompleted`, and `contractVersion` are kept.
@@ -362,6 +387,7 @@ model Commitment {
   updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz
 
   user                User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  sharedCommitment    SharedCommitment?        @relation(fields: [sharedCommitmentId], references: [id], onDelete: SetNull)
   occurrences         Occurrence[]
   verificationRule    VerificationRule?
   stake               Stake?
@@ -371,6 +397,7 @@ model Commitment {
   contract            CommitmentContract?
 
   @@index([userId, status])
+  @@index([sharedCommitmentId])
   @@index([status, signatureExpiresAt])
   @@index([status, cancellationEffectiveAt])
   @@index([status, cancellationRequestedAt])
@@ -649,16 +676,59 @@ model CommitmentObserver {
 
 model Friendship {
   id            String            @id @default(uuid()) @db.Uuid
+  pairKey       String            @unique @map("pair_key")
   requesterId   String            @map("requester_id") @db.Uuid
   addresseeId   String            @map("addressee_id") @db.Uuid
   status        FriendshipStatus  @default(pending)
+  blockedById   String?           @map("blocked_by_id") @db.Uuid
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz
 
   requester     User              @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   addressee     User              @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  blockedBy     User?             @relation("FriendBlockedBy", fields: [blockedById], references: [id], onDelete: SetNull)
 
-  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
   @@map("friendships")
+}
+
+model SharedCommitment {
+  id            String                  @id @default(uuid()) @db.Uuid
+  creatorId     String                  @map("creator_id") @db.Uuid
+  title         String
+  category      CommitmentCategory
+  scheduleType  ScheduleType            @map("schedule_type")
+  scheduleJson  Json                    @map("schedule_json")
+  timezone      String
+  startAt       DateTime                @map("start_at") @db.Timestamptz
+  endAt         DateTime                @map("end_at") @db.Timestamptz
+  status        SharedCommitmentStatus  @default(open)
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+
+  creator       User                    @relation("SharedCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  participants  SharedParticipant[]
+  commitments   Commitment[]
+
+  @@index([creatorId, status])
+  @@map("shared_commitments")
+}
+
+model SharedParticipant {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  sharedCommitmentId  String                  @map("shared_commitment_id") @db.Uuid
+  userId              String                  @map("user_id") @db.Uuid
+  status              SharedParticipantStatus @default(invited)
+  commitmentId        String?                 @unique @map("commitment_id") @db.Uuid
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime                @updatedAt @map("updated_at") @db.Timestamptz
+
+  shared              SharedCommitment        @relation(fields: [sharedCommitmentId], references: [id], onDelete: Cascade)
+  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sharedCommitmentId, userId])
+  @@map("shared_participants")
 }
 
 model NotificationSchedule {
@@ -769,6 +839,7 @@ model NotificationPreference {
   refund            Boolean  @default(true)
   appeal            Boolean  @default(true)
   weeklyRecap       Boolean  @default(true) @map("weekly_recap")
+  social            Boolean  @default(true)
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)

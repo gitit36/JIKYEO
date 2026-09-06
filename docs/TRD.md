@@ -191,7 +191,7 @@ POST /v1/admin/money/cases/{id}/reconcile
 
 서버는 mode-별로 아래를 강제한다:
 - **SELF** → quoteId 금지, Stake row 미생성.
-- **SOCIAL** → quoteId 금지, verifier 관계 없이 활성화 거부(`FRIEND_NOT_SELECTED`).
+- **SOCIAL** → quoteId 금지, 수락된 친구 observer(viewer) 필수(`FRIEND_NOT_SELECTED`). verifier 역할은 Phase 5.2.
 - **MONEY** → quoteId 필수, `consumed_quotes`에 소비 기록, Stake row 생성.
 
 ### Stake Policy
@@ -239,11 +239,25 @@ POST /v1/admin/appeals/{id}/approve
 POST /v1/admin/appeals/{id}/reject
 ```
 
-### Friend
+### Friend / Shared Commitment
 ```http
-POST /v1/friends/invite
-POST /v1/friends/{id}/accept
-POST /v1/occurrences/{id}/friend-verification
+GET    /v1/me/invite-code
+GET    /v1/friends
+GET    /v1/friends/requests
+GET    /v1/friends/home
+POST   /v1/friends/invite
+POST   /v1/friends/{id}/accept
+POST   /v1/friends/{id}/decline
+DELETE /v1/friends/{id}
+POST   /v1/friends/{id}/block
+GET    /v1/social/commitments/{id}
+POST   /v1/shared-commitments
+GET    /v1/shared-commitments/{id}
+POST   /v1/shared-commitments/{id}/invite
+POST   /v1/shared-commitments/{id}/accept
+POST   /v1/shared-commitments/{id}/decline
+POST   /v1/shared-commitments/{id}/leave
+POST   /v1/occurrences/{id}/friend-verification   # Phase 5.2
 ```
 
 ### Payment / Settlement (MONEY 모드 전용)
@@ -652,10 +666,17 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - 시작 전/시스템 취소 전액 환불, 시작 후 자진 포기 전액 forfeit. x_per_week 기간 내 보충.
 - 신규 생성은 `contract_v1`만. 레거시 회차 비례는 격리.
 
-### Phase 5F remaining (예정)
-- 실 KCP 네트워크/자격증명, StoreKit entitlement, 실 APNs, 실 vision, admin web UI, 소셜
+### Phase 5.1 — Friends / SOCIAL / Shared Commitment (완료)
+- 친구 관계(invite/accept/decline/remove/block), SOCIAL viewer 1명, SharedCommitment 컨테이너(재정 없음).
+- 친구는 진행/결과만 본다. Friend Verify는 Phase 5.2.
 
-### Phase 6 — Social 완전판 + Friend Verify (예정)
+### Phase 5F remaining (예정)
+- 실 KCP 네트워크/자격증명, StoreKit entitlement, 실 APNs, 실 vision, admin web UI
+
+### Phase 5.2 — Friend Verify (예정)
+- 친구 승인/거절로 결과 확정. 친구는 재정 결과를 결정하지 않는다.
+
+### Phase 6 — Social 완전판 (예정)
 
 ### Phase 7 — Hardening / analytics / safety / app review (예정)
 

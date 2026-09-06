@@ -54,7 +54,7 @@
 - 홈 (모드별 UI 분기)
 - 히스토리
 - 주간 리캡
-- 기본 친구 공개 (Social phase에서 완성)
+- 친구 관계 · SOCIAL viewer · Shared Commitment (재정 분리)
 - 위험 목표 필터
 
 ### P1
@@ -138,7 +138,7 @@
 | 모드 | 추가 단계 |
 |---|---|
 | **SELF** | 없음 (바로 최종 확인) |
-| **SOCIAL** | 친구 지정 (Social phase에서 정식 오픈) |
+| **SOCIAL** | 수락된 친구 1명 지정 (진행/결과만 공유) |
 | **MONEY** | 약속금 설정 → 서버 quote → 결제 확인 |
 
 SELF/SOCIAL에서는 결제 화면, 최대 손실 UI, `0원 걸림` 같은 문구가 절대 등장하지 않는다.
@@ -215,7 +215,8 @@ MVP:
 MVP 상태:
 - SELF 완전 지원.
 - MONEY 완전 지원. 결제 → 서명 → 활성화 → 정산 → 종료 시 aggregate 환불까지 MockPaymentProvider로 end-to-end 동작. 실제 한국 PG는 provider/credentials 확정 후 교체.
-- SOCIAL은 정확한 자리에서 노출되지만, 실제 친구 선택 UI가 완성되기 전까지 Release 빌드에서는 `준비 중`으로 표시한다. DEBUG 빌드는 mock friend를 허용한다.
+- SOCIAL은 수락된 친구 1명에게 진행/결과를 보여준다. Stake/Payment/Ledger는 없다. Friend Verify는 Phase 5.2.
+- Shared Commitment는 같은 목표의 컨테이너일 뿐이며 돈·정산·Grace를 갖지 않는다. 각 참가자가 독립 Commitment를 만든다.
 
 ### 4.7 (MONEY 모드) 약속금
 헤드라인: `못 지키면 얼마를 걸까요?`
@@ -315,7 +316,7 @@ CTA (양쪽 모두): `이대로 약속할게요`
 > 집중 타이머로 확인  
 > [시작하기]
 
-**SOCIAL (Release는 아직 준비 중):**
+**SOCIAL:** 지정한 친구 1명에게 진행/결과만 공유. 친구는 결과를 바꾸지 않는다.
 > 매일 20페이지 읽기  
 > 오후 11시까지  
 > 친구가 결과를 함께 확인해요

@@ -30,6 +30,24 @@ public enum Copy {
         public static let emailField   = "이메일"
     }
 
+    public enum Friends {
+        public static let title = "친구"
+        public static let empty = "친구와 같이 하면 조금 더 지키기 쉬워져요."
+        public static let inviteCTA = "친구 초대하기"
+        public static let createShared = "친구와 약속 만들기"
+        public static let together = "같이 하는 약속"
+        public static let list = "친구"
+        public static let requests = "요청"
+        public static let accept = "수락"
+        public static let codeHint = "내 초대 코드"
+        public static let enterCode = "친구 코드 입력"
+        public static let independent = "같은 목표에 도전하지만,\n약속의 결과와 약속금은 각자 따로 관리돼요."
+        public static let moneyIndependent = "친구의 성공/실패는 내 약속금에 영향을 주지 않아요."
+        public static let withFriend = "친구와 같이 할래요"
+        public static let pickFriend = "누구에게 보여줄까요?"
+        public static let socialMeaning = "이 약속의 진행과 결과를 친구 한 명에게 보여줘요."
+    }
+
     // MARK: - Home
     public enum Home {
         public static let greeting          = "오늘도 지켜봐요"

@@ -24,11 +24,15 @@
 		5D780350421E3B125891A653 /* Copy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D50BD86475B503B355C611 /* Copy.swift */; };
 		6443C61951276A7D8D1F198D /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426B016CDA80B9F4B14F794D /* AuthStore.swift */; };
 		6B6451965421F7042DEE614F /* CountdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = E37091103DE446C892C84A08 /* CountdownText.swift */; };
+		6DA50214A77CF2110CC09561 /* CommitmentHistoryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2145287297EF0534944D4535 /* CommitmentHistoryDetailView.swift */; };
+		6ECDC4D01F675641EB0F4DA5 /* DeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DCD78F74E59AFDB792A27A6 /* DeepLink.swift */; };
 		7158D5E5A49A0FF1D74B5E1F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 856FE5C0A29959AB17DD9547 /* SettingsView.swift */; };
+		745DC97686950BDB26167601 /* WeeklyRecapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4957831E5FA1F82F2C9C6655 /* WeeklyRecapView.swift */; };
 		87AFB6B90E2EC6DDE2DE4288 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 438A76621CD2BBF69BDEC408 /* Buttons.swift */; };
 		9077F1ED47B99AC2FEE909F7 /* OnboardingRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A38B7A7BFDE56ACD96CE2AF /* OnboardingRootView.swift */; };
 		95E3BBF442CBE39568514C85 /* PhotoProofView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C636604A23DBE445A96DC033 /* PhotoProofView.swift */; };
 		9780B3536554E1DFF8642339 /* CreateCommitmentEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1776D2DC7938033372B683BE /* CreateCommitmentEntry.swift */; };
+		A063D07F64F0B28595662386 /* FriendsAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B79ED212D6AF5C60D6FD2184 /* FriendsAPI.swift */; };
 		A07651915827F11C4D577D14 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80AE7F5A56EAC36BF082B1F6 /* HomeView.swift */; };
 		A23583A37904B82A4CB5D8BE /* AppClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = A74EC51FC93405DF58DDA00B /* AppClock.swift */; };
 		B1E6E571503925E213E02534 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 338DDB07ED0B24924515B50C /* HomeViewModel.swift */; };
@@ -40,17 +44,14 @@
 		D5D25E89CF26E05358769294 /* ProofFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F6685E175A64C6C53BA311 /* ProofFlowView.swift */; };
 		D8DCE4981D430BC661543DE2 /* CommitmentTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F042E29D6A97F5DB89D5C19B /* CommitmentTemplate.swift */; };
 		D97E5F3AA4DC2364A6E30CB1 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7688AC9A26BFF8DC8A168253 /* HistoryView.swift */; };
-		A1B2C3D4E5F60718293A4B5C /* CommitmentHistoryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F60718293A4B5C6D /* CommitmentHistoryDetailView.swift */; };
 		DB8E07E13504437D6E9FDFE6 /* MoneyStatusChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE3701543A493CCE2193FD22 /* MoneyStatusChip.swift */; };
 		DE0BF52AC597117E55CA8721 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27EA559AD70FF91099A7C7DE /* APIClient.swift */; };
 		DE3AE9B3EE11E0BCCEC6DF53 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC98049F94AE6C08CC430AEA /* Typography.swift */; };
 		DED02BC39994F0722A0410AC /* InputField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60771B39C89F5F8210E869CE /* InputField.swift */; };
 		E9CEBA4C097212BC72C6C878 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFE5CF552F3E17762560457 /* AppEnvironment.swift */; };
+		EEC63B4CB4D8BA83F57AD972 /* NotificationRecapAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 616A0DF6BCA51FBCB4D33FFF /* NotificationRecapAPI.swift */; };
 		F631A5F0EC0EC6BD14F3DDD6 /* StatusChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C42A0920D900711B7539E21 /* StatusChip.swift */; };
 		FCFA3159FA125CEDA766E884 /* CommitmentAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A852DEEEE8CFF8E4BBEFC768 /* CommitmentAPI.swift */; };
-		A3C1E2D4B5061728394A5B6C /* DeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D2F3E5C61728394A5B6C7D /* DeepLink.swift */; };
-		C5E3A4F6D728394A5B6C7D8E /* NotificationRecapAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6F4B5A7E8394A5B6C7D8E9F /* NotificationRecapAPI.swift */; };
-		E7A5C6B8F94A5B6C7D8E9F0A /* WeeklyRecapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B6D7C9A05B6C7D8E9F0A1B /* WeeklyRecapView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +60,7 @@
 		1776D2DC7938033372B683BE /* CreateCommitmentEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCommitmentEntry.swift; sourceTree = "<group>"; };
 		1D0C5D7A3EB2C9F530F9DDEE /* SelfVerifyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfVerifyView.swift; sourceTree = "<group>"; };
 		1EFE5CF552F3E17762560457 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		2145287297EF0534944D4535 /* CommitmentHistoryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitmentHistoryDetailView.swift; sourceTree = "<group>"; };
 		27EA559AD70FF91099A7C7DE /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		2C42A0920D900711B7539E21 /* StatusChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusChip.swift; sourceTree = "<group>"; };
 		2D49984BB5396F8314E5E868 /* MoneyText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyText.swift; sourceTree = "<group>"; };
@@ -70,16 +72,18 @@
 		3CDC37B1BC5F624BACD1E19B /* JIKYEO.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = JIKYEO.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		426B016CDA80B9F4B14F794D /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
 		438A76621CD2BBF69BDEC408 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
+		4957831E5FA1F82F2C9C6655 /* WeeklyRecapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyRecapView.swift; sourceTree = "<group>"; };
 		58F6685E175A64C6C53BA311 /* ProofFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofFlowView.swift; sourceTree = "<group>"; };
 		60771B39C89F5F8210E869CE /* InputField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputField.swift; sourceTree = "<group>"; };
+		616A0DF6BCA51FBCB4D33FFF /* NotificationRecapAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRecapAPI.swift; sourceTree = "<group>"; };
 		651C3B3D6E1BDE083904B2B2 /* CommitmentDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitmentDTOs.swift; sourceTree = "<group>"; };
 		7688AC9A26BFF8DC8A168253 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
-		B2C3D4E5F60718293A4B5C6D /* CommitmentHistoryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitmentHistoryDetailView.swift; sourceTree = "<group>"; };
 		7A38B7A7BFDE56ACD96CE2AF /* OnboardingRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingRootView.swift; sourceTree = "<group>"; };
 		7BD76AB8645717C6B9102BE3 /* ProofResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofResultView.swift; sourceTree = "<group>"; };
 		80AE7F5A56EAC36BF082B1F6 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		83B0551888844533D9BFE6B9 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
 		856FE5C0A29959AB17DD9547 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		8DCD78F74E59AFDB792A27A6 /* DeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLink.swift; sourceTree = "<group>"; };
 		913B2F532C3ADC7A370A9FEF /* SegmentedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedControl.swift; sourceTree = "<group>"; };
 		91974E60A51E4A992E75297A /* AuthAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthAPI.swift; sourceTree = "<group>"; };
 		920948412F7B4350284AF368 /* Card.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Card.swift; sourceTree = "<group>"; };
@@ -87,6 +91,7 @@
 		A74EC51FC93405DF58DDA00B /* AppClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppClock.swift; sourceTree = "<group>"; };
 		A852DEEEE8CFF8E4BBEFC768 /* CommitmentAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitmentAPI.swift; sourceTree = "<group>"; };
 		AE3701543A493CCE2193FD22 /* MoneyStatusChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyStatusChip.swift; sourceTree = "<group>"; };
+		B79ED212D6AF5C60D6FD2184 /* FriendsAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsAPI.swift; sourceTree = "<group>"; };
 		C091644AD30AE05D142CB337 /* DebugLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLaunch.swift; sourceTree = "<group>"; };
 		C2EA4A1C0D03483B2B41923E /* CreateCommitmentWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCommitmentWizardView.swift; sourceTree = "<group>"; };
 		C636604A23DBE445A96DC033 /* PhotoProofView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoProofView.swift; sourceTree = "<group>"; };
@@ -96,10 +101,6 @@
 		F023F30966FFCF9732152E0C /* GpsTargetPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GpsTargetPickerView.swift; sourceTree = "<group>"; };
 		F042E29D6A97F5DB89D5C19B /* CommitmentTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitmentTemplate.swift; sourceTree = "<group>"; };
 		FC98049F94AE6C08CC430AEA /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
-		B4D2F3E5C61728394A5B6C7D /* DeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLink.swift; sourceTree = "<group>"; };
-		D6F4B5A7E8394A5B6C7D8E9F /* NotificationRecapAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRecapAPI.swift; sourceTree = "<group>"; };
-		F8B6D7C9A05B6C7D8E9F0A1B /* WeeklyRecapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyRecapView.swift; sourceTree = "<group>"; };
-		22B33C44D55E6F708192A3B4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -111,11 +112,19 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		24CEEF7E6E746321D1592351 /* Recap */ = {
+			isa = PBXGroup;
+			children = (
+				4957831E5FA1F82F2C9C6655 /* WeeklyRecapView.swift */,
+			);
+			path = Recap;
+			sourceTree = "<group>";
+		};
 		300CCE25E5AFB9FCEC7B8899 /* History */ = {
 			isa = PBXGroup;
 			children = (
+				2145287297EF0534944D4535 /* CommitmentHistoryDetailView.swift */,
 				7688AC9A26BFF8DC8A168253 /* HistoryView.swift */,
-				B2C3D4E5F60718293A4B5C6D /* CommitmentHistoryDetailView.swift */,
 			);
 			path = History;
 			sourceTree = "<group>";
@@ -138,8 +147,8 @@
 				32944CA6774253E48C8EDAFB /* Home */,
 				F04858AAE95252907790A502 /* Onboarding */,
 				C38605068336AD0760438496 /* Proof */,
+				24CEEF7E6E746321D1592351 /* Recap */,
 				F8CCF3311D05E3696C22D583 /* Settings */,
-				33C44D55E66F708192A3B4C5 /* Recap */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -195,8 +204,9 @@
 				A852DEEEE8CFF8E4BBEFC768 /* CommitmentAPI.swift */,
 				651C3B3D6E1BDE083904B2B2 /* CommitmentDTOs.swift */,
 				C091644AD30AE05D142CB337 /* DebugLaunch.swift */,
-				B4D2F3E5C61728394A5B6C7D /* DeepLink.swift */,
-				D6F4B5A7E8394A5B6C7D8E9F /* NotificationRecapAPI.swift */,
+				8DCD78F74E59AFDB792A27A6 /* DeepLink.swift */,
+				B79ED212D6AF5C60D6FD2184 /* FriendsAPI.swift */,
+				616A0DF6BCA51FBCB4D33FFF /* NotificationRecapAPI.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -215,14 +225,6 @@
 				3CDC37B1BC5F624BACD1E19B /* JIKYEO.app */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		33C44D55E66F708192A3B4C5 /* Recap */ = {
-			isa = PBXGroup;
-			children = (
-				F8B6D7C9A05B6C7D8E9F0A1B /* WeeklyRecapView.swift */,
-			);
-			path = Recap;
 			sourceTree = "<group>";
 		};
 		F8CCF3311D05E3696C22D583 /* Settings */ = {
@@ -250,7 +252,6 @@
 			children = (
 				A204BF2D4ACB95C6267833B2 /* JIKYEOApp.swift */,
 				0DBDB4231946A98FF2AB821F /* RootView.swift */,
-				22B33C44D55E6F708192A3B4 /* Info.plist */,
 				EB79B2BD1E9D485C3CDB466F /* Core */,
 				B9F9EDBB01BA05D41197A11A /* DesignSystem */,
 				6A1C2A58EE0E55E2731CFCD2 /* Features */,
@@ -340,6 +341,7 @@
 				0AFAD4491B237BB2FAA232E0 /* Card.swift in Sources */,
 				FCFA3159FA125CEDA766E884 /* CommitmentAPI.swift in Sources */,
 				C375861F43774C18EAF26472 /* CommitmentDTOs.swift in Sources */,
+				6DA50214A77CF2110CC09561 /* CommitmentHistoryDetailView.swift in Sources */,
 				D8DCE4981D430BC661543DE2 /* CommitmentTemplate.swift in Sources */,
 				5D780350421E3B125891A653 /* Copy.swift in Sources */,
 				6B6451965421F7042DEE614F /* CountdownText.swift in Sources */,
@@ -347,20 +349,19 @@
 				CA73DB7335F3C60C357C5F35 /* CreateCommitmentModel.swift in Sources */,
 				4414C35E44A1DFD7F849F685 /* CreateCommitmentWizardView.swift in Sources */,
 				217D0A05911CB8D47EA69738 /* DebugLaunch.swift in Sources */,
-				A3C1E2D4B5061728394A5B6C /* DeepLink.swift in Sources */,
-				C5E3A4F6D728394A5B6C7D8E /* NotificationRecapAPI.swift in Sources */,
-				E7A5C6B8F94A5B6C7D8E9F0A /* WeeklyRecapView.swift in Sources */,
+				6ECDC4D01F675641EB0F4DA5 /* DeepLink.swift in Sources */,
+				A063D07F64F0B28595662386 /* FriendsAPI.swift in Sources */,
 				0B6F4DB25CA3B4884EA2EF0D /* FriendsView.swift in Sources */,
 				285E17402E0FEE7291C1C153 /* GpsProofView.swift in Sources */,
 				4ED5A5E7A01BA89E42FE2C43 /* GpsTargetPickerView.swift in Sources */,
 				D97E5F3AA4DC2364A6E30CB1 /* HistoryView.swift in Sources */,
-				A1B2C3D4E5F60718293A4B5C /* CommitmentHistoryDetailView.swift in Sources */,
 				A07651915827F11C4D577D14 /* HomeView.swift in Sources */,
 				B1E6E571503925E213E02534 /* HomeViewModel.swift in Sources */,
 				DED02BC39994F0722A0410AC /* InputField.swift in Sources */,
 				CAAC4450F1A67F84EEF3F29E /* JIKYEOApp.swift in Sources */,
 				DB8E07E13504437D6E9FDFE6 /* MoneyStatusChip.swift in Sources */,
 				2AE315159508CC98F0AEFC9F /* MoneyText.swift in Sources */,
+				EEC63B4CB4D8BA83F57AD972 /* NotificationRecapAPI.swift in Sources */,
 				9077F1ED47B99AC2FEE909F7 /* OnboardingRootView.swift in Sources */,
 				95E3BBF442CBE39568514C85 /* PhotoProofView.swift in Sources */,
 				D5D25E89CF26E05358769294 /* ProofFlowView.swift in Sources */,
@@ -373,6 +374,7 @@
 				18F095D4C34CBBA422DB1D5C /* TimerProofView.swift in Sources */,
 				C0588825B6924F9C2DB6AA8D /* Tokens.swift in Sources */,
 				DE3AE9B3EE11E0BCCEC6DF53 /* Typography.swift in Sources */,
+				745DC97686950BDB26167601 /* WeeklyRecapView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

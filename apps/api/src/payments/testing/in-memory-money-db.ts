@@ -178,6 +178,13 @@ class Table {
     return { ...row };
   }
 
+  async delete(args: { where: Row }): Promise<Row> {
+    const idx = this.rows.findIndex((r) => this.match(r, args.where));
+    if (idx < 0) throw Object.assign(new Error('Record not found'), { code: 'P2025' });
+    const [row] = this.rows.splice(idx, 1);
+    return { ...row };
+  }
+
   async deleteMany(args: { where: Row }): Promise<{ count: number }> {
     const before = this.rows.length;
     this.rows = this.rows.filter((r) => !this.match(r, args.where));
@@ -231,11 +238,45 @@ export class InMemoryMoneyDb {
       this.paymentWebhookEvent, this.jobLease, this.auditLog, this.appeal, this.evidence,
       this.verificationResult, this.commitment, this.deviceToken, this.notificationPreference,
       this.notificationOutbox, this.weeklyRecap, this.commitmentContract,
+      this.friendship, this.sharedCommitment, this.sharedParticipant, this.commitmentObserver,
+      this.verificationRule,
     ];
   }
 
   readonly stake = new Table('stake', [['commitmentId']]);
-  readonly user = new Table('usr');
+  readonly user = new Table('usr', [['inviteCode']]);
+  readonly friendship = new Table('fr', [['pairKey']]);
+  readonly sharedCommitment = new Table('sh', [], {
+    include: (row, include) => {
+      if (include.participants) {
+        row.participants = this.sharedParticipant.rows.filter((p) => p.sharedCommitmentId === row.id);
+      }
+      return row;
+    },
+  });
+  readonly sharedParticipant = new Table('sp', [['sharedCommitmentId', 'userId'], ['commitmentId']], {
+    include: (row, include) => {
+      if (include.shared) {
+        const shared = this.sharedCommitment.rows.find((s) => s.id === row.sharedCommitmentId);
+        row.shared = shared
+          ? this.sharedCommitment.withInclude({ ...shared }, { include: include.shared.include ?? {} })
+          : null;
+      }
+      return row;
+    },
+  });
+  readonly commitmentObserver = new Table('ob', [], {
+    include: (row, include) => {
+      if (include.commitment) {
+        const c = this.commitment.rows.find((x) => x.id === row.commitmentId);
+        row.commitment = c
+          ? this.commitment.withInclude({ ...c }, { include: include.commitment.include ?? {} })
+          : null;
+      }
+      return row;
+    },
+  });
+  readonly verificationRule = new Table('vrule', [['commitmentId']]);
   readonly occurrence = new Table('occ', [['commitmentId', 'sequenceNo']], {
     include: (row, include) => {
       if (include.commitment) {
@@ -329,6 +370,9 @@ export class InMemoryMoneyDb {
           .filter((o) => o.commitmentId === row.id)
           .sort((a, b) => a.sequenceNo - b.sequenceNo)
           .map((o) => this.occurrence.withInclude({ ...o }, { include: occInc })!);
+      }
+      if (include.observers) {
+        row.observers = this.commitmentObserver.rows.filter((o) => o.commitmentId === row.id);
       }
       return row;
     },

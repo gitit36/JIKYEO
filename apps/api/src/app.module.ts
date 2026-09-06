@@ -20,6 +20,7 @@ import { AdminModule } from './admin/admin.module';
 import { AppealsModule } from './appeals/appeals.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RecapsModule } from './recaps/recaps.module';
+import { FriendsModule } from './friends/friends.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { RecapsModule } from './recaps/recaps.module';
     AppealsModule,
     NotificationsModule,
     RecapsModule,
+    FriendsModule,
     AdminModule,
   ],
   controllers: [HealthController],

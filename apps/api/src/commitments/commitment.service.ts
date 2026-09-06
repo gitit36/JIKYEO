@@ -15,6 +15,8 @@ import { StakePolicyService } from '../stake-policy/stake-policy.service';
 import { UsersService } from '../users/users.service';
 import { AppealService, OccurrenceAppealSummary } from '../appeals/appeal.service';
 import { MoneyGateService } from '../users/money-gate.service';
+import { FriendsService } from '../friends/friends.service';
+import { SharedCommitmentService } from '../friends/shared-commitment.service';
 import { CreateCommitmentDraftDto } from './dto/create-commitment.dto';
 import { QuoteCacheService } from './quote/quote-cache.service';
 import { ScheduleService } from './schedule/schedule.service';
@@ -74,6 +76,8 @@ export class CommitmentService {
     @Optional() private readonly appeals?: AppealService,
     @Optional() private readonly moneyGate?: MoneyGateService,
     @Optional() private readonly ledger?: LedgerService,
+    @Optional() private readonly friends?: FriendsService,
+    @Optional() private readonly shared?: SharedCommitmentService,
   ) {}
 
   get signatureExpirySeconds(): number {
@@ -114,18 +118,28 @@ export class CommitmentService {
     }
 
     if (dto.enforcementMode === 'social') {
-      // SOCIAL requires a real observer relation. Until Phase 6 wires real
-      // friend selection, the Release UI cannot produce this — we reject.
       if (!dto.observer || !dto.observer.observerUserId) {
-        throw new DomainError(
-          'FRIEND_NOT_SELECTED',
-          '친구를 먼저 지정해주세요. (준비 중)',
-        );
+        throw new DomainError('FRIEND_NOT_SELECTED', '친구를 먼저 지정해주세요.');
+      }
+      if (dto.observer.observerUserId === userId) {
+        throw new DomainError('VALIDATION', '자기 자신을 친구로 지정할 수 없어요.');
+      }
+      if (this.friends) {
+        await this.friends.assertAccepted(userId, dto.observer.observerUserId);
       }
     }
 
+    let scheduleInput = dto.schedule.toDomain();
+    if (dto.sharedCommitmentId && this.shared) {
+      const def = await this.shared.definition(dto.sharedCommitmentId);
+      dto.title = def.title;
+      dto.category = def.category;
+      dto.timezone = def.timezone;
+      scheduleInput = def.scheduleJson as unknown as import('./schedule/schedule.types').ScheduleInput;
+    }
+
     // 3. Expand schedule server-side.
-    const plans = this.schedule.expand(dto.schedule.toDomain(), dto.timezone);
+    const plans = this.schedule.expand(scheduleInput, dto.timezone);
     if (plans.length === 0) {
       throw new ValidationError('Schedule produces no occurrences');
     }
@@ -188,8 +202,8 @@ export class CommitmentService {
           category: dto.category,
           direction: 'do_action',
           enforcementMode: dto.enforcementMode,
-          scheduleType: dto.schedule.type,
-          scheduleJson: dto.schedule.toDomain() as unknown as Prisma.InputJsonValue,
+          scheduleType: scheduleInput.type,
+          scheduleJson: scheduleInput as unknown as Prisma.InputJsonValue,
           startAt: plans[0].windowStartAt,
           endAt: plans[plans.length - 1].deadlineAt,
           timezone: dto.timezone,
@@ -204,6 +218,7 @@ export class CommitmentService {
           ...({
             contractStrictness,
             allowedFailCount: allowedFails,
+            sharedCommitmentId: dto.sharedCommitmentId ?? null,
           } as object),
         } as Prisma.CommitmentUncheckedCreateInput,
       });
@@ -236,7 +251,7 @@ export class CommitmentService {
           data: {
             commitmentId: commitment.id,
             observerUserId: dto.observer.observerUserId,
-            role: dto.observer.isVerifier ? 'verifier' : 'viewer',
+            role: 'viewer',
             notifyOnSuccess: true,
             notifyOnFail: true,
           },
@@ -264,6 +279,14 @@ export class CommitmentService {
 
       return commitment.id;
     });
+
+    if (dto.sharedCommitmentId && this.shared) {
+      await this.shared.attachCommitment(userId, dto.sharedCommitmentId, commitmentId);
+      await this.shared.lockIfStarted(dto.sharedCommitmentId);
+    }
+    if (dto.enforcementMode === 'social' && dto.observer?.observerUserId) {
+      await this.shared?.notifyPartnerSelected(userId, dto.observer.observerUserId, commitmentId);
+    }
 
     await this.audit.log({
       actorType: 'user',

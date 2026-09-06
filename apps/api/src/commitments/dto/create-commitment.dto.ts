@@ -70,11 +70,7 @@ export class VerificationRuleDto {
 }
 
 export class ObserverDto {
-  /**
-   * Optional dev-mode: null observer means "나만 보기".
-   * `observerUserId` may be a placeholder string in Phase 2 friend UX;
-   * real friendships are wired in Phase 5.
-   */
+  /** SOCIAL: accepted friend user id. Viewer only in Phase 5.1. */
   @IsOptional()
   @IsString()
   observerUserId?: string | null;
@@ -101,7 +97,7 @@ export class CreateCommitmentDraftDto {
    * User-chosen enforcement strength. Governs whether Stake/Quote/Payment
    * are created. See ERD §3 (Commitment / Stake) and SRD §SR-FR-013.
    *   - `self`   → no quoteId, no stake, no payment. Prove for yourself.
-   *   - `social` → no quoteId, no stake. Requires an observer relation.
+   *   - `social` → no quoteId, no stake. Requires one accepted-friend viewer.
    *   - `money`  → quoteId + stakePerOccurrenceKrw both required.
    */
   @IsIn(ENFORCEMENT_MODES)
@@ -140,6 +136,10 @@ export class CreateCommitmentDraftDto {
   @ValidateNested()
   @Type(() => ObserverDto)
   observer?: ObserverDto;
+
+  @IsOptional()
+  @IsString()
+  sharedCommitmentId?: string;
 }
 
 export class ActivateCommitmentDto {

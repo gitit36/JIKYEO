@@ -19,7 +19,7 @@ struct CreateCommitmentWizardView: View {
             Group {
                 switch model.step {
                 case .goal:
-                    GoalStep(model: model, onNext: { model.step = .schedule })
+                    GoalStep(model: model, container: container, onNext: { model.step = .schedule })
                 case .schedule:
                     ScheduleStep(model: model, onNext: { model.step = .verification })
                 case .verification:
@@ -46,7 +46,7 @@ struct CreateCommitmentWizardView: View {
                         Task { await model.refreshQuote(container: container) }
                     })
                 case .observer:
-                    ObserverStep(model: model, onNext: {
+                    ObserverStep(model: model, container: container, onNext: {
                         model.step = .review
                         Task { await model.refreshQuote(container: container) }
                     })
@@ -85,6 +85,7 @@ struct CreateCommitmentWizardView: View {
                 }
                 if debugStage == "wizard-observer"     {
                     model.enforcementMode = .social
+                    model.selectedFriendUserId = "u2"
                     model.step = .observer
                 }
                 if debugStage == "wizard-review-money" {
@@ -245,8 +246,10 @@ private struct WizardProgress: View {
 // MARK: - Step · Goal
 private struct GoalStep: View {
     @ObservedObject var model: CreateCommitmentModel
+    let container: AppContainer
     let onNext: () -> Void
     @State private var selectedId = CommitmentTemplates.all[0].id
+    @State private var showShared = false
     var body: some View {
         WizardContainer(title: Copy.Wizard.step1Title, primaryTitle: Copy.Onboarding.goalNext, primaryEnabled: true, onPrimary: onNext) {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: DS.Space.sm), GridItem(.flexible(), spacing: DS.Space.sm)], spacing: DS.Space.sm) {
@@ -280,8 +283,15 @@ private struct GoalStep: View {
             if model.template.id == "custom" {
                 InputField("약속 이름", text: $model.customTitle)
             }
+            Button(Copy.Friends.withFriend) { showShared = true }
+                .font(Typo.body)
+                .foregroundStyle(DS.Color.primary)
         }
         .onAppear { model.adoptTemplate(model.template) }
+        .sheet(isPresented: $showShared) {
+            SharedCreateSheet { showShared = false }
+                .environmentObject(container)
+        }
     }
 }
 
@@ -626,14 +636,7 @@ private struct EnforcementStep: View {
         }
         .task { await model.loadStakePolicyIfNeeded(container: container) }
     }
-    /// SOCIAL is 준비 중 in Release: friend selection doesn't exist yet.
-    static var socialComingSoon: Bool {
-        #if DEBUG
-        return false
-        #else
-        return true
-        #endif
-    }
+    static var socialComingSoon: Bool { false }
 }
 
 private struct EnforcementCard: View {
@@ -904,19 +907,33 @@ private struct StrictnessRow: View {
 // MARK: - Step · Observer (SOCIAL only)
 private struct ObserverStep: View {
     @ObservedObject var model: CreateCommitmentModel
+    let container: AppContainer
     let onNext: () -> Void
+    @State private var friends: [FriendRow] = []
     var body: some View {
-        WizardContainer(title: Copy.Wizard.step6Title, primaryTitle: Copy.Wizard.next, primaryEnabled: true, onPrimary: onNext) {
-            VStack(spacing: DS.Space.sm) {
-                ObserverRow(title: Copy.Wizard.step6Share, symbol: "eye.fill",
-                            isSelected: model.observerMode == .share,
-                            isComingSoon: false) { model.observerMode = .share }
-                ObserverRow(title: Copy.Wizard.step6Verify, symbol: "checkmark.seal.fill",
-                            isSelected: model.observerMode == .verify,
-                            isComingSoon: false) { model.observerMode = .verify }
+        WizardContainer(
+            title: Copy.Friends.pickFriend,
+            primaryTitle: Copy.Wizard.next,
+            primaryEnabled: model.selectedFriendUserId != nil,
+            onPrimary: onNext
+        ) {
+            Text(Copy.Friends.socialMeaning).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+            ForEach(friends) { f in
+                ObserverRow(
+                    title: f.displayName, symbol: "person.fill",
+                    isSelected: model.selectedFriendUserId == f.friendUserId,
+                    isComingSoon: false
+                ) { model.selectedFriendUserId = f.friendUserId }
             }
-            Text(Copy.Wizard.step6FriendHint)
-                .font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
+            Text(Copy.Wizard.step6FriendHint).font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
+        }
+        .task {
+            friends = (try? await container.friendsAPI.home())?.friends ?? []
+            #if DEBUG
+            if friends.isEmpty {
+                friends = [FriendRow(friendshipId: "f1", friendUserId: "u2", displayName: "민수", status: "accepted")]
+            }
+            #endif
         }
     }
 }

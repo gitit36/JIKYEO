@@ -113,7 +113,7 @@ erDiagram
 
 ### 강제력 모드별 필드 유효성
 - **SELF**: `max_loss_amount = NULL`, `currency = NULL`, Stake row 없음, Payment 없음, ConsumedQuote 없음.
-- **SOCIAL**: SELF와 동일한 재무 상태. Release에서는 verifier 관계가 없으면 활성화 불가. Observer(CommitmentObserver) 관계로만 표현.
+- **SOCIAL**: SELF와 동일한 재무 상태. 수락된 친구 1명을 CommitmentObserver(viewer)로 지정해야 활성화. Friend Verify는 Phase 5.2.
 - **MONEY**: Stake row 1개, `max_loss_amount` 필수, quote 필수 (`consumed_quotes` 참조), 이후 Payment/Settlement 흐름 활성화.
 
 ---
@@ -384,13 +384,22 @@ PG inbound webhook의 중복 처리 방지 기록.
 | id | UUID | PK |
 | requester_id | UUID | FK |
 | addressee_id | UUID | FK |
-| status | enum | pending/accepted/blocked |
+| pair_key | varchar unique | 두 사용자 정규화 키 |
+| status | enum | pending/accepted/declined/blocked |
+| blocked_by_id | UUID nullable | 차단한 사용자 |
 | created_at | timestamptz | |
 
 ---
 
+### SHARED_COMMITMENT / SHARED_PARTICIPANT
+같이하기 컨테이너. Stake/Payment/Ledger 없음.
+
+SHARED_COMMITMENT: title, schedule_json, start_at/end_at, status open/locked/completed, creator_id.
+SHARED_PARTICIPANT: user_id, status invited/accepted/declined/left, commitment_id nullable.
+각 참가자의 Commitment.shared_commitment_id로만 연결. 재정 필드는 Commitment에만 존재.
+
 ### SOCIAL_GROUP / SOCIAL_MEMBER / SOCIAL_EVENT
-V2 대비 최소 구조.
+V2 대비 최소 구조. 출시 경로 아님.
 
 SOCIAL_GROUP
 - id

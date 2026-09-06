@@ -62,6 +62,7 @@ public final class CreateCommitmentModel: ObservableObject {
         public var id: String { rawValue }
     }
     @Published public var observerMode: ObserverMode = .onlyMe
+    @Published public var selectedFriendUserId: String?
 
     // MARK: - Step · quote + safety
     @Published public var quote: QuoteResponse?
@@ -226,11 +227,7 @@ public final class CreateCommitmentModel: ObservableObject {
             return false
         }
         if enforcementMode == .social {
-            #if DEBUG
-            return true
-            #else
-            return false
-            #endif
+            return selectedFriendUserId != nil
         }
         return true
     }
@@ -441,12 +438,8 @@ public final class CreateCommitmentModel: ObservableObject {
         let stakeKrw: Int? = enforcementMode == .money ? stakePerOccurrenceKrw : nil
         let quoteId: String? = enforcementMode == .money ? quote?.quoteId : nil
         let observer: ObserverPayload? = {
-            guard enforcementMode == .social else { return nil }
-            #if DEBUG
-            return ObserverPayload(observerUserId: "debug-friend", isVerifier: observerMode == .verify)
-            #else
-            return nil
-            #endif
+            guard enforcementMode == .social, let id = selectedFriendUserId else { return nil }
+            return ObserverPayload(observerUserId: id, isVerifier: false)
         }()
         return CreateCommitmentRequest(
             templateId: template.id,
@@ -460,7 +453,8 @@ public final class CreateCommitmentModel: ObservableObject {
             stakeTotalKrw: stakeKrw,
             contractStrictness: enforcementMode == .money ? contractStrictness : nil,
             quoteId: quoteId,
-            observer: observer
+            observer: observer,
+            sharedCommitmentId: nil
         )
     }
 }

@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import { AuthProvider, User } from '@prisma/client';
 import { NotFoundError } from '../common/errors/domain-errors';
 import { PrismaService } from '../prisma/prisma.service';
+
+function newInviteCode(): string {
+  return randomBytes(5).toString('base64url').replace(/[^A-Za-z0-9]/g, '').slice(0, 8).toUpperCase();
+}
 
 export interface UpsertUserInput {
   authProvider: AuthProvider;
@@ -33,6 +38,7 @@ export class UsersService {
         birthDate: input.birthDate ?? null,
         locale: input.locale ?? 'ko-KR',
         timezone: input.timezone ?? 'Asia/Seoul',
+        inviteCode: newInviteCode(),
       },
       update: {
         email: input.email ?? undefined,

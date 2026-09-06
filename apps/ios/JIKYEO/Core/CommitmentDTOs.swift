@@ -136,6 +136,7 @@ public struct CreateCommitmentRequest: Codable {
     /// MONEY-only. Never send for SELF/SOCIAL.
     public let quoteId: String?
     public let observer: ObserverPayload?
+    public let sharedCommitmentId: String?
 }
 
 public struct CreateCommitmentResponse: Codable {

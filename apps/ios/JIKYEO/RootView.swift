@@ -9,6 +9,8 @@ struct RootView: View {
             #if DEBUG
             if let stage = DebugLaunch.stage, stage.hasPrefix("wizard-") {
                 CreateCommitmentWizardView(debugStage: stage).environmentObject(container)
+            } else if let stage = DebugLaunch.stage, stage.hasPrefix("friends-") {
+                FriendsView(debugStage: stage).environmentObject(container)
             } else if let stage = DebugLaunch.stage, stage.hasPrefix("home-") || stage.hasPrefix("history-") {
                 MainTabView(debugStage: DebugLaunch.stage)
             } else if let stage = DebugLaunch.stage, stage.hasPrefix("proof-") {
@@ -54,7 +56,9 @@ struct MainTabView: View {
     @State private var banner: String?
     init(debugStage: String? = nil) {
         self.debugStage = debugStage
-        _selected = State(initialValue: (debugStage?.hasPrefix("history-") ?? false) ? .history : .home)
+        let friends = debugStage?.hasPrefix("friends-") ?? false
+        let history = debugStage?.hasPrefix("history-") ?? false
+        _selected = State(initialValue: friends ? .friends : history ? .history : .home)
     }
     var body: some View {
         TabView(selection: $selected) {
@@ -64,7 +68,7 @@ struct MainTabView: View {
             HistoryView(debugStage: debugStage)
                 .tabItem { Label("기록", systemImage: "clock.arrow.circlepath") }
                 .tag(Tab.history)
-            FriendsView()
+            FriendsView(debugStage: debugStage)
                 .tabItem { Label("친구", systemImage: "person.2.fill") }
                 .tag(Tab.friends)
             SettingsView()

@@ -435,7 +435,7 @@ describe('CommitmentService.createAndActivate — SELF mode', () => {
 });
 
 describe('CommitmentService.createAndActivate — SOCIAL mode', () => {
-  it('rejects SOCIAL activation when no observer is provided (준비 중)', async () => {
+  it('rejects SOCIAL activation when no observer is provided', async () => {
     const { service } = makeSubject();
     const dto = buildSelfDto({ enforcementMode: 'social' });
     await expect(service.createAndActivate('u1', dto)).rejects.toMatchObject({
@@ -443,7 +443,7 @@ describe('CommitmentService.createAndActivate — SOCIAL mode', () => {
     });
   });
 
-  it('activates SOCIAL when a real observerUserId is provided (debug/dev)', async () => {
+  it('activates SOCIAL when a real observerUserId is provided', async () => {
     const { service, db } = makeSubject();
     const dto = buildSelfDto({
       enforcementMode: 'social',
