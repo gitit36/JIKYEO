@@ -9,8 +9,10 @@ struct RootView: View {
             #if DEBUG
             if let stage = DebugLaunch.stage, stage.hasPrefix("wizard-") {
                 CreateCommitmentWizardView(debugStage: stage).environmentObject(container)
-            } else if let stage = DebugLaunch.stage, stage.hasPrefix("friends-") {
+            } else if let stage = DebugLaunch.stage, stage.hasPrefix("friends-") || stage.hasPrefix("friend-verify-inbox") {
                 FriendsView(debugStage: stage).environmentObject(container)
+            } else if let stage = DebugLaunch.stage, stage.hasPrefix("friend-verify-") {
+                FriendVerifyDebugView(stage: stage).environmentObject(container)
             } else if let stage = DebugLaunch.stage, stage.hasPrefix("home-") || stage.hasPrefix("history-") {
                 MainTabView(debugStage: DebugLaunch.stage)
             } else if let stage = DebugLaunch.stage, stage.hasPrefix("proof-") {
@@ -245,6 +247,48 @@ struct ResultDebugView: View {
                                      deadlineAt: Date(), stakeKrw: 0, chipKind: .pass, showsProofCTA: false)
             )
         }
+    }
+}
+
+struct FriendVerifyDebugView: View {
+    let stage: String
+    @EnvironmentObject private var container: AppContainer
+    var body: some View {
+        if stage == "friend-verify-inbox" {
+            FriendsView(debugStage: stage).environmentObject(container)
+        } else {
+            ProofResultView(occurrence: occ, result: result, onClose: {}, onRetry: {})
+                .environmentObject(container)
+        }
+    }
+    private var occ: TodayOccurrenceModel {
+        TodayOccurrenceModel(
+            id: "o", commitmentId: "c", commitmentTitle: "야식 먹지 않기",
+            verificationMethod: .friend, methodLabel: Copy.Wizard.methodFriend,
+            enforcementMode: stage.contains("money") ? .money : .self,
+            status: stage.contains("pass") ? "pass" : (stage.contains("timeout") || stage.contains("revoked") ? "uncertain" : "fail"),
+            deadlineAt: Date(), stakeKrw: stage.contains("money") ? 15_000 : 0,
+            chipKind: stage.contains("pass") ? .pass : (stage.contains("timeout") || stage.contains("revoked") ? .uncertain : .fail),
+            showsProofCTA: false,
+            friendVerifyStatus: stage.contains("pass") ? "approved" : (stage.contains("timeout") || stage.contains("revoked") ? "expired" : "rejected"),
+            friendVerifyName: "민수"
+        )
+    }
+    private var result: VerificationResultResponse {
+        if stage.contains("pass") {
+            return VerificationResultResponse(occurrenceId: "o", resultId: "r", result: .pass,
+                                             reasonCode: "FRIEND_VERIFY_APPROVED", userMessage: Copy.Friends.approved("민수"),
+                                             confidence: nil, isMoneyCommitment: false)
+        }
+        if stage.contains("timeout") || stage.contains("revoked") {
+            return VerificationResultResponse(occurrenceId: "o", resultId: "r", result: .uncertain,
+                                             reasonCode: stage.contains("revoked") ? "FRIEND_VERIFY_REVOKED" : "FRIEND_VERIFY_EXPIRED",
+                                             userMessage: "친구 확인이 없어 아직 결과로 처리하지 않았어요.",
+                                             confidence: nil, isMoneyCommitment: stage.contains("money"))
+        }
+        return VerificationResultResponse(occurrenceId: "o", resultId: "r", result: .fail,
+                                         reasonCode: "FRIEND_VERIFY_REJECTED", userMessage: Copy.Friends.rejected("민수"),
+                                         confidence: nil, isMoneyCommitment: true)
     }
 }
 #endif

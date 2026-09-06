@@ -56,12 +56,27 @@ public struct SharedCommitmentView: Codable, Identifiable {
     public let members: [SharedMember]
 }
 
+public struct FriendVerifyCard: Codable, Identifiable {
+    public var id: String { requestId }
+    public let requestId: String
+    public let occurrenceId: String
+    public let status: String
+    public let ownerDisplayName: String
+    public let verifierDisplayName: String?
+    public let title: String
+    public let windowStartAt: Date?
+    public let deadlineAt: Date?
+    public let reviewDeadlineAt: Date
+    public let question: String
+}
+
 public struct FriendsHomeResponse: Codable {
     public let shared: [SharedCommitmentView]
     public let watching: [SocialProgress]
     public let friends: [FriendRow]
     public let requests: [FriendRequestRow]
     public let invite: InviteCodeResponse
+    public let reviewQueue: [FriendVerifyCard]
 }
 
 public struct FriendshipActionResponse: Codable {
@@ -105,5 +120,11 @@ public final class FriendsAPI {
     }
     public func acceptShared(id: String) async throws -> SharedCommitmentView {
         try await api.post("shared-commitments/\(id)/accept", body: APIClient.Empty())
+    }
+    public func requestFriendVerify(occurrenceId: String) async throws -> FriendVerifyCard {
+        try await api.post("occurrences/\(occurrenceId)/friend-verification", body: ["action": "request"])
+    }
+    public func decideFriendVerify(occurrenceId: String, approve: Bool) async throws -> FriendVerifyCard {
+        try await api.post("occurrences/\(occurrenceId)/friend-verification", body: ["action": approve ? "approve" : "reject"])
     }
 }

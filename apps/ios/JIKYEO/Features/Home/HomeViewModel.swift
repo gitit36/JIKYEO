@@ -14,8 +14,40 @@ public struct TodayOccurrenceModel: Identifiable, Equatable {
     public let stakeKrw: Int64
     public let chipKind: StatusChip.Kind
     public let showsProofCTA: Bool
+    public let friendVerifyStatus: String?
+    public let friendVerifyName: String?
 
     public var isMoneyCommitment: Bool { enforcementMode == .money }
+
+    public init(
+        id: String,
+        commitmentId: String,
+        commitmentTitle: String,
+        verificationMethod: VerificationMethod,
+        methodLabel: String,
+        enforcementMode: EnforcementMode,
+        status: String,
+        deadlineAt: Date,
+        stakeKrw: Int64,
+        chipKind: StatusChip.Kind,
+        showsProofCTA: Bool,
+        friendVerifyStatus: String? = nil,
+        friendVerifyName: String? = nil
+    ) {
+        self.id = id
+        self.commitmentId = commitmentId
+        self.commitmentTitle = commitmentTitle
+        self.verificationMethod = verificationMethod
+        self.methodLabel = methodLabel
+        self.enforcementMode = enforcementMode
+        self.status = status
+        self.deadlineAt = deadlineAt
+        self.stakeKrw = stakeKrw
+        self.chipKind = chipKind
+        self.showsProofCTA = showsProofCTA
+        self.friendVerifyStatus = friendVerifyStatus
+        self.friendVerifyName = friendVerifyName
+    }
 }
 
 @MainActor
@@ -56,6 +88,9 @@ public final class HomeViewModel: ObservableObject {
                     stakeKrw: Int64(i.stakeAmountKrw ?? "0") ?? 0,
                     chipKind: chip(for: i.status),
                     showsProofCTA: ["active", "scheduled", "uncertain"].contains(i.status)
+                        && (method != .friend || i.friendVerifyStatus == nil),
+                    friendVerifyStatus: i.friendVerifyStatus,
+                    friendVerifyName: i.friendVerifyName
                 )
             }
         } catch {
@@ -76,21 +111,24 @@ public final class HomeViewModel: ObservableObject {
                 verificationMethod: .gps, methodLabel: Copy.Wizard.methodGps,
                 enforcementMode: .money, status: "scheduled",
                 deadlineAt: Date().addingTimeInterval(3600 * 3),
-                stakeKrw: 5_000, chipKind: .scheduled, showsProofCTA: true
+                stakeKrw: 5_000, chipKind: .scheduled, showsProofCTA: true,
+                friendVerifyStatus: nil, friendVerifyName: nil
             ),
             TodayOccurrenceModel(
                 id: "d2", commitmentId: "c2", commitmentTitle: "60분 공부하기",
                 verificationMethod: .timer, methodLabel: Copy.Wizard.methodTimer,
                 enforcementMode: .self, status: "active",
                 deadlineAt: Date().addingTimeInterval(3600 * 6),
-                stakeKrw: 0, chipKind: .inProgress, showsProofCTA: true
+                stakeKrw: 0, chipKind: .inProgress, showsProofCTA: true,
+                friendVerifyStatus: nil, friendVerifyName: nil
             ),
             TodayOccurrenceModel(
                 id: "d3", commitmentId: "c3", commitmentTitle: "명상 20분",
                 verificationMethod: .timer, methodLabel: Copy.Wizard.methodTimer,
                 enforcementMode: .money, status: "scheduled",
                 deadlineAt: Date().addingTimeInterval(3600 * 8),
-                stakeKrw: 10_000, chipKind: .scheduled, showsProofCTA: true
+                stakeKrw: 10_000, chipKind: .scheduled, showsProofCTA: true,
+                friendVerifyStatus: nil, friendVerifyName: nil
             ),
         ]
     }

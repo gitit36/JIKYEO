@@ -35,7 +35,8 @@
 - 사용자 지정 deadline과 timezone을 저장해야 한다.
 - 약속 확정 후 과거/현재 회차 조건은 임의 수정할 수 없어야 한다.
 - 사용자는 각 약속마다 강제력 모드(**SELF / SOCIAL / MONEY**) 중 하나를 지정한다.
-- SOCIAL 모드는 수락된 친구 1명을 viewer로 지정해야 활성화된다 (`FRIEND_NOT_SELECTED`). Friend Verify는 Phase 5.2.
+- SOCIAL 모드는 수락된 친구 1명을 viewer로 지정해야 활성화된다 (`FRIEND_NOT_SELECTED`).
+- Friend Verify (`verification.method=friend`)는 수락된 친구 1명을 verifier로 지정해야 활성화된다. 친구 판정은 VerificationResult만 만든다.
 - Shared Commitment는 공통 목표만 소유한다. 참가자 Commitment는 독립이며 한 명의 FAIL/취소가 다른 사람을 바꾸지 않는다.
 - 친구 그래프는 invite code로만 발견한다. 연락처/공개 검색 없음. 차단은 이후 소셜 가시성을 끊는다.
 - MONEY 모드는 서버 확인 만 19세+와 결제 전 약관 스냅샷 동의가 필요하다. 운영 환경 MONEY는 기본 비활성(fail-closed). SELF는 나이 확인 없이 가능하다.
@@ -93,7 +94,8 @@
 
 ### SR-FR-008 Friend Verify
 - 친구 검증자는 해당 실패금의 경제적 수익자가 될 수 없다.
-- 승인/거절 이력을 감사로그에 저장해야 한다.
+- 승인=PASS, 거절=잠정 FAIL(Appeal/Grace/정산 파이프라인), 미응답·차단=UNCERTAIN. 타임아웃을 거절로 해석하지 않는다.
+- 승인/거절/만료 이력을 감사로그에 저장해야 한다. 친구는 증거·Stake·결제·Appeal 상세를 볼 수 없다.
 
 ### SR-FR-009 Appeal
 - MONEY 최종 FAIL에 한해 소유자가 Appeal을 1회 생성할 수 있다 (7일, 서버 설정).

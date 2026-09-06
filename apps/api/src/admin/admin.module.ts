@@ -10,10 +10,12 @@ import { AdminMoneyService } from './admin-money.service';
 import { AdminUsersController } from './admin-users.controller';
 import { UsersModule } from '../users/users.module';
 import { CommitmentsModule } from '../commitments/commitments.module';
+import { FriendsModule } from '../friends/friends.module';
+import { AdminFriendVerifyController } from './admin-friend-verify.controller';
 
 @Module({
-  imports: [PaymentsModule, SettlementModule, AuditModule, AppealsModule, UsersModule, CommitmentsModule],
-  controllers: [AdminMoneyController, AdminAppealsController, AdminUsersController],
+  imports: [PaymentsModule, SettlementModule, AuditModule, AppealsModule, UsersModule, CommitmentsModule, FriendsModule],
+  controllers: [AdminMoneyController, AdminAppealsController, AdminUsersController, AdminFriendVerifyController],
   providers: [AdminGuard, AdminMoneyService],
 })
 export class AdminModule {}

@@ -148,13 +148,25 @@ private struct TodayCard: View {
                         Spacer()
                     }
                 }
+                if let name = item.friendVerifyName {
+                    if item.friendVerifyStatus == "pending" {
+                        Text(Copy.Friends.waiting(name)).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                    } else if item.friendVerifyStatus == "approved" {
+                        Text(Copy.Friends.approved(name)).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                    } else if item.friendVerifyStatus == "rejected" {
+                        Text(Copy.Friends.rejected(name)).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                    }
+                }
                 if item.showsProofCTA {
                     PrimaryButton(proofCtaLabel(for: item), action: onProof)
+                } else if item.verificationMethod == .friend, item.friendVerifyStatus == "rejected", item.isMoneyCommitment {
+                    PrimaryButton(Copy.Appeal.cta, action: onProof)
                 }
             }
         }
     }
     private func proofCtaLabel(for item: TodayOccurrenceModel) -> String {
-        item.verificationMethod == .timer ? Copy.Home.timerCTA : Copy.Home.proofCTA
+        if item.verificationMethod == .friend { return Copy.Friends.request }
+        return item.verificationMethod == .timer ? Copy.Home.timerCTA : Copy.Home.proofCTA
     }
 }

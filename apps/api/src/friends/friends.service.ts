@@ -100,8 +100,9 @@ export class FriendsService {
   async remove(userId: string, friendshipId: string) {
     const row = await this.mustBeMember(userId, friendshipId);
     if (row.status === 'blocked') throw new DomainError('FORBIDDEN', '차단된 관계는 삭제할 수 없어요.');
+    const friendUserId = otherOf(row.requesterId, row.addresseeId, userId);
     await this.prisma.friendship.delete({ where: { id: row.id } });
-    return { friendshipId, removed: true };
+    return { friendshipId, removed: true, friendUserId };
   }
 
   async block(userId: string, friendshipId: string) {

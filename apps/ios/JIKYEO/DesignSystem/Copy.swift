@@ -46,6 +46,18 @@ public enum Copy {
         public static let withFriend = "친구와 같이 할래요"
         public static let pickFriend = "누구에게 보여줄까요?"
         public static let socialMeaning = "이 약속의 진행과 결과를 친구 한 명에게 보여줘요."
+        public static let pickVerifier = "누가 확인해줄까요?"
+        public static let reviewInbox = "확인할 약속"
+        public static let request = "친구에게 확인 요청"
+        public static func waiting(_ name: String) -> String { "\(name)님의 확인을 기다리고 있어요" }
+        public static func approved(_ name: String) -> String { "\(name)님이 약속 완료를 확인했어요" }
+        public static func rejected(_ name: String) -> String { "\(name)님이 약속을 지키지 못한 것으로 확인했어요" }
+        public static let kept = "지켰어요"
+        public static let missed = "지키지 못했어요"
+        public static let confirmReject = "지키지 못한 것으로 확인할까요?"
+        public static func question(_ name: String, _ title: String) -> String {
+            "\(name)님이 오늘 ‘\(title)’ 약속을 지켰나요?"
+        }
     }
 
     // MARK: - Home

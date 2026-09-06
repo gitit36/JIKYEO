@@ -21,6 +21,7 @@
 		4414C35E44A1DFD7F849F685 /* CreateCommitmentWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2EA4A1C0D03483B2B41923E /* CreateCommitmentWizardView.swift */; };
 		4C287D75D52E2A3B8F2C706B /* AuthAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91974E60A51E4A992E75297A /* AuthAPI.swift */; };
 		4ED5A5E7A01BA89E42FE2C43 /* GpsTargetPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F023F30966FFCF9732152E0C /* GpsTargetPickerView.swift */; };
+		503B3A14E9D35025A0C01FF8 /* FriendVerifyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72E0F0892116E7EF90526C0A /* FriendVerifyView.swift */; };
 		5D780350421E3B125891A653 /* Copy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D50BD86475B503B355C611 /* Copy.swift */; };
 		6443C61951276A7D8D1F198D /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426B016CDA80B9F4B14F794D /* AuthStore.swift */; };
 		6B6451965421F7042DEE614F /* CountdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = E37091103DE446C892C84A08 /* CountdownText.swift */; };
@@ -77,6 +78,7 @@
 		60771B39C89F5F8210E869CE /* InputField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputField.swift; sourceTree = "<group>"; };
 		616A0DF6BCA51FBCB4D33FFF /* NotificationRecapAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRecapAPI.swift; sourceTree = "<group>"; };
 		651C3B3D6E1BDE083904B2B2 /* CommitmentDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitmentDTOs.swift; sourceTree = "<group>"; };
+		72E0F0892116E7EF90526C0A /* FriendVerifyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendVerifyView.swift; sourceTree = "<group>"; };
 		7688AC9A26BFF8DC8A168253 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		7A38B7A7BFDE56ACD96CE2AF /* OnboardingRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingRootView.swift; sourceTree = "<group>"; };
 		7BD76AB8645717C6B9102BE3 /* ProofResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofResultView.swift; sourceTree = "<group>"; };
@@ -174,6 +176,7 @@
 		C38605068336AD0760438496 /* Proof */ = {
 			isa = PBXGroup;
 			children = (
+				72E0F0892116E7EF90526C0A /* FriendVerifyView.swift */,
 				CE69923D9990D8BD64DF6739 /* GpsProofView.swift */,
 				C636604A23DBE445A96DC033 /* PhotoProofView.swift */,
 				58F6685E175A64C6C53BA311 /* ProofFlowView.swift */,
@@ -350,6 +353,7 @@
 				4414C35E44A1DFD7F849F685 /* CreateCommitmentWizardView.swift in Sources */,
 				217D0A05911CB8D47EA69738 /* DebugLaunch.swift in Sources */,
 				6ECDC4D01F675641EB0F4DA5 /* DeepLink.swift in Sources */,
+				503B3A14E9D35025A0C01FF8 /* FriendVerifyView.swift in Sources */,
 				A063D07F64F0B28595662386 /* FriendsAPI.swift in Sources */,
 				0B6F4DB25CA3B4884EA2EF0D /* FriendsView.swift in Sources */,
 				285E17402E0FEE7291C1C153 /* GpsProofView.swift in Sources */,

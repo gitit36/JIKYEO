@@ -226,7 +226,7 @@ public final class CreateCommitmentModel: ObservableObject {
         if verificationMethod == .gps && (gpsTarget == nil || gpsTarget?.userSelected != true) {
             return false
         }
-        if enforcementMode == .social {
+        if enforcementMode == .social || verificationMethod == .friend {
             return selectedFriendUserId != nil
         }
         return true
@@ -438,8 +438,8 @@ public final class CreateCommitmentModel: ObservableObject {
         let stakeKrw: Int? = enforcementMode == .money ? stakePerOccurrenceKrw : nil
         let quoteId: String? = enforcementMode == .money ? quote?.quoteId : nil
         let observer: ObserverPayload? = {
-            guard enforcementMode == .social, let id = selectedFriendUserId else { return nil }
-            return ObserverPayload(observerUserId: id, isVerifier: false)
+            guard (enforcementMode == .social || verificationMethod == .friend), let id = selectedFriendUserId else { return nil }
+            return ObserverPayload(observerUserId: id, isVerifier: verificationMethod == .friend)
         }()
         return CreateCommitmentRequest(
             templateId: template.id,

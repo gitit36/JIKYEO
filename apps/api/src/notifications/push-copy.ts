@@ -13,6 +13,10 @@ export const PUSH_COPY: Record<NotificationCategory, { title: string; body: stri
   shared_accepted: { title: '친구가 같이 하기로 했어요', body: '지금 앱에서 확인해주세요.' },
   accountability_partner: { title: '친구가 진행을 공유했어요', body: '지금 앱에서 확인해주세요.' },
   shared_progress: { title: '친구 약속에 변화가 있어요', body: '지금 앱에서 확인해주세요.' },
+  friend_verify_request: { title: '친구가 확인을 요청했어요', body: '지금 앱에서 확인해주세요.' },
+  friend_verify_approved: { title: '친구가 약속을 확인했어요', body: '지금 앱에서 확인해주세요.' },
+  friend_verify_rejected: { title: '친구 확인 결과가 도착했어요', body: '지금 앱에서 확인해주세요.' },
+  friend_verify_expired: { title: '친구 확인 시간이 지났어요', body: '지금 앱에서 확인해주세요.' },
 };
 
 export const REFUND_DELAYED_COPY = {

@@ -31,7 +31,7 @@ struct ProofFlowView: View {
     }
 
     @ViewBuilder private var content: some View {
-        if let result = result {
+        if let result = result ?? decidedFriendResult {
             ProofResultView(
                 occurrence: occurrence,
                 result: result,
@@ -45,6 +45,33 @@ struct ProofFlowView: View {
         }
     }
 
+    private var decidedFriendResult: VerificationResultResponse? {
+        guard occurrence.verificationMethod == .friend else { return nil }
+        let name = occurrence.friendVerifyName ?? "친구"
+        if occurrence.friendVerifyStatus == "approved" || (occurrence.status == "pass" && occurrence.friendVerifyStatus != nil) {
+            return VerificationResultResponse(
+                occurrenceId: occurrence.id, resultId: "friend", result: .pass,
+                reasonCode: "FRIEND_VERIFY_APPROVED", userMessage: Copy.Friends.approved(name),
+                confidence: nil, isMoneyCommitment: occurrence.isMoneyCommitment
+            )
+        }
+        if occurrence.friendVerifyStatus == "rejected" || (occurrence.status == "fail" && occurrence.friendVerifyStatus != nil) {
+            return VerificationResultResponse(
+                occurrenceId: occurrence.id, resultId: "friend", result: .fail,
+                reasonCode: "FRIEND_VERIFY_REJECTED", userMessage: Copy.Friends.rejected(name),
+                confidence: nil, isMoneyCommitment: occurrence.isMoneyCommitment
+            )
+        }
+        if occurrence.friendVerifyStatus == "expired" {
+            return VerificationResultResponse(
+                occurrenceId: occurrence.id, resultId: "friend", result: .uncertain,
+                reasonCode: "FRIEND_VERIFY_EXPIRED", userMessage: "친구 확인이 없어 아직 결과로 처리하지 않았어요.",
+                confidence: nil, isMoneyCommitment: occurrence.isMoneyCommitment
+            )
+        }
+        return nil
+    }
+
     @ViewBuilder private var proofScreen: some View {
         switch occurrence.verificationMethod {
         case .photo:
@@ -55,6 +82,8 @@ struct ProofFlowView: View {
             TimerProofView(occurrence: occurrence, onResult: { result = $0 }, onError: { errorMessage = $0 })
         case .self:
             SelfVerifyView(occurrence: occurrence, onResult: { result = $0 }, onError: { errorMessage = $0 })
+        case .friend:
+            FriendVerifyView(occurrence: occurrence, onResult: { result = $0 }, onError: { errorMessage = $0 })
         default:
             UnsupportedMethodView(method: occurrence.verificationMethod)
         }

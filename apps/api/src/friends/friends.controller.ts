@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthGuard, AuthedRequest } from '../auth/auth.guard';
+import { FriendVerifyService } from './friend-verify.service';
 import { FriendsService } from './friends.service';
 import { SharedCommitmentService } from './shared-commitment.service';
 
@@ -12,6 +13,7 @@ export class FriendsController {
   constructor(
     private readonly friends: FriendsService,
     private readonly shared: SharedCommitmentService,
+    private readonly friendVerify: FriendVerifyService,
   ) {}
 
   @Get('me/invite-code')
@@ -30,8 +32,9 @@ export class FriendsController {
   }
 
   @Get('friends/home')
-  home(@Req() req: AuthedRequest) {
-    return this.shared.home(req.userId);
+  async home(@Req() req: AuthedRequest) {
+    const home = await this.shared.home(req.userId);
+    return { ...home, reviewQueue: await this.friendVerify.inbox(req.userId) };
   }
 
   @Post('friends/invite')
@@ -53,14 +56,18 @@ export class FriendsController {
   }
 
   @Delete('friends/:id')
-  remove(@Req() req: AuthedRequest, @Param('id') id: string) {
-    return this.friends.remove(req.userId, id);
+  async remove(@Req() req: AuthedRequest, @Param('id') id: string) {
+    const r = await this.friends.remove(req.userId, id);
+    if (r.friendUserId) await this.friendVerify.revokePair(req.userId, r.friendUserId);
+    return r;
   }
 
   @Post('friends/:id/block')
   @HttpCode(200)
-  block(@Req() req: AuthedRequest, @Param('id') id: string) {
-    return this.friends.block(req.userId, id);
+  async block(@Req() req: AuthedRequest, @Param('id') id: string) {
+    const r = await this.friends.block(req.userId, id);
+    await this.friendVerify.revokePair(req.userId, r.friendUserId);
+    return r;
   }
 
   @Get('social/commitments/:id')

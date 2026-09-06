@@ -15,6 +15,8 @@ import SwiftUI
 ///                    wizard-payment, wizard-payment-failed, wizard-signature,
 ///                    wizard-resume-signature, wizard-done-money, wizard-done-self
 ///   Friends       — friends-request, friends-accepted, friends-social, friends-shared, friends-diverge
+///   Friend Verify — friend-verify-inbox, friend-verify-pass, friend-verify-reject-money,
+///                    friend-verify-timeout, friend-verify-revoked
 ///   Cancel        — cancel-self, cancel-money, cancel-settled
 ///   Compliance    — terms-accept, age-reject, fail-provisional, cancel-immediate,
 ///                    v1-grace-alive, v1-grace-exceeded, v1-cancel-pre, v1-cancel-post, v1-makeup

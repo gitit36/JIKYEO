@@ -157,6 +157,17 @@ enum NotificationCategory {
   shared_accepted
   accountability_partner
   shared_progress
+  friend_verify_request
+  friend_verify_approved
+  friend_verify_rejected
+  friend_verify_expired
+}
+
+enum FriendVerifyStatus {
+  pending
+  approved
+  rejected
+  expired
 }
 
 enum NotificationOutboxStatus {
@@ -340,6 +351,8 @@ model User {
   notificationOutbox NotificationOutbox[]
   weeklyRecaps       WeeklyRecap[]
   contracts          CommitmentContract[]
+  friendVerifyOwned  FriendVerifyRequest[] @relation("FriendVerifyOwner")
+  friendVerifyAsVerifier FriendVerifyRequest[] @relation("FriendVerifyVerifier")
 
   @@unique([authProvider, authSubject])
   @@index([email])
@@ -428,6 +441,7 @@ model Occurrence {
   appeal              Appeal?
   notifications       NotificationSchedule[]
   ledgerEntries       PaymentLedger[]
+  friendVerifyRequest FriendVerifyRequest?
 
   @@unique([commitmentId, sequenceNo])
   @@index([status, deadlineAt])
@@ -656,6 +670,28 @@ model Appeal {
 
   @@index([status, submittedAt])
   @@map("appeals")
+}
+
+model FriendVerifyRequest {
+  id               String             @id @default(uuid()) @db.Uuid
+  occurrenceId     String             @unique @map("occurrence_id") @db.Uuid
+  commitmentId     String             @map("commitment_id") @db.Uuid
+  ownerUserId      String             @map("owner_user_id") @db.Uuid
+  verifierUserId   String             @map("verifier_user_id") @db.Uuid
+  status           FriendVerifyStatus @default(pending)
+  requestedAt      DateTime           @map("requested_at") @db.Timestamptz
+  reviewDeadlineAt DateTime           @map("review_deadline_at") @db.Timestamptz
+  decidedAt        DateTime?          @map("decided_at") @db.Timestamptz
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+
+  occurrence       Occurrence         @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  owner            User               @relation("FriendVerifyOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  verifier         User               @relation("FriendVerifyVerifier", fields: [verifierUserId], references: [id], onDelete: Restrict)
+
+  @@index([verifierUserId, status])
+  @@index([status, reviewDeadlineAt])
+  @@map("friend_verify_requests")
 }
 
 model CommitmentObserver {

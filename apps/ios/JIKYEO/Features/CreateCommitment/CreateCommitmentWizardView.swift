@@ -31,11 +31,16 @@ struct CreateCommitmentWizardView: View {
                         // Money → stake screen. Social → observer picker.
                         // Self → straight to Review with server safety check.
                         switch model.enforcementMode {
-                        case .money:  model.step = .stake
+                        case .money:
+                            model.step = model.verificationMethod == .friend ? .observer : .stake
                         case .social: model.step = .observer
                         case .self:
-                            model.step = .review
-                            Task { await model.refreshQuote(container: container) }
+                            if model.verificationMethod == .friend {
+                                model.step = .observer
+                            } else {
+                                model.step = .review
+                                Task { await model.refreshQuote(container: container) }
+                            }
                         }
                     })
                 case .stake:
@@ -47,8 +52,12 @@ struct CreateCommitmentWizardView: View {
                     })
                 case .observer:
                     ObserverStep(model: model, container: container, onNext: {
-                        model.step = .review
-                        Task { await model.refreshQuote(container: container) }
+                        if model.enforcementMode == .money {
+                            model.step = .stake
+                        } else {
+                            model.step = .review
+                            Task { await model.refreshQuote(container: container) }
+                        }
                     })
                 case .review:
                     ReviewStep(model: model, onNext: {
@@ -435,13 +444,7 @@ private struct VerificationStep: View {
     }
     /// `friend` is not shipped in Phase 3 in Release; DEBUG allows it so we
     /// can render the flow. GPS is now fully wired in both configurations.
-    static func isComingSoon(_ m: VerificationMethod) -> Bool {
-        #if DEBUG
-        return false
-        #else
-        return m == .friend
-        #endif
-    }
+    static func isComingSoon(_ m: VerificationMethod) -> Bool { false }
 }
 
 private struct MethodRow: View {
@@ -912,7 +915,7 @@ private struct ObserverStep: View {
     @State private var friends: [FriendRow] = []
     var body: some View {
         WizardContainer(
-            title: Copy.Friends.pickFriend,
+            title: model.verificationMethod == .friend ? Copy.Friends.pickVerifier : Copy.Friends.pickFriend,
             primaryTitle: Copy.Wizard.next,
             primaryEnabled: model.selectedFriendUserId != nil,
             onPrimary: onNext

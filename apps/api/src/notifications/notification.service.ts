@@ -20,6 +20,10 @@ const CATEGORIES: NotificationCategory[] = [
   'shared_accepted',
   'accountability_partner',
   'shared_progress',
+  'friend_verify_request',
+  'friend_verify_approved',
+  'friend_verify_rejected',
+  'friend_verify_expired',
 ];
 
 export interface EnqueueInput {
@@ -346,6 +350,10 @@ function optedIn(prefs: {
     case 'shared_accepted':
     case 'accountability_partner':
     case 'shared_progress':
+    case 'friend_verify_request':
+    case 'friend_verify_approved':
+    case 'friend_verify_rejected':
+    case 'friend_verify_expired':
       return prefs.social ?? true;
     default: return false;
   }

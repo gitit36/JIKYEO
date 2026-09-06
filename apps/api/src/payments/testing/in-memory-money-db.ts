@@ -239,7 +239,7 @@ export class InMemoryMoneyDb {
       this.verificationResult, this.commitment, this.deviceToken, this.notificationPreference,
       this.notificationOutbox, this.weeklyRecap, this.commitmentContract,
       this.friendship, this.sharedCommitment, this.sharedParticipant, this.commitmentObserver,
-      this.verificationRule,
+      this.verificationRule, this.friendVerifyRequest,
     ];
   }
 
@@ -277,6 +277,7 @@ export class InMemoryMoneyDb {
     },
   });
   readonly verificationRule = new Table('vrule', [['commitmentId']]);
+  readonly friendVerifyRequest = new Table('fvr', [['occurrenceId']]);
   readonly occurrence = new Table('occ', [['commitmentId', 'sequenceNo']], {
     include: (row, include) => {
       if (include.commitment) {
@@ -286,9 +287,17 @@ export class InMemoryMoneyDb {
             ? Object.fromEntries(Object.entries(include.commitment.select).filter(([, v]) => v).map(([k]) => [k, (c as Row)[k]]))
             : { ...c })
           : null;
-        if (include.commitment.include?.stake && row.commitment) {
+        if (include.commitment.include && c) {
+          row.commitment = this.commitment.withInclude({ ...c }, { include: include.commitment.include });
+        } else if (include.commitment.include?.stake && row.commitment) {
           row.commitment.stake = this.stake.rows.find((s) => s.commitmentId === row.commitmentId) ?? null;
         }
+      }
+      if (include.friendVerifyRequest) {
+        const fv = this.friendVerifyRequest.rows.find((r) => r.occurrenceId === row.id) ?? null;
+        row.friendVerifyRequest = include.friendVerifyRequest.select && fv
+          ? Object.fromEntries(Object.entries(include.friendVerifyRequest.select).filter(([, v]) => v).map(([k]) => [k, fv[k]]))
+          : fv;
       }
       if (include.appeal) {
         row.appeal = this.appeal.rows.find((a) => a.occurrenceId === row.id) ?? null;
@@ -373,6 +382,12 @@ export class InMemoryMoneyDb {
       }
       if (include.observers) {
         row.observers = this.commitmentObserver.rows.filter((o) => o.commitmentId === row.id);
+      }
+      if (include.verificationRule) {
+        const vr = this.verificationRule.rows.find((v) => v.commitmentId === row.id) ?? null;
+        row.verificationRule = include.verificationRule.select
+          ? Object.fromEntries(Object.entries(include.verificationRule.select).filter(([, v]) => v).map(([k]) => [k, vr?.[k]]))
+          : vr;
       }
       return row;
     },

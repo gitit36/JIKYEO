@@ -280,6 +280,8 @@ public struct TodayOccurrenceDTO: Codable, Identifiable {
     public let deadlineAt: Date
     /// `null` for SELF/SOCIAL, numeric string for MONEY.
     public let stakeAmountKrw: String?
+    public let friendVerifyStatus: String?
+    public let friendVerifyName: String?
 }
 
 public struct TodayResponse: Codable {

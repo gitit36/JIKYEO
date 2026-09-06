@@ -8,6 +8,8 @@ struct ProofResultView: View {
     let result: VerificationResultResponse
     let onClose: () -> Void
     let onRetry: () -> Void
+    @EnvironmentObject private var container: AppContainer
+    @State private var showAppeal = false
 
     var body: some View {
         VStack(spacing: DS.Space.lg) {
@@ -25,7 +27,7 @@ struct ProofResultView: View {
                 .foregroundStyle(DS.Color.textSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            if result.isMoneyCommitment && amount > 0 && result.result != .uncertain {
+            if result.isMoneyCommitment && amount > 0 && result.result == .pass {
                 MoneyText(amount, intent: moneyIntent, size: .hero)
             }
             Spacer()
@@ -36,11 +38,36 @@ struct ProofResultView: View {
                 PrimaryButton(Copy.Result.uncertainCTA, action: onRetry)
                 TertiaryButton(Copy.Result.checkAgainLater, action: onClose)
             case .fail:
-                PrimaryButton(Copy.Result.backHome, action: onClose)
+                if result.isMoneyCommitment {
+                    Text(Copy.Appeal.provisional).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+                    PrimaryButton(Copy.Appeal.cta) { showAppeal = true }
+                    TertiaryButton(Copy.Result.backHome, action: onClose)
+                } else {
+                    PrimaryButton(Copy.Result.backHome, action: onClose)
+                }
             }
         }
         .padding(.horizontal, DS.Space.lg)
         .padding(.vertical, DS.Space.xl)
+        .sheet(isPresented: $showAppeal) {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: DS.Space.md) {
+                    Text(Copy.Appeal.body).font(Typo.body)
+                    PrimaryButton(Copy.Appeal.submit) {
+                        Task {
+                            _ = try? await container.appealAPI.submit(
+                                occurrenceId: occurrence.id,
+                                category: .verification_error,
+                                explanation: "친구 확인 결과에 이의가 있어요."
+                            )
+                            showAppeal = false
+                        }
+                    }
+                }
+                .padding(DS.Space.lg)
+                .navigationTitle(Copy.Appeal.title)
+            }
+        }
     }
 
     private var amount: Int64 { occurrence.stakeKrw }
@@ -56,6 +83,9 @@ struct ProofResultView: View {
     private var subline: String {
         switch result.result {
         case .pass:
+            if result.reasonCode.hasPrefix("FRIEND_VERIFY") {
+                return Copy.Friends.approved(occurrence.friendVerifyName ?? "친구")
+            }
             if result.isMoneyCommitment && amount > 0 {
                 return Copy.Result.passMoneyBody(amount)
             }
@@ -63,8 +93,8 @@ struct ProofResultView: View {
         case .uncertain:
             return "\(Copy.Result.uncertainBody)\n\(result.userMessage)"
         case .fail:
-            if result.isMoneyCommitment && amount > 0 {
-                return Copy.Result.failMoneyBody(amount)
+            if result.reasonCode.hasPrefix("FRIEND_VERIFY") {
+                return Copy.Friends.rejected(occurrence.friendVerifyName ?? "친구")
             }
             return Copy.Result.failSelfBody
         }

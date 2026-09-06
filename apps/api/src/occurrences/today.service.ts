@@ -17,6 +17,8 @@ export interface TodayOccurrence {
   deadlineAt: Date;
   /** `null` for SELF/SOCIAL occurrences. */
   stakeAmountKrw: string | null;
+  friendVerifyStatus?: string | null;
+  friendVerifyName?: string | null;
 }
 
 export interface TodaySummary {
@@ -64,6 +66,7 @@ export class TodayService {
             verificationRule: { select: { method: true } },
           },
         },
+        friendVerifyRequest: { select: { status: true, verifierUserId: true } },
       },
     });
 
@@ -78,6 +81,12 @@ export class TodayService {
         moneyCount += 1;
       }
     }
+
+    const verifierIds = [...new Set(rows.map((r) => r.friendVerifyRequest?.verifierUserId).filter(Boolean))] as string[];
+    const names = verifierIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: verifierIds } }, select: { id: true, displayName: true } })
+      : [];
+    const nameById = new Map(names.map((u) => [u.id, u.displayName]));
 
     return {
       atRiskKrw: atRisk.toString(),
@@ -95,6 +104,10 @@ export class TodayService {
         windowStartAt: r.windowStartAt,
         deadlineAt: r.deadlineAt,
         stakeAmountKrw: r.stakeAmount?.toString() ?? null,
+        friendVerifyStatus: r.friendVerifyRequest?.status ?? null,
+        friendVerifyName: r.friendVerifyRequest?.verifierUserId
+          ? (nameById.get(r.friendVerifyRequest.verifierUserId) ?? '친구')
+          : null,
       })),
     };
   }

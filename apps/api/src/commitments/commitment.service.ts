@@ -117,7 +117,7 @@ export class CommitmentService {
       }
     }
 
-    if (dto.enforcementMode === 'social') {
+    if (dto.enforcementMode === 'social' || dto.verification.method === 'friend') {
       if (!dto.observer || !dto.observer.observerUserId) {
         throw new DomainError('FRIEND_NOT_SELECTED', '친구를 먼저 지정해주세요.');
       }
@@ -251,7 +251,7 @@ export class CommitmentService {
           data: {
             commitmentId: commitment.id,
             observerUserId: dto.observer.observerUserId,
-            role: 'viewer',
+            role: dto.verification.method === 'friend' ? 'verifier' : 'viewer',
             notifyOnSuccess: true,
             notifyOnFail: true,
           },

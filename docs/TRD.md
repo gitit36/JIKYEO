@@ -191,7 +191,8 @@ POST /v1/admin/money/cases/{id}/reconcile
 
 서버는 mode-별로 아래를 강제한다:
 - **SELF** → quoteId 금지, Stake row 미생성.
-- **SOCIAL** → quoteId 금지, 수락된 친구 observer(viewer) 필수(`FRIEND_NOT_SELECTED`). verifier 역할은 Phase 5.2.
+- **SOCIAL** → quoteId 금지, 수락된 친구 observer(viewer) 필수(`FRIEND_NOT_SELECTED`).
+- **Friend Verify** → `verification.method=friend`이면 수락된 친구 verifier 필수. 판정만 VerificationResult로 기록.
 - **MONEY** → quoteId 필수, `consumed_quotes`에 소비 기록, Stake row 생성.
 
 ### Stake Policy
@@ -257,7 +258,11 @@ POST   /v1/shared-commitments/{id}/invite
 POST   /v1/shared-commitments/{id}/accept
 POST   /v1/shared-commitments/{id}/decline
 POST   /v1/shared-commitments/{id}/leave
-POST   /v1/occurrences/{id}/friend-verification   # Phase 5.2
+GET    /v1/friend-verifications
+GET    /v1/occurrences/{id}/friend-verification
+POST   /v1/occurrences/{id}/friend-verification   # action=request|approve|reject
+GET    /v1/admin/friend-verifications
+GET    /v1/admin/friend-verifications/{id}
 ```
 
 ### Payment / Settlement (MONEY 모드 전용)
@@ -668,13 +673,14 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 
 ### Phase 5.1 — Friends / SOCIAL / Shared Commitment (완료)
 - 친구 관계(invite/accept/decline/remove/block), SOCIAL viewer 1명, SharedCommitment 컨테이너(재정 없음).
-- 친구는 진행/결과만 본다. Friend Verify는 Phase 5.2.
+- 친구는 진행/결과만 본다. Friend Verify는 Phase 5.2에서 회차 판정만 한다.
 
-### Phase 5F remaining (예정)
+### Phase 5.2 — Friend Verify (완료)
+- 수락된 친구 1명 verifier. 승인=PASS, 거절=잠정 FAIL, 미응답/차단=UNCERTAIN.
+- 친구는 돈을 결정·수령·몰수하지 않는다.
+
+### Phase 5 remaining (예정)
 - 실 KCP 네트워크/자격증명, StoreKit entitlement, 실 APNs, 실 vision, admin web UI
-
-### Phase 5.2 — Friend Verify (예정)
-- 친구 승인/거절로 결과 확정. 친구는 재정 결과를 결정하지 않는다.
 
 ### Phase 6 — Social 완전판 (예정)
 

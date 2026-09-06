@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Clock } from '../common/clock/clock';
 import { AppConfig } from '../config/app-config';
 import { PrismaService } from '../prisma/prisma.service';
+import { FriendVerifyService } from '../friends/friend-verify.service';
 import { VerificationOrchestrator } from '../verification/verification-orchestrator.service';
 
 /**
@@ -43,6 +44,7 @@ export class DeadlineService {
     private readonly cfg: AppConfig,
     private readonly orchestrator: VerificationOrchestrator,
     private readonly health: HealthMonitor,
+    @Optional() private readonly friendVerify?: FriendVerifyService,
   ) {}
 
   /**
@@ -51,6 +53,7 @@ export class DeadlineService {
   async sweep(): Promise<DeadlineSweepReport> {
     const now = this.clock.now();
     const graceCutoff = new Date(now.getTime() - this.cfg.networkGraceSeconds * 1000);
+    await this.friendVerify?.expireDue();
     const candidates = await this.prisma.occurrence.findMany({
       where: {
         status: { in: ['scheduled', 'active', 'evidence_submitted', 'reviewing', 'uncertain'] },
@@ -60,6 +63,7 @@ export class DeadlineService {
         commitment: { select: { id: true, userId: true, enforcementMode: true, status: true, cancellationRequestedAt: true, cancellationEffectiveAt: true } },
         evidence: { select: { id: true }, take: 1 },
         verificationResults: { orderBy: { createdAt: 'desc' }, take: 1 },
+        friendVerifyRequest: { select: { status: true } },
       },
     });
 
@@ -83,6 +87,10 @@ export class DeadlineService {
       // callbacks win over the sweep.
       const latest = occ.verificationResults?.[0];
       if (latest) {
+        alreadyResolved += 1;
+        continue;
+      }
+      if ((occ as { friendVerifyRequest?: { status?: string } }).friendVerifyRequest?.status === 'pending') {
         alreadyResolved += 1;
         continue;
       }

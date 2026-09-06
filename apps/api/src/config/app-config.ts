@@ -128,6 +128,11 @@ export class AppConfig {
     return Number(this.cfg.get<string>('APPEAL_WINDOW_SECONDS') ?? 7 * 24 * 3600);
   }
 
+  /** Friend Verify review window. Persisted at request time; never recomputed. */
+  get friendReviewWindowSeconds(): number {
+    return Number(this.cfg.get<string>('FRIEND_REVIEW_WINDOW_SECONDS') ?? 86_400);
+  }
+
   /** Local hour (0–23) to generate the previous week's recap. Default Monday 09:00. */
   get recapLocalHour(): number {
     return Number(this.cfg.get<string>('RECAP_LOCAL_HOUR') ?? 9);

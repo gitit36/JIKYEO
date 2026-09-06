@@ -14,7 +14,13 @@ struct FriendsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.md) {
-                    if let home, !home.shared.isEmpty || !home.watching.isEmpty || !home.friends.isEmpty || !home.requests.isEmpty {
+                    if let home, !home.shared.isEmpty || !home.watching.isEmpty || !home.friends.isEmpty || !home.requests.isEmpty || !home.reviewQueue.isEmpty {
+                        if !home.reviewQueue.isEmpty {
+                            Text(Copy.Friends.reviewInbox).font(Typo.bodyStrong)
+                            ForEach(home.reviewQueue) { card in
+                                FriendVerifyInboxCard(card: card) { await load() }
+                            }
+                        }
                         if !home.shared.isEmpty || !home.watching.isEmpty {
                             Text(Copy.Friends.together).font(Typo.bodyStrong)
                             ForEach(home.watching, id: \.commitmentId) { p in
@@ -127,22 +133,67 @@ struct FriendsView: View {
                 SharedMember(userId: "u2", displayName: "민수", participantStatus: "accepted", progress: progress),
             ]
         )
+        let review = FriendVerifyCard(
+            requestId: "fv1", occurrenceId: "o1", status: "pending",
+            ownerDisplayName: "상혁", verifierDisplayName: "민수", title: "야식 먹지 않기",
+            windowStartAt: Date(), deadlineAt: Date().addingTimeInterval(3600),
+            reviewDeadlineAt: Date().addingTimeInterval(86400),
+            question: Copy.Friends.question("상혁", "야식 먹지 않기")
+        )
         if stage == "friends-request" {
             return FriendsHomeResponse(
                 shared: [], watching: [], friends: [],
                 requests: [FriendRequestRow(friendshipId: "f-in", fromUserId: "u2", displayName: "민수", kind: "friend_request", sharedCommitmentId: nil, title: nil)],
-                invite: InviteCodeResponse(inviteCode: "ABC12345")
+                invite: InviteCodeResponse(inviteCode: "ABC12345"), reviewQueue: []
             )
         }
         if stage == "friends-accepted" {
-            return FriendsHomeResponse(shared: [], watching: [], friends: [friend], requests: [], invite: InviteCodeResponse(inviteCode: "ABC12345"))
+            return FriendsHomeResponse(shared: [], watching: [], friends: [friend], requests: [], invite: InviteCodeResponse(inviteCode: "ABC12345"), reviewQueue: [])
         }
         if stage == "friends-social" {
-            return FriendsHomeResponse(shared: [], watching: [progress], friends: [friend], requests: [], invite: InviteCodeResponse(inviteCode: "ABC12345"))
+            return FriendsHomeResponse(shared: [], watching: [progress], friends: [friend], requests: [], invite: InviteCodeResponse(inviteCode: "ABC12345"), reviewQueue: [])
         }
-        return FriendsHomeResponse(shared: [shared], watching: [], friends: [friend], requests: [], invite: InviteCodeResponse(inviteCode: "ABC12345"))
+        if stage == "friend-verify-inbox" {
+            return FriendsHomeResponse(shared: [], watching: [], friends: [friend], requests: [], invite: InviteCodeResponse(inviteCode: "ABC12345"), reviewQueue: [review])
+        }
+        return FriendsHomeResponse(shared: [shared], watching: [], friends: [friend], requests: [], invite: InviteCodeResponse(inviteCode: "ABC12345"), reviewQueue: [])
     }
     #endif
+}
+
+private struct FriendVerifyInboxCard: View {
+    @EnvironmentObject private var container: AppContainer
+    let card: FriendVerifyCard
+    let onDone: () async -> Void
+    @State private var confirmReject = false
+    var body: some View {
+        Card {
+            Text(card.title).font(Typo.bodyStrong)
+            Text(card.ownerDisplayName).font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
+            Text(Self.dateLine(card.windowStartAt ?? card.deadlineAt)).font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
+            Text("확인 마감 \(Self.dateLine(card.reviewDeadlineAt))").font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
+            Text(card.question).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+            HStack {
+                Button(Copy.Friends.kept) {
+                    Task { _ = try? await container.friendsAPI.decideFriendVerify(occurrenceId: card.occurrenceId, approve: true); await onDone() }
+                }
+                Button(Copy.Friends.missed) { confirmReject = true }
+            }
+            .font(Typo.bodyStrong)
+        }
+        .confirmationDialog(Copy.Friends.confirmReject, isPresented: $confirmReject, titleVisibility: .visible) {
+            Button(Copy.Friends.missed, role: .destructive) {
+                Task { _ = try? await container.friendsAPI.decideFriendVerify(occurrenceId: card.occurrenceId, approve: false); await onDone() }
+            }
+        }
+    }
+    private static func dateLine(_ date: Date?) -> String {
+        guard let date else { return "—" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ko_KR")
+        f.dateFormat = "M월 d일"
+        return f.string(from: date)
+    }
 }
 
 struct SharedCreateSheet: View {

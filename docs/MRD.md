@@ -27,7 +27,7 @@
 - 사용자는 목표를 단순히 “기록”하지 않고 **측정 가능한 계약**으로 만든다.
 - 강제력은 사용자가 고른다. SELF/SOCIAL/MONEY 중 어느 방식이든 판정(PASS/UNCERTAIN/FAIL)은 동일한 원칙으로 이뤄진다.
 - MONEY 모드일 때만 금전이 움직인다. 성공하면 지키고 실패하면 돌려받지 못한다.
-- Financial Accountability와 Social Accountability는 항상 분리된 시스템이다. **친구는 실패금을 절대 받지 않는다.**
+- Financial Accountability와 Social Accountability는 항상 분리된 시스템이다. **친구는 실패금을 절대 받지 않으며, Friend Verify도 돈을 결정하지 않는다.**
 
 ---
 

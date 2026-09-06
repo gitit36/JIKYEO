@@ -155,6 +155,40 @@ export class VerificationOrchestrator {
    * Recorded when a candidate FAIL is confirmed by the deadline worker
    * (i.e. deadline passed with no evidence AND no system outage).
    */
+  async decideFriend(input: {
+    occurrenceId: string;
+    answer: 'approved' | 'rejected' | 'expired' | 'revoked';
+  }): Promise<PersistedResult> {
+    const occ = await this.loadOccurrenceForVerification(input.occurrenceId);
+    const decision: VerificationDecision = {
+      approved: {
+        result: 'pass' as const,
+        confidence: null,
+        reasonCode: 'FRIEND_VERIFY_APPROVED',
+        userMessage: '친구가 약속 완료를 확인했어요.',
+      },
+      rejected: {
+        result: 'fail' as const,
+        confidence: null,
+        reasonCode: 'FRIEND_VERIFY_REJECTED',
+        userMessage: '친구가 약속을 지키지 못한 것으로 확인했어요.',
+      },
+      expired: {
+        result: 'uncertain' as const,
+        confidence: null,
+        reasonCode: 'FRIEND_VERIFY_EXPIRED',
+        userMessage: '친구 확인이 없어 아직 결과로 처리하지 않았어요.',
+      },
+      revoked: {
+        result: 'uncertain' as const,
+        confidence: null,
+        reasonCode: 'FRIEND_VERIFY_REVOKED',
+        userMessage: '친구 확인을 이어갈 수 없어 아직 결과로 처리하지 않았어요.',
+      },
+    }[input.answer];
+    return this.persist(input.occurrenceId, null, 'friend', decision, occ.commitment.enforcementMode === 'money');
+  }
+
   async recordDeadlineFail(occurrenceId: string): Promise<PersistedResult> {
     const occ = await this.loadOccurrenceForVerification(occurrenceId);
     const decision: VerificationDecision = {

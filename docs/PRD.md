@@ -43,7 +43,7 @@
 - GPS 검증 (MapKit 기반 지점 선택 포함)
 - 집중 타이머 검증
 - Self Verify
-- Friend Verify (Social phase에서 완성)
+- Friend Verify (친구가 회차 완료만 판단. 돈은 서버가 정한다)
 - **StakePolicy 서버 강제 (티어별 상한)**
 - 약속금 선결제 (MONEY 모드 한정)
 - 회차별 성공분 환불/결제취소 (MONEY 모드 한정)
@@ -215,7 +215,8 @@ MVP:
 MVP 상태:
 - SELF 완전 지원.
 - MONEY 완전 지원. 결제 → 서명 → 활성화 → 정산 → 종료 시 aggregate 환불까지 MockPaymentProvider로 end-to-end 동작. 실제 한국 PG는 provider/credentials 확정 후 교체.
-- SOCIAL은 수락된 친구 1명에게 진행/결과를 보여준다. Stake/Payment/Ledger는 없다. Friend Verify는 Phase 5.2.
+- SOCIAL은 수락된 친구 1명에게 진행/결과를 보여준다. Stake/Payment/Ledger는 없다.
+- Friend Verify는 수락된 친구 1명이 회차 완료를 승인/거절한다. 거절은 잠정 FAIL이며 Appeal/Grace/정산을 우회하지 않는다. 미응답·차단은 UNCERTAIN이며 금전 손실이 되지 않는다.
 - Shared Commitment는 같은 목표의 컨테이너일 뿐이며 돈·정산·Grace를 갖지 않는다. 각 참가자가 독립 Commitment를 만든다.
 
 ### 4.7 (MONEY 모드) 약속금
@@ -368,8 +369,8 @@ CTA (양쪽 모두): `이대로 약속할게요`
 - Self Verify는 고위험 약속금 제한 가능
 
 ### Friend Verify
-- 친구가 성공/실패 선택
-- verifier가 직접 금전적 이익을 얻지 않음
+- 친구가 회차 완료만 승인/거절한다. 승인=PASS, 거절=잠정 FAIL, 미응답=UNCERTAIN.
+- verifier가 직접 금전적 이익을 얻지 않음. 증거/Stake/Appeal 상세는 공유하지 않는다.
 
 ---
 
@@ -651,7 +652,7 @@ StakePolicy는 서버가 강제한다. 클라이언트는 상한을 하드코딩
 - 탈퇴 요청 → 진행 중 약속 정산 후 처리
 - 반복 약속 중간 취소 → `cancellationRequestedAt` 이후 회차만 VOID. 24시간 고지가 새 금전 노출을 만들지 않는다. 이미 열린/검토/증거/최종/항소 회차는 유지. FAIL은 항소 마감 또는 기각 후에만 확정. 환불은 최종 정산 때 1회.
 - 마감 후 수정 → 불가
-- 친구 미응답 → Friend Verify 정책에 따라 UNCERTAIN/Appeal
+- 친구 미응답 → UNCERTAIN/system-hold. FAIL·Grace·정산 없음.
 - AI 오판 → Appeal
 - 동일 사진 재사용 → hash 탐지
 

@@ -113,7 +113,8 @@ erDiagram
 
 ### 강제력 모드별 필드 유효성
 - **SELF**: `max_loss_amount = NULL`, `currency = NULL`, Stake row 없음, Payment 없음, ConsumedQuote 없음.
-- **SOCIAL**: SELF와 동일한 재무 상태. 수락된 친구 1명을 CommitmentObserver(viewer)로 지정해야 활성화. Friend Verify는 Phase 5.2.
+- **SOCIAL**: SELF와 동일한 재무 상태. 수락된 친구 1명을 CommitmentObserver(viewer)로 지정해야 활성화.
+- **Friend Verify**: `verification.method=friend`이면 CommitmentObserver.role=verifier. FriendVerifyRequest는 회차당 1개 (pending→approved|rejected|expired).
 - **MONEY**: Stake row 1개, `max_loss_amount` 필수, quote 필수 (`consumed_quotes` 참조), 이후 Payment/Settlement 흐름 활성화.
 
 ---
@@ -397,6 +398,16 @@ PG inbound webhook의 중복 처리 방지 기록.
 SHARED_COMMITMENT: title, schedule_json, start_at/end_at, status open/locked/completed, creator_id.
 SHARED_PARTICIPANT: user_id, status invited/accepted/declined/left, commitment_id nullable.
 각 참가자의 Commitment.shared_commitment_id로만 연결. 재정 필드는 Commitment에만 존재.
+
+### FRIEND_VERIFY_REQUEST
+회차당 최대 1개. Stake/Payment/Ledger 없음.
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| occurrence_id | UUID unique | 대상 회차 |
+| verifier_user_id | UUID | 지정된 친구. 클라이언트 대체 불가 |
+| status | enum | pending/approved/rejected/expired |
+| requested_at / review_deadline_at / decided_at | timestamptz | 요청 시점에 고정된 리뷰 마감 |
 
 ### SOCIAL_GROUP / SOCIAL_MEMBER / SOCIAL_EVENT
 V2 대비 최소 구조. 출시 경로 아님.
