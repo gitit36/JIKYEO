@@ -4,6 +4,15 @@
 <dict>
 	<key>APIBaseURL</key>
 	<string>$(API_BASE_URL)</string>
+	<key>DebugDeviceAPIBaseURL</key>
+	<string>$(DEBUG_DEVICE_API_BASE_URL)</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>같은 네트워크의 개발 서버에 연결하기 위해 사용해요.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleURLTypes</key>

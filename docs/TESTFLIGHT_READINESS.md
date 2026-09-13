@@ -67,24 +67,22 @@ Do not treat these as TestFlight blockers. They remain launch gates:
 
 ## Physical-device QA
 
-Simulator results do not count. Device was **not available**.
+Simulator results do not count. Signed iPhone 14 (`Susususupernova`, iOS 26.6.1) was attached. Debug device builds sign. Live API calls were blocked by iOS Local Network TCC (`Local network prohibited`) until the user taps Allow for 지켜.
 
 | # | Flow | Result |
 |---|---|---|
-| 1 | launch/login | FAIL (no signed iPhone) |
-| 2 | create SELF | FAIL (no signed iPhone) |
-| 3 | Today → verify → History | FAIL (no signed iPhone) |
-| 4 | Friend / SOCIAL | FAIL (no signed iPhone) |
-| 5 | Friend Verify | FAIL (no signed iPhone) |
-| 6 | Shared Commitment | FAIL (no signed iPhone) |
-| 7 | relaunch/session restore | FAIL (no signed iPhone) |
-| 8 | GPS permission + verification | FAIL (no signed iPhone) |
-| 9 | Focus Timer | FAIL (no signed iPhone) |
-| 10 | notification permission registration | FAIL (no signed iPhone) |
-| 11 | MONEY remains non-live | FAIL (no signed iPhone) |
-| 12 | Photo remains gated | FAIL (no signed iPhone) |
+| 1 | login/onboarding | FAIL (Local Network TCC) |
+| 2 | SELF create → Today → verify → History | FAIL (blocked by 1) |
+| 3 | GPS verification | FAIL (blocked by 1) |
+| 4 | Focus Timer | FAIL (blocked by 1) |
+| 5 | Friends | FAIL (blocked by 1) |
+| 6 | Shared Commitment | FAIL (blocked by 1) |
+| 7 | Friend Verify approve/reject | FAIL (blocked by 1) |
+| 8 | relaunch/session restore | FAIL (blocked by 1) |
+| 9 | MONEY remains non-live | FAIL (blocked by 1; Debug+development still MockPayment only) |
+| 10 | Photo remains gated | FAIL (blocked by 1; Debug+development matrix still allows photo, Release compile-gates) |
 
-Device-only paths exist in code (When-In-Use GPS, timer `scenePhase` heartbeats, notification `PushRegistrar`, session remount). They were not exercised on hardware.
+Manual unblock: first launch → Allow Local Network (설정 → 지켜 → 로컬 네트워크). Debug device API is `http://192.168.35.139:3001/v1`.
 
 ## Manual signing steps (when a team exists)
 

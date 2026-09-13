@@ -13,7 +13,6 @@ settings:
     # Do not invent Team IDs. Unsigned local/simulator builds stay allowed.
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
-    CODE_SIGNING_ALLOWED: NO
     CODE_SIGNING_REQUIRED: NO
 
 targets:
@@ -45,6 +44,7 @@ targets:
         INFOPLIST_KEY_NSCameraUsageDescription: "약속을 사진으로 증명하기 위해 카메라를 사용해요."
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "증명 사진 저장을 위해 사진첩을 사용해요."
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "약속 장소에 도착했는지 확인하기 위해 위치를 사용해요."
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "같은 네트워크의 개발 서버에 연결하기 위해 사용해요."
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_USER_SCRIPT_SANDBOXING: NO
@@ -54,6 +54,7 @@ targets:
         Debug:
           CODE_SIGN_ENTITLEMENTS: JIKYEO.Debug.entitlements
           API_BASE_URL: http://localhost:3001/v1
+          DEBUG_DEVICE_API_BASE_URL: http://192.168.35.139:3001/v1
         Release:
           CODE_SIGN_ENTITLEMENTS: JIKYEO.Release.entitlements
           API_BASE_URL: https://api.jikyeo.app/v1

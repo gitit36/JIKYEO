@@ -18,7 +18,7 @@ public struct AppEnvironment {
     ) -> AppEnvironment {
         let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         #if DEBUG
-        let candidate = trimmed.isEmpty ? "http://localhost:3001/v1" : trimmed
+        let candidate = debugCandidate(trimmed: trimmed)
         if let url = validatedURL(candidate, allowLocal: true) {
             return AppEnvironment(apiBaseURL: url, bundleId: bundleId, isUsable: true)
         }
@@ -47,5 +47,22 @@ public struct AppEnvironment {
             return (url.scheme == "http" || url.scheme == "https") ? url : nil
         }
         return url.scheme == "https" ? url : nil
+    }
+
+    /// Simulator may use loopback. A physical device's localhost is the phone.
+    static func debugCandidate(
+        trimmed: String,
+        deviceOverride: String? = Bundle.main.object(forInfoDictionaryKey: "DebugDeviceAPIBaseURL") as? String
+    ) -> String {
+        let fallback = "http://localhost:3001/v1"
+        let base = trimmed.isEmpty ? fallback : trimmed
+        #if targetEnvironment(simulator)
+        return base
+        #else
+        let override = deviceOverride?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !override.isEmpty, let host = URL(string: base)?.host?.lowercased() else { return base }
+        let loopback = host == "localhost" || host == "127.0.0.1" || host == "0.0.0.0"
+        return loopback ? override : base
+        #endif
     }
 }

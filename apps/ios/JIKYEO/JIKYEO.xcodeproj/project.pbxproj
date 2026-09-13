@@ -74,7 +74,7 @@
 		37D50BD86475B503B355C611 /* Copy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Copy.swift; sourceTree = "<group>"; };
 		387DB39CC7BFBD7DCF08D9F0 /* PublicAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicAPI.swift; sourceTree = "<group>"; };
 		3A117D22D7CF6424E7361100 /* CreateCommitmentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCommitmentModel.swift; sourceTree = "<group>"; };
-		3CDC37B1BC5F624BACD1E19B /* JIKYEO.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JIKYEO.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3CDC37B1BC5F624BACD1E19B /* JIKYEO.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = JIKYEO.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		426B016CDA80B9F4B14F794D /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
 		438A76621CD2BBF69BDEC408 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		4957831E5FA1F82F2C9C6655 /* WeeklyRecapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyRecapView.swift; sourceTree = "<group>"; };
@@ -300,6 +300,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					B22059F7ADA0A263F7EFFE51 = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -401,12 +402,14 @@
 				CODE_SIGN_ENTITLEMENTS = JIKYEO.Debug.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_DEVICE_API_BASE_URL = "http://192.168.35.139:3001/v1";
 				DEVELOPMENT_TEAM = 9CFR2T62J6;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "지켜";
 				INFOPLIST_KEY_NSCameraUsageDescription = "약속을 사진으로 증명하기 위해 카메라를 사용해요.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "같은 네트워크의 개발 서버에 연결하기 위해 사용해요.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "약속 장소에 도착했는지 확인하기 위해 위치를 사용해요.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "증명 사진 저장을 위해 사진첩을 사용해요.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -460,12 +463,11 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 9CFR2T62J6;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -502,6 +504,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "지켜";
 				INFOPLIST_KEY_NSCameraUsageDescription = "약속을 사진으로 증명하기 위해 카메라를 사용해요.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "같은 네트워크의 개발 서버에 연결하기 위해 사용해요.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "약속 장소에 도착했는지 확인하기 위해 위치를 사용해요.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "증명 사진 저장을 위해 사진첩을 사용해요.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -555,12 +558,11 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 9CFR2T62J6;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
