@@ -3,9 +3,10 @@ import { Injectable } from '@nestjs/common';
 import { Clock } from '../common/clock/clock';
 import { DomainError, ForbiddenError, NotFoundError } from '../common/errors/domain-errors';
 import { PrismaService } from '../prisma/prisma.service';
+import { POLICY_VERSIONS } from '../public/mvp-scope';
 import { allowedFailCount, ContractStrictnessMode, parseStrictness } from './grace-policy';
 
-export const TERMS_VERSION = 'terms-v2';
+export const TERMS_VERSION = POLICY_VERSIONS.terms;
 
 export interface TermsSnapshot {
   documentVersion: string;
@@ -33,6 +34,7 @@ export interface TermsView {
   snapshot: TermsSnapshot;
   snapshotHash: string;
   acceptedAt: string | null;
+  currentPolicyVersions: typeof POLICY_VERSIONS;
 }
 
 const REFUND_GUIDANCE =
@@ -50,7 +52,13 @@ export class TermsService {
     const existing = await this.prisma.commitmentContract.findUnique({ where: { commitmentId } });
     if (existing) return this.stored(existing);
     const snapshot = this.buildSnapshot(c);
-    return { documentVersion: snapshot.documentVersion, snapshot, snapshotHash: hashSnapshot(snapshot), acceptedAt: null };
+    return {
+      documentVersion: snapshot.documentVersion,
+      snapshot,
+      snapshotHash: hashSnapshot(snapshot),
+      acceptedAt: null,
+      currentPolicyVersions: POLICY_VERSIONS,
+    };
   }
 
   async accept(
@@ -120,6 +128,7 @@ export class TermsService {
       snapshot: row.snapshotJson as TermsSnapshot,
       snapshotHash: row.snapshotHash,
       acceptedAt: row.acceptedAt.toISOString(),
+      currentPolicyVersions: POLICY_VERSIONS,
     };
   }
 

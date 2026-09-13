@@ -49,6 +49,7 @@
 		DE0BF52AC597117E55CA8721 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27EA559AD70FF91099A7C7DE /* APIClient.swift */; };
 		DE3AE9B3EE11E0BCCEC6DF53 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC98049F94AE6C08CC430AEA /* Typography.swift */; };
 		DED02BC39994F0722A0410AC /* InputField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60771B39C89F5F8210E869CE /* InputField.swift */; };
+		E1D7CF7A01B85795C2B6DE9C /* PublicAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387DB39CC7BFBD7DCF08D9F0 /* PublicAPI.swift */; };
 		E9CEBA4C097212BC72C6C878 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFE5CF552F3E17762560457 /* AppEnvironment.swift */; };
 		EEC63B4CB4D8BA83F57AD972 /* NotificationRecapAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 616A0DF6BCA51FBCB4D33FFF /* NotificationRecapAPI.swift */; };
 		F631A5F0EC0EC6BD14F3DDD6 /* StatusChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C42A0920D900711B7539E21 /* StatusChip.swift */; };
@@ -69,6 +70,7 @@
 		31359A28BB160317081D47FF /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
 		338DDB07ED0B24924515B50C /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		37D50BD86475B503B355C611 /* Copy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Copy.swift; sourceTree = "<group>"; };
+		387DB39CC7BFBD7DCF08D9F0 /* PublicAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicAPI.swift; sourceTree = "<group>"; };
 		3A117D22D7CF6424E7361100 /* CreateCommitmentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCommitmentModel.swift; sourceTree = "<group>"; };
 		3CDC37B1BC5F624BACD1E19B /* JIKYEO.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = JIKYEO.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		426B016CDA80B9F4B14F794D /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
@@ -210,6 +212,7 @@
 				8DCD78F74E59AFDB792A27A6 /* DeepLink.swift */,
 				B79ED212D6AF5C60D6FD2184 /* FriendsAPI.swift */,
 				616A0DF6BCA51FBCB4D33FFF /* NotificationRecapAPI.swift */,
+				387DB39CC7BFBD7DCF08D9F0 /* PublicAPI.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -370,6 +373,7 @@
 				95E3BBF442CBE39568514C85 /* PhotoProofView.swift in Sources */,
 				D5D25E89CF26E05358769294 /* ProofFlowView.swift in Sources */,
 				143EEA1E25546B0C3518382E /* ProofResultView.swift in Sources */,
+				E1D7CF7A01B85795C2B6DE9C /* PublicAPI.swift in Sources */,
 				1BF899F44C2748E4AF7AEB0F /* RootView.swift in Sources */,
 				BF1E3B6D901905E5B3BF3FD6 /* SegmentedControl.swift in Sources */,
 				1AA6BE939632081D5FAA4142 /* SelfVerifyView.swift in Sources */,

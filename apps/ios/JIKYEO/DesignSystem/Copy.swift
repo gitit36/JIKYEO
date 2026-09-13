@@ -186,6 +186,8 @@ public enum Copy {
         public static let unsafeSubtitle  = "안전을 위해 다른 방식의 목표로 바꿔주세요."
 
         public static let comingSoon      = "준비 중"
+        public static let reviewDemoNotice = "검토/데모 환경이에요. 실제 결제가 아니에요."
+        public static let moneyGated      = "실제 약속금 결제는 아직 열려 있지 않아요."
         public static let comingSoonSocial = "친구 초대는 곧 열려요. 지금은 나만 확인이나 약속금으로 지켜봐요."
         public static let comingSoonFriend = "친구와 함께 지키는 기능은 곧 열려요."
         public static let gpsPickPlaceholder = "장소가 아직 선택되지 않았어요."

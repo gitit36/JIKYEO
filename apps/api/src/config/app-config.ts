@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { photoEnabled, resolveMoneyAccess } from '../public/mvp-scope';
 
 export type ProviderChoice = 'mock' | 'kr_pg' | 'vision' | 'apns';
 
@@ -74,14 +75,42 @@ export class AppConfig {
     return (raw as ProviderChoice) ?? 'mock';
   }
 
+  /** Raw env. Ordinary production + mock is never treated as live MONEY. */
+  get moneyEnabledRaw(): string | undefined {
+    return this.cfg.get<string>('MONEY_ENABLED');
+  }
+
+  get reviewDemoMoneyRaw(): string | undefined {
+    return this.cfg.get<string>('REVIEW_DEMO_MONEY');
+  }
+
   /**
-   * Production MONEY is fail-closed. Not a hidden remote review switch.
-   * Dev/test default on so fixtures can run; production requires MONEY_ENABLED=true.
+   * Production MONEY is fail-closed unless a live PG is selected, or an
+   * explicit review/demo mock is authorized. Not a hidden App Review switch.
    */
   get moneyEnabled(): boolean {
-    const raw = this.cfg.get<string>('MONEY_ENABLED');
-    if (this.nodeEnv === 'production') return raw === 'true';
-    return raw !== 'false';
+    return resolveMoneyAccess({
+      nodeEnv: this.nodeEnv,
+      moneyEnabledEnv: this.moneyEnabledRaw,
+      paymentProvider: this.cfg.get<string>('PAYMENT_PROVIDER') ?? 'mock',
+      reviewDemoMoney: this.reviewDemoMoneyRaw,
+    }).moneyEnabled;
+  }
+
+  get reviewDemoMoney(): boolean {
+    return resolveMoneyAccess({
+      nodeEnv: this.nodeEnv,
+      moneyEnabledEnv: this.moneyEnabledRaw,
+      paymentProvider: this.cfg.get<string>('PAYMENT_PROVIDER') ?? 'mock',
+      reviewDemoMoney: this.reviewDemoMoneyRaw,
+    }).reviewDemo;
+  }
+
+  get photoEnabled(): boolean {
+    return photoEnabled({
+      nodeEnv: this.nodeEnv,
+      verificationProvider: this.verificationProvider,
+    });
   }
 
   /** Dev/admin age fixtures only. Production always requires verified_adult. */

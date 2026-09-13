@@ -71,15 +71,31 @@ struct CreateCommitmentWizardView: View {
                     DoneStep(model: model, onHome: { dismiss() })
                 }
             }
+            .task { await model.loadMvp(container: container) }
             .onAppear {
                 #if DEBUG
+                if debugStage == "wizard-release-gates" || debugStage == "wizard-release-enforcement" {
+                    model.forceReleaseGates = true
+                }
+                if debugStage == "wizard-review-demo" {
+                    model.mvpMatrix = .reviewDemoFixture()
+                }
                 let t = CommitmentTemplates.all.first(where: { $0.id == "workout" })!
                 model.adoptTemplate(t)
                 // Debug launches into specific stages
                 if debugStage == "wizard-schedule"     { model.step = .schedule }
-                if debugStage == "wizard-verification" { model.step = .verification }
+                if debugStage == "wizard-verification" || debugStage == "wizard-release-gates" { model.step = .verification }
                 if debugStage == "wizard-proof"        { model.step = .proofRule }
-                if debugStage == "wizard-enforcement"  { model.step = .enforcement }
+                if debugStage == "wizard-enforcement" || debugStage == "wizard-release-enforcement" { model.step = .enforcement }
+                if debugStage == "wizard-review-demo" {
+                    model.enforcementMode = .money
+                    model.stakePerOccurrenceKrw = 5_000
+                    model.step = .payment
+                    model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 3,
+                        stakePerOccurrence: "15000", maxLoss: "15000",
+                        currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600),
+                        stakeTotal: "15000", contractStrictness: "realistic", allowedFailCount: 1)
+                }
                 if debugStage == "wizard-stake"        {
                     model.enforcementMode = .money
                     model.step = .stake
@@ -426,9 +442,9 @@ private struct VerificationStep: View {
                         method: m,
                         isSelected: model.verificationMethod == m,
                         isRecommended: m == model.template.recommendedVerification.first,
-                        isComingSoon: Self.isComingSoon(m)
+                        isComingSoon: m == .photo && model.photoComingSoon
                     ) {
-                        guard !Self.isComingSoon(m) else { return }
+                        guard !(m == .photo && model.photoComingSoon) else { return }
                         model.verificationMethod = m
                     }
                 }
@@ -442,9 +458,6 @@ private struct VerificationStep: View {
         }
         return all
     }
-    /// `friend` is not shipped in Phase 3 in Release; DEBUG allows it so we
-    /// can render the flow. GPS is now fully wired in both configurations.
-    static func isComingSoon(_ m: VerificationMethod) -> Bool { false }
 }
 
 private struct MethodRow: View {
@@ -633,9 +646,24 @@ private struct EnforcementStep: View {
                 subtitle: Copy.Wizard.enforceMoneySub,
                 symbol: "wonsign.circle.fill",
                 isSelected: model.enforcementMode == .money,
-                isComingSoon: false,
+                isComingSoon: model.moneyComingSoon,
                 accent: .money
-            ) { model.enforcementMode = .money }
+            ) {
+                guard !model.moneyComingSoon else { return }
+                model.enforcementMode = .money
+            }
+            if model.moneyComingSoon {
+                Text(Copy.Wizard.moneyGated)
+                    .font(Typo.caption)
+                    .foregroundStyle(DS.Color.textMuted)
+                    .padding(.horizontal, DS.Space.xxs)
+            }
+            if model.reviewDemo {
+                Text(Copy.Wizard.reviewDemoNotice)
+                    .font(Typo.caption)
+                    .foregroundStyle(DS.Color.textMuted)
+                    .padding(.horizontal, DS.Space.xxs)
+            }
         }
         .task { await model.loadStakePolicyIfNeeded(container: container) }
     }
@@ -1116,6 +1144,10 @@ private struct PaymentStep: View {
                 .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
             Text(Copy.Wizard.step8Explain)
                 .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+            if model.reviewDemo {
+                Text(Copy.Wizard.reviewDemoNotice)
+                    .font(Typo.caption).foregroundStyle(DS.Color.textMuted)
+            }
 
             switch model.paymentState {
             case .charging:

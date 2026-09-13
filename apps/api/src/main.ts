@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/errors/all-exceptions.filter';
+import { mountPublicPages } from './public/public-pages';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -18,6 +19,7 @@ async function bootstrap(): Promise<void> {
     }),
   );
   app.useGlobalFilters(new AllExceptionsFilter());
+  mountPublicPages(app.getHttpAdapter().getInstance());
   app.setGlobalPrefix('v1');
 
   const config = new DocumentBuilder()

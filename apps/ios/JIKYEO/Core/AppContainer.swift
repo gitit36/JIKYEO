@@ -18,6 +18,7 @@ public final class AppContainer: ObservableObject {
     public let notificationAPI: NotificationAPI
     public let recapAPI: RecapAPI
     public let friendsAPI: FriendsAPI
+    public let publicAPI: PublicAPI
     @Published var pendingLink: DeepLink?
 
     public init(environment: AppEnvironment = .live) {
@@ -38,6 +39,7 @@ public final class AppContainer: ObservableObject {
         self.notificationAPI = NotificationAPI(api: api)
         self.recapAPI = RecapAPI(api: api)
         self.friendsAPI = FriendsAPI(api: api)
+        self.publicAPI = PublicAPI(api: api)
     }
 
     func open(_ url: URL) {

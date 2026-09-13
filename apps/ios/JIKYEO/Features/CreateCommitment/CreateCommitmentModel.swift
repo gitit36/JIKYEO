@@ -34,7 +34,9 @@ public final class CreateCommitmentModel: ObservableObject {
     @Published public var deadlineLocalTime: String = "21:00"
 
     // MARK: - Step · verification
-    @Published public var verificationMethod: VerificationMethod = .photo
+    @Published public var verificationMethod: VerificationMethod = .self
+    @Published public var mvpMatrix: MvpMatrix?
+    @Published public var forceReleaseGates = false
 
     // MARK: - Step · proof rule detail
     @Published public var timerMinutes: Int = 30
@@ -45,7 +47,7 @@ public final class CreateCommitmentModel: ObservableObject {
     @Published public var gpsTarget: GpsTargetPayload?
 
     // MARK: - Step · enforcement (NEW)
-    @Published public var enforcementMode: EnforcementMode = .money
+    @Published public var enforcementMode: EnforcementMode = .self
 
     // MARK: - Step · stake (MONEY only)
     @Published public var stakePerOccurrenceKrw: Int = 5_000
@@ -191,6 +193,49 @@ public final class CreateCommitmentModel: ObservableObject {
         stakePerOccurrenceKrw = t.defaultStakeKrw
         windowStartLocalTime = t.defaultWindowStartLocalTime
         deadlineLocalTime = t.defaultDeadlineLocalTime
+        applyMvpGates()
+    }
+
+    public var photoComingSoon: Bool {
+        #if DEBUG
+        if forceReleaseGates { return true }
+        return mvpMatrix?.methods.photo == false
+        #else
+        return true
+        #endif
+    }
+
+    public var moneyComingSoon: Bool {
+        #if DEBUG
+        if forceReleaseGates { return true }
+        if let matrix = mvpMatrix { return !matrix.moneyEnabled }
+        return false
+        #else
+        return !(mvpMatrix?.moneyEnabled ?? false)
+        #endif
+    }
+
+    public var reviewDemo: Bool {
+        #if DEBUG
+        if forceReleaseGates { return false }
+        #endif
+        return mvpMatrix?.reviewDemo == true
+    }
+
+    public func applyMvpGates() {
+        if photoComingSoon && verificationMethod == .photo {
+            verificationMethod = template.recommendedVerification.first(where: { $0 != .photo }) ?? .self
+        }
+        if moneyComingSoon && enforcementMode == .money {
+            enforcementMode = .self
+        }
+    }
+
+    public func loadMvp(container: AppContainer) async {
+        if let matrix = try? await container.publicAPI.mvp() {
+            mvpMatrix = matrix
+        }
+        applyMvpGates()
     }
 
     public func buildSchedulePayload() -> SchedulePayload {

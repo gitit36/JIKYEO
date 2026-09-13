@@ -13,7 +13,8 @@ import SwiftUI
 ///                    wizard-proof, wizard-enforcement, wizard-stake,
 ///                    wizard-observer, wizard-review-money, wizard-review-self,
 ///                    wizard-payment, wizard-payment-failed, wizard-signature,
-///                    wizard-resume-signature, wizard-done-money, wizard-done-self
+///                    wizard-resume-signature, wizard-done-money, wizard-done-self,
+///                    wizard-release-gates, wizard-release-enforcement, wizard-review-demo
 ///   Friends       — friends-request, friends-accepted, friends-social, friends-shared, friends-diverge
 ///   Friend Verify — friend-verify-inbox, friend-verify-pass, friend-verify-reject-money,
 ///                    friend-verify-timeout, friend-verify-revoked

@@ -1,17 +1,22 @@
-# Launch / legal decision memo
+# Launch gates
 
-Selected PG: **NHN KCP**. KakaoPay and cards are payment methods behind KCP, not separate providers. Do not assume KakaoPay-direct credentials or a no-webhook model.
+Single external checklist. Code must never mark a box complete automatically.
 
-External boxes stay unchecked until written evidence exists.
+- [ ] KCP business-model accepted
+- [ ] KCP merchant contract / Site Code / credentials available
+- [ ] KCP full cancel/refund rules confirmed
+- [ ] KCP status lookup/reconciliation confirmed
+- [ ] KCP native-iOS path confirmed
+- [ ] Apple payment classification confirmed
+- [ ] StoreKit External Purchase Entitlement granted
+- [ ] Apple commission/reporting implications confirmed
+- [ ] lawyer review
+- [ ] tax review
+- [ ] telecom-sales / purchase-safety review
+- [ ] LBS filing/review
+- [ ] public pages actually deployed to HTTPS URLs
+- [ ] production support/operator information filled
 
-- [ ] KCP written acceptance of one upfront charge + full cancellation/refund + transaction lookup/reconciliation
-- [ ] KCP full-refund and settlement-timing confirmation in writing (partial refund is not required for MONEY V1)
-- [ ] Acceptable iOS/native KCP integration path confirmed
-- [ ] Apple External Purchase entitlement and commission/refund answer (not implemented)
-- [ ] Lawyer confirmation of terms, cancellation cutoff, provisional FAIL, adult gate
-- [ ] Tax-advisor confirmation of liability vs service-consideration reporting
-- [ ] Telecom-sales / purchase-safety review
-- [ ] Location-based-service filing
-- [ ] Public terms / privacy / refund / support URLs live
+Ordinary production MONEY is fail-closed. Mock payment is not live payment. Review/demo mock requires explicit `REVIEW_DEMO_MONEY=true` and must be labeled as not a real charge.
 
-Production MONEY remains fail-closed (`MONEY_ENABLED` defaults off in production). This is not a hidden App Review switch.
+See `docs/MVP_FEATURE_MATRIX.md`, `docs/KCP_REVIEW.md`, `docs/APPLE_PAYMENT_REVIEW.md`.

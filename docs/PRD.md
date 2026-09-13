@@ -660,11 +660,4 @@ StakePolicy는 서버가 강제한다. 클라이언트는 상한을 하드코딩
 
 ## 17. MVP 출시 기준
 
-- 결제 성공률 ≥ 98%
-- 환불 성공률 ≥ 99%
-- 서비스 장애로 인한 잘못된 FAIL 0
-- 사진 판정 UNCERTAIN 처리 가능
-- Appeal 흐름 완결
-- 최대손실 항상 노출
-- 결제 전 계약 조건 재확인
-- 위험 목표 필터 동작
+제품 범위는 `docs/MVP_FEATURE_MATRIX.md`. 외부 승인은 `docs/LAUNCH_GATES.md`. 사진 AI와 실 MONEY는 게이트 전까지 Release에서 실기능으로 열지 않는다.

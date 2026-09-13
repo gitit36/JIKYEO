@@ -679,33 +679,20 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - 수락된 친구 1명 verifier. 승인=PASS, 거절=잠정 FAIL, 미응답/차단=UNCERTAIN.
 - 친구는 돈을 결정·수령·몰수하지 않는다.
 
-### Phase 5 remaining (예정)
-- 실 KCP 네트워크/자격증명, StoreKit entitlement, 실 APNs, 실 vision, admin web UI
+### Phase 5 remaining
+- 실 KCP / StoreKit entitlement / 실 APNs / 실 vision / Admin Web UI — 외부 게이트. `docs/LAUNCH_GATES.md`.
 
-### Phase 6 — Social 완전판 (예정)
+### Phase 6 — MVP 운영 표면 (완료)
+- Appeal, 인증된 admin 검토 API, History, Weekly Recap. Admin Web UI와 공개 피드/채팅은 하지 않음.
 
-### Phase 7 — Hardening / analytics / safety / app review (예정)
+### Phase 7A — MVP 범위 동결 / 외부 심사 준비 (완료)
+- Release feature matrix, 공개 약관 페이지, KCP/Apple 검토 문서. 실연동 없음.
+
+### Phase 7B — (예정)
+- 실 APNs 등 외부 연동은 자격/승인 후.
 
 ---
 
-## 17. 출시 전 기술 체크리스트
+## 17. 출시 게이트
 
-- [ ] PG sandbox E2E (실 PG provider 확정 후)
-- [x] MONEY V1 전액 환불/전액 몰수 (MockPaymentProvider). 부분환불은 V1 비요구.
-- [x] 중복 webhook 방지 (`payment_webhook_events (provider, event_id)` unique)
-- [x] 중복 charge / 중복 정산 / 중복 환불 방지 (idempotency key)
-- [x] 장애 중 자동 FAIL 차단 (Verification/Deadline)
-- [x] AI UNCERTAIN 처리 (Mock provider, PASS/UNCERTAIN/FAIL)
-- [x] Appeal reversal (Phase 5B, MockPaymentProvider)
-- [x] Evidence auto-delete (Phase 5C, Mock storage, 30일 + hold)
-- [x] Stake 상한 server-side validation (StakePolicy)
-- [x] `QUOTE_SIGNING_SECRET` 분리 및 single-use quote
-- [x] SELF/SOCIAL/MONEY 강제력 모드 분기
-- [x] GPS target `userSelected` 강제
-- [x] timezone freeze test
-- [x] 활성 약속 취소 (컷오프=`cancellationRequestedAt`)
-- [x] 결제 전 약관 스냅샷 / 19+ 게이트 / 운영 MONEY fail-closed (Phase 5E)
-- [ ] offline evidence retry
-- [x] 위험 목표 filter (Goal Safety classifier)
-- [ ] monitoring dashboard
-- [ ] admin audit log UI
+외부 체크리스트는 `docs/LAUNCH_GATES.md` 한 곳만 사용한다. 코드가 외부 승인을 완료로 표시하지 않는다.

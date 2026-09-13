@@ -144,6 +144,10 @@ export class CommitmentService {
       throw new ValidationError('Schedule produces no occurrences');
     }
 
+    if (dto.verification.method === 'photo' && this.cfg && !this.cfg.photoEnabled) {
+      throw new DomainError('METHOD_UNAVAILABLE', '사진 확인은 아직 준비 중이에요.');
+    }
+
     // 4. Validate verification rule shape against method. Same for all modes.
     this.assertVerificationRule(dto.verification.method, dto.verification);
 

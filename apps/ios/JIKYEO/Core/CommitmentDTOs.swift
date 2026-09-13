@@ -259,6 +259,7 @@ public struct TermsContractResponse: Codable {
     public let snapshot: TermsSnapshotDTO
     public let snapshotHash: String
     public let acceptedAt: Date?
+    public let currentPolicyVersions: MvpMatrix.PolicyVersions?
 }
 
 public struct SafetyResponse: Codable {

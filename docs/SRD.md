@@ -39,7 +39,8 @@
 - Friend Verify (`verification.method=friend`)는 수락된 친구 1명을 verifier로 지정해야 활성화된다. 친구 판정은 VerificationResult만 만든다.
 - Shared Commitment는 공통 목표만 소유한다. 참가자 Commitment는 독립이며 한 명의 FAIL/취소가 다른 사람을 바꾸지 않는다.
 - 친구 그래프는 invite code로만 발견한다. 연락처/공개 검색 없음. 차단은 이후 소셜 가시성을 끊는다.
-- MONEY 모드는 서버 확인 만 19세+와 결제 전 약관 스냅샷 동의가 필요하다. 운영 환경 MONEY는 기본 비활성(fail-closed). SELF는 나이 확인 없이 가능하다.
+- MONEY 모드는 서버 확인 만 19세+와 결제 전 약관 스냅샷 동의가 필요하다. 운영 환경 MONEY는 기본 비활성(fail-closed). Mock 결제는 실결제로 취급하지 않는다. SELF는 나이 확인 없이 가능하다.
+- 공개 페이지 `/` `/terms` `/privacy` `/money-policy` `/support`와 `GET /v1/public/mvp`가 현재 정책 버전을 노출한다. Mock Vision 사진 확인은 운영 Release에서 실기능이 아니다.
 - 활성 약속 취소의 컷오프는 `cancellationRequestedAt`이다. 요청 철회/재일정은 없다.
 
 ### SR-FR-003 약속금 (MONEY 모드 전용)

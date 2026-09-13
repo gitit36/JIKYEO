@@ -21,6 +21,7 @@ import { AppealsModule } from './appeals/appeals.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RecapsModule } from './recaps/recaps.module';
 import { FriendsModule } from './friends/friends.module';
+import { PublicModule } from './public/public.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { FriendsModule } from './friends/friends.module';
     NotificationsModule,
     RecapsModule,
     FriendsModule,
+    PublicModule,
     AdminModule,
   ],
   controllers: [HealthController],
