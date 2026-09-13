@@ -16,6 +16,8 @@ Single external checklist. Code must never mark a box complete automatically.
 - [ ] LBS filing/review
 - [ ] public pages actually deployed to HTTPS URLs
 - [ ] production support/operator information filled
+- [ ] APNs Auth Key (.p8) / Team ID / Key ID / topic available
+- [ ] iOS Push Notifications capability + signed device for live APNs
 
 Ordinary production MONEY is fail-closed. Mock payment is not live payment. Review/demo mock requires explicit `REVIEW_DEMO_MONEY=true` and must be labeled as not a real charge.
 

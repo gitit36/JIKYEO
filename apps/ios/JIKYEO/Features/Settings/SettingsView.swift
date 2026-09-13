@@ -19,7 +19,10 @@ struct SettingsView: View {
                             .foregroundStyle(DS.Color.textSecondary)
                     }
                     Button(role: .destructive) {
-                        auth.signOut()
+                        Task {
+                            await PushRegistrar.shared.unregisterOnSignOut()
+                            auth.signOut()
+                        }
                     } label: {
                         Text("로그아웃")
                     }
@@ -77,10 +80,7 @@ struct SettingsView: View {
     }
 
     private func enablePush() async {
-        authorized = await NotificationPermission.request()
-        guard authorized else { return }
-        let token = "simulator-\(auth.session?.userId ?? "anon")-device-token"
-        _ = try? await container.notificationAPI.register(token: token, environment: "sandbox")
+        authorized = await PushRegistrar.shared.requestAndRegister()
         await loadPrefs()
     }
 }

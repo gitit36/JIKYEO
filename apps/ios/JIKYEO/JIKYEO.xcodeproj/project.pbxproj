@@ -25,6 +25,7 @@
 		5D780350421E3B125891A653 /* Copy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D50BD86475B503B355C611 /* Copy.swift */; };
 		6443C61951276A7D8D1F198D /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426B016CDA80B9F4B14F794D /* AuthStore.swift */; };
 		6B6451965421F7042DEE614F /* CountdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = E37091103DE446C892C84A08 /* CountdownText.swift */; };
+		6D7061AFEFF4BAA7216B4A0D /* PushRegistrar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10EE190C427CD65A59DFFDFD /* PushRegistrar.swift */; };
 		6DA50214A77CF2110CC09561 /* CommitmentHistoryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2145287297EF0534944D4535 /* CommitmentHistoryDetailView.swift */; };
 		6ECDC4D01F675641EB0F4DA5 /* DeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DCD78F74E59AFDB792A27A6 /* DeepLink.swift */; };
 		7158D5E5A49A0FF1D74B5E1F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 856FE5C0A29959AB17DD9547 /* SettingsView.swift */; };
@@ -59,6 +60,7 @@
 /* Begin PBXFileReference section */
 		09E9842DB124112F26723127 /* TimerProofView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerProofView.swift; sourceTree = "<group>"; };
 		0DBDB4231946A98FF2AB821F /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		10EE190C427CD65A59DFFDFD /* PushRegistrar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRegistrar.swift; sourceTree = "<group>"; };
 		1776D2DC7938033372B683BE /* CreateCommitmentEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCommitmentEntry.swift; sourceTree = "<group>"; };
 		1D0C5D7A3EB2C9F530F9DDEE /* SelfVerifyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfVerifyView.swift; sourceTree = "<group>"; };
 		1EFE5CF552F3E17762560457 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
@@ -213,6 +215,7 @@
 				B79ED212D6AF5C60D6FD2184 /* FriendsAPI.swift */,
 				616A0DF6BCA51FBCB4D33FFF /* NotificationRecapAPI.swift */,
 				387DB39CC7BFBD7DCF08D9F0 /* PublicAPI.swift */,
+				10EE190C427CD65A59DFFDFD /* PushRegistrar.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -374,6 +377,7 @@
 				D5D25E89CF26E05358769294 /* ProofFlowView.swift in Sources */,
 				143EEA1E25546B0C3518382E /* ProofResultView.swift in Sources */,
 				E1D7CF7A01B85795C2B6DE9C /* PublicAPI.swift in Sources */,
+				6D7061AFEFF4BAA7216B4A0D /* PushRegistrar.swift in Sources */,
 				1BF899F44C2748E4AF7AEB0F /* RootView.swift in Sources */,
 				BF1E3B6D901905E5B3BF3FD6 /* SegmentedControl.swift in Sources */,
 				1AA6BE939632081D5FAA4142 /* SelfVerifyView.swift in Sources */,
@@ -394,6 +398,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = JIKYEO.Debug.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -405,6 +410,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "증명 사진 저장을 위해 사진첩을 사용해요.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -485,6 +491,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = JIKYEO.Release.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -496,6 +503,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "증명 사진 저장을 위해 사진첩을 사용해요.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

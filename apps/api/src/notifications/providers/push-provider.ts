@@ -1,4 +1,9 @@
-export type PushSendResult = 'succeeded' | 'temporary_failure' | 'invalid_token';
+export type PushSendResult =
+  | 'succeeded'
+  | 'temporary_failure'
+  | 'invalid_token'
+  | 'permanent_failure'
+  | 'not_configured';
 
 export interface PushSendInput {
   deviceToken: string;
@@ -6,6 +11,7 @@ export interface PushSendInput {
   body: string;
   deepLink: string;
   category: string;
+  environment: 'sandbox' | 'production';
 }
 
 export class LostPushResponseError extends Error {

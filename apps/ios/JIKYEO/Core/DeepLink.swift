@@ -7,6 +7,8 @@ public enum DeepLink: Equatable {
     case commitment(id: String)
     case appeal(id: String)
     case recap(weekStart: String)
+    case friends
+    case friendVerify
 
     public static func parse(_ url: URL) -> DeepLink? {
         guard url.scheme == "jikyeo" else { return nil }
@@ -14,6 +16,8 @@ public enum DeepLink: Equatable {
         let host = url.host ?? ""
         if host == "today" || (host.isEmpty && parts.first == "today") { return .today }
         if host == "history" || (host.isEmpty && parts.first == "history") { return .history }
+        if host == "friends" || (host.isEmpty && parts.first == "friends") { return .friends }
+        if host == "friend-verify" || (host.isEmpty && parts.first == "friend-verify") { return .friendVerify }
         if host == "recap" { return parts.first.map { .recap(weekStart: $0) } }
         if host == "appeals" { return parts.first.map { .appeal(id: $0) } }
         if host == "commitments", let id = parts.first {

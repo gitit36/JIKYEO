@@ -1,5 +1,4 @@
 import SwiftUI
-import UserNotifications
 
 enum OnboardingStep: Int {
     case hero = 0
@@ -19,11 +18,7 @@ final class OnboardingModel: ObservableObject {
     @Published var errorMessage: String?
 
     func requestNotifications() async -> Bool {
-        do {
-            let granted = try await UNUserNotificationCenter.current()
-                .requestAuthorization(options: [.alert, .badge, .sound])
-            return granted
-        } catch { return false }
+        await PushRegistrar.shared.requestAndRegister()
     }
 }
 

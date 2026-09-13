@@ -78,6 +78,7 @@ export function mvpMatrix(input: {
       focusTimer: true,
       selfVerify: true,
       localNotifications: true,
+      productionApns: true,
     },
     deferred: [
       'public_feed',
@@ -87,7 +88,6 @@ export function mvpMatrix(input: {
       'pooled_money',
       'real_vision',
       'admin_web_ui',
-      'real_apns',
       'subscription',
     ],
     policyVersions: POLICY_VERSIONS,

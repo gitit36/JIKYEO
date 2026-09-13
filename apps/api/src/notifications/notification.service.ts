@@ -286,11 +286,14 @@ export class NotificationService {
           body: row.body,
           deepLink: row.deepLink,
           category: row.category,
+          environment: d.environment === 'production' ? 'production' : 'sandbox',
         });
         if (result === 'succeeded') anySuccess = true;
         else if (result === 'invalid_token') {
           await this.prisma.deviceToken.update({ where: { id: d.id }, data: { active: false } });
           lastError = 'invalid_token';
+        } else if (result === 'permanent_failure' || result === 'not_configured') {
+          lastError = result;
         } else {
           lastError = 'temporary_failure';
         }
@@ -317,13 +320,19 @@ export class NotificationService {
       });
       return false;
     }
+    const stop =
+      lastError === 'invalid_token' ||
+      lastError === 'permanent_failure' ||
+      attempt >= 8;
     await this.prisma.notificationOutbox.update({
       where: { id: outboxId },
       data: {
         status: 'failed',
         attempt,
         lastError,
-        nextAttemptAt: new Date(this.clock.now().getTime() + backoffMs(attempt)),
+        nextAttemptAt: stop
+          ? new Date('2099-01-01T00:00:00.000Z')
+          : new Date(this.clock.now().getTime() + backoffMs(attempt)),
       },
     });
     return false;

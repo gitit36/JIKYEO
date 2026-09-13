@@ -23,8 +23,10 @@ struct RootView: View {
                 NavigationStack { WeeklyRecapView(recap: WeeklyRecapView.fixtureMixed()) }
             } else if let stage = DebugLaunch.stage, stage == "evidence-deleted" {
                 NavigationStack { DeletedEvidencePlaceholder() }
-            } else if let stage = DebugLaunch.stage, stage == "notify-deeplink" {
-                MainTabView(debugStage: "notify-deeplink")
+            } else if let stage = DebugLaunch.stage, stage == "notify-deeplink-friend-verify" {
+                FriendsView(debugStage: "friend-verify-inbox").environmentObject(container)
+            } else if let stage = DebugLaunch.stage, stage.hasPrefix("notify-deeplink") {
+                MainTabView(debugStage: stage)
             } else if let stage = DebugLaunch.stage, ["terms-accept", "age-reject", "fail-provisional", "cancel-immediate", "v1-grace-alive", "v1-grace-exceeded", "v1-cancel-pre", "v1-cancel-post", "v1-makeup"].contains(stage) {
                 ComplianceDebugView(stage: stage)
             } else if let stage = DebugLaunch.stage, stage.hasPrefix("cancel-") {
@@ -58,7 +60,8 @@ struct MainTabView: View {
     @State private var banner: String?
     init(debugStage: String? = nil) {
         self.debugStage = debugStage
-        let friends = debugStage?.hasPrefix("friends-") ?? false
+        let friends = (debugStage?.hasPrefix("friends-") ?? false)
+            || (debugStage?.contains("deeplink-friend") ?? false)
         let history = debugStage?.hasPrefix("history-") ?? false
         _selected = State(initialValue: friends ? .friends : history ? .history : .home)
     }
@@ -91,9 +94,13 @@ struct MainTabView: View {
             NavigationStack { WeeklyRecapView(recap: row) }
         }
         .onAppear {
+            PushRegistrar.shared.startIfSignedIn()
             if debugStage == "notify-deeplink" {
                 banner = Copy.Notify.deadline
                 selected = .home
+            }
+            if debugStage == "notify-deeplink-friends" || debugStage == "notify-deeplink-friend-verify" {
+                selected = .friends
             }
         }
         .onChange(of: container.pendingLink) { _, link in
@@ -112,8 +119,14 @@ struct MainTabView: View {
             selected = .history
         case .recap(let week):
             Task {
-                recap = (try? await container.recapAPI.get(weekStart: week)) ?? WeeklyRecapView.fixtureMixed()
+                if let row = try? await container.recapAPI.get(weekStart: week) {
+                    recap = row
+                } else {
+                    selected = .home
+                }
             }
+        case .friends, .friendVerify:
+            selected = .friends
         case .sign, .commitment, .appeal:
             selected = .history
         }

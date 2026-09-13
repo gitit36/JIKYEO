@@ -680,7 +680,7 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 - 친구는 돈을 결정·수령·몰수하지 않는다.
 
 ### Phase 5 remaining
-- 실 KCP / StoreKit entitlement / 실 APNs / 실 vision / Admin Web UI — 외부 게이트. `docs/LAUNCH_GATES.md`.
+- 실 KCP / StoreKit entitlement / 실 vision / Admin Web UI — 외부 게이트. `docs/LAUNCH_GATES.md`.
 
 ### Phase 6 — MVP 운영 표면 (완료)
 - Appeal, 인증된 admin 검토 API, History, Weekly Recap. Admin Web UI와 공개 피드/채팅은 하지 않음.
@@ -688,8 +688,8 @@ MVP에서는 약속금 결제와 구독 결제를 분리한다.
 ### Phase 7A — MVP 범위 동결 / 외부 심사 준비 (완료)
 - Release feature matrix, 공개 약관 페이지, KCP/Apple 검토 문서. 실연동 없음.
 
-### Phase 7B — (예정)
-- 실 APNs 등 외부 연동은 자격/승인 후.
+### Phase 7B — Production APNs (완료, 자격증명 별도)
+- ApnsPushProvider + token auth. MockPush는 test/debug만. 실기기 전달은 APNs Auth Key/팀/실기기 필요.
 
 ---
 

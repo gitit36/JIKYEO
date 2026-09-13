@@ -23,7 +23,7 @@ Authoritative Release scope. External gates stay open until written evidence exi
 - real MONEY transactions
 - AI Photo / real Vision
 - any proof method that is mock-only
-- real APNs (Phase 7B)
+- real APNs delivery until Auth Key / Team ID / signed device are available
 
 ## Deferred
 

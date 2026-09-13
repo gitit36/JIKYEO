@@ -2,10 +2,12 @@ import SwiftUI
 
 @main
 struct JIKYEOApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var container: AppContainer
 
     init() {
         let c = AppContainer()
+        PushRegistrar.shared.attach(c)
         #if DEBUG
         if DebugLaunch.mockSession {
             c.auth.setSession(.init(
@@ -28,13 +30,14 @@ struct JIKYEOApp: App {
                 .onOpenURL { url in
                     container.open(url)
                 }
-                #if DEBUG
                 .onAppear {
+                    PushRegistrar.shared.startIfSignedIn()
+                    #if DEBUG
                     if let raw = DebugLaunch.deepLink, let url = URL(string: raw) {
                         container.open(url)
                     }
+                    #endif
                 }
-                #endif
         }
     }
 }

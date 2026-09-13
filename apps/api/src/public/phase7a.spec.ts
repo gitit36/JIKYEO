@@ -98,7 +98,7 @@ describe('Phase 7A — MVP freeze / review readiness', () => {
 
   it('Release debug/mock controls stay off the production matrix', () => {
     const matrix = mvpMatrix({ nodeEnv: 'production' });
-    expect(matrix.deferred).toEqual(expect.arrayContaining(['real_vision', 'admin_web_ui', 'real_apns']));
+    expect(matrix.deferred).toEqual(expect.arrayContaining(['real_vision', 'admin_web_ui']));
     expect(matrix.methods.photo).toBe(false);
     expect(matrix.moneyEnabled).toBe(false);
     expect(matrix.reviewDemo).toBe(false);

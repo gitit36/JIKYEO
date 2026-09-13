@@ -126,6 +126,16 @@ export class AppConfig {
     return (this.cfg.get<string>('PUSH_PROVIDER') as ProviderChoice) ?? 'mock';
   }
 
+  /** Token-based APNs. Absent fields mean the provider must not claim delivery. */
+  get apns(): { teamId: string; keyId: string; privateKey: string; topic: string } | null {
+    const teamId = this.cfg.get<string>('APNS_TEAM_ID') ?? '';
+    const keyId = this.cfg.get<string>('APNS_KEY_ID') ?? '';
+    const privateKey = this.cfg.get<string>('APNS_PRIVATE_KEY') ?? '';
+    const topic = this.cfg.get<string>('APNS_TOPIC') ?? 'com.jikyeo.app';
+    if (!teamId || !keyId || !privateKey) return null;
+    return { teamId, keyId, privateKey, topic };
+  }
+
   get maxStakePerOccurrenceKrw(): number {
     return Number(this.cfg.get<string>('MAX_STAKE_PER_OCCURRENCE_KRW') ?? 100_000);
   }
