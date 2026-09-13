@@ -60,7 +60,7 @@ public final class APIClient {
         path: String,
         body: Body?
     ) async throws -> Response {
-        let url = env.apiBaseURL.appendingPathComponent(path)
+        let url = Self.url(base: env.apiBaseURL, path: path)
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -100,6 +100,13 @@ public final class APIClient {
             return APIClient.Empty() as! Response
         }
         return try decoder.decode(Response.self, from: data)
+    }
+
+    /// Keep `?query` on GET paths. `appendingPathComponent` would encode `?` and 404.
+    static func url(base: URL, path: String) -> URL {
+        let root = base.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let rel = path.hasPrefix("/") ? String(path.dropFirst()) : path
+        return URL(string: "\(root)/\(rel)") ?? base.appendingPathComponent(path)
     }
 }
 

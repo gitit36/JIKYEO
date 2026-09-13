@@ -11,7 +11,7 @@ struct JIKYEOApp: App {
         #if DEBUG
         if DebugLaunch.mockSession {
             c.auth.setSession(.init(
-                userId: "debug-user",
+                userId: DebugLaunch.userId ?? "debug-user",
                 accessToken: DebugLaunch.accessToken ?? "debug-token",
                 refreshToken: "debug-refresh",
                 expiresAt: Date().addingTimeInterval(3600)

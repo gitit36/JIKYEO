@@ -9,7 +9,11 @@ import SwiftUI
 ///     └─ MONEY  → Stake → Strictness → Review → (mock) Payment → Signature → Done
 struct CreateCommitmentWizardView: View {
     let debugStage: String?
-    init(debugStage: String? = nil) { self.debugStage = debugStage }
+    let sharedCommitmentId: String?
+    init(debugStage: String? = nil, sharedCommitmentId: String? = nil) {
+        self.debugStage = debugStage
+        self.sharedCommitmentId = sharedCommitmentId
+    }
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var container: AppContainer
     @StateObject private var model = CreateCommitmentModel()
@@ -73,6 +77,7 @@ struct CreateCommitmentWizardView: View {
             }
             .task { await model.loadMvp(container: container) }
             .onAppear {
+                if let sharedCommitmentId { model.sharedCommitmentId = sharedCommitmentId }
                 #if DEBUG
                 if debugStage == "wizard-release-gates" || debugStage == "wizard-release-enforcement" {
                     model.forceReleaseGates = true

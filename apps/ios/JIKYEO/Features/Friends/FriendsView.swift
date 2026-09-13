@@ -7,6 +7,7 @@ struct FriendsView: View {
     @State private var code: String = ""
     @State private var error: String?
     @State private var showShared = false
+    @State private var linkSharedId: String?
     @State private var isLoading = false
     @State private var inviting = false
 
@@ -45,6 +46,13 @@ struct FriendsView: View {
                 SharedCreateSheet { showShared = false; Task { await load() } }
                     .environmentObject(container)
             }
+            .sheet(isPresented: Binding(
+                get: { linkSharedId != nil },
+                set: { if !$0 { linkSharedId = nil } }
+            ), onDismiss: { Task { await load() } }) {
+                CreateCommitmentWizardView(sharedCommitmentId: linkSharedId)
+                    .environmentObject(container)
+            }
         }
     }
 
@@ -54,7 +62,13 @@ struct FriendsView: View {
         } else if let error, home == nil {
             ErrorRetryBanner(message: error) { Task { await load() } }
         } else if let home, hasRows(home) {
-            FriendsHomeSections(home: home, onReload: { await load() }, onError: { error = $0 })
+            FriendsHomeSections(
+                home: home,
+                currentUserId: container.auth.session?.userId,
+                onReload: { await load() },
+                onError: { error = $0 },
+                onLink: { linkSharedId = $0 }
+            )
         } else {
             Text(Copy.Friends.empty).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
         }
@@ -146,8 +160,10 @@ struct FriendsView: View {
 private struct FriendsHomeSections: View {
     @EnvironmentObject private var container: AppContainer
     let home: FriendsHomeResponse
+    let currentUserId: String?
     let onReload: () async -> Void
     let onError: (String) -> Void
+    let onLink: (String) -> Void
 
     var body: some View {
         Group {
@@ -170,6 +186,12 @@ private struct FriendsHomeSections: View {
                         Text(row.title).font(Typo.bodyStrong)
                         ForEach(row.members) { m in
                             Text(Self.memberLine(m)).font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
+                        }
+                        if let me = currentUserId,
+                           row.members.contains(where: { $0.userId == me && $0.progress == nil }) {
+                            Button(Copy.Home.createCTA) { onLink(row.sharedCommitmentId) }
+                                .font(Typo.bodyStrong)
+                                .frame(minHeight: 44)
                         }
                     }
                 }
@@ -325,10 +347,12 @@ struct SharedCreateSheet: View {
             let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
             let schedule = SchedulePayload(
                 type: .x_per_week, startDate: f.string(from: start), endDate: f.string(from: end),
-                windowStartLocalTime: "07:00", deadlineLocalTime: "21:00",
+                windowStartLocalTime: "22:00", deadlineLocalTime: "23:59",
                 days: nil, timesPerWeek: 3, allowedDays: nil, dates: nil
             )
-            _ = try await container.friendsAPI.createShared(title: title, inviteeUserIds: [], schedule: schedule)
+            let friends = try await container.friendsAPI.home()
+            let invitees = friends.friends.map(\.friendUserId)
+            _ = try await container.friendsAPI.createShared(title: title, inviteeUserIds: invitees, schedule: schedule)
             Analytics.track(.shared_commitment_joined)
             onDone()
         } catch {

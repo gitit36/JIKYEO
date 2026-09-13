@@ -46,6 +46,10 @@ public enum DebugLaunch {
     public static var accessToken: String? {
         UserDefaults.standard.string(forKey: "jikyeoDebugAccessToken")
     }
+    /// `-jikyeoDebugUserId <uuid>`: real API user id for live QA sessions.
+    public static var userId: String? {
+        UserDefaults.standard.string(forKey: "jikyeoDebugUserId")
+    }
     /// `-jikyeoDebugDeepLink jikyeo://today`
     public static var deepLink: String? {
         UserDefaults.standard.string(forKey: "jikyeoDebugDeepLink")

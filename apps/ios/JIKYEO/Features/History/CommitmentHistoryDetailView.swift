@@ -193,8 +193,12 @@ private struct OccurrenceAppealCard: View {
     var body: some View {
         Card {
             VStack(alignment: .leading, spacing: DS.Space.sm) {
-                Text("\(occurrence.sequenceNo)회차")
-                    .font(Typo.bodyStrong)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\(occurrence.sequenceNo)회차")
+                        .font(Typo.bodyStrong)
+                    Spacer()
+                    StatusChip(Self.chip(for: occurrence.effectiveResult ?? occurrence.status))
+                }
                 if mode == .money, occurrence.status == "fail", occurrence.appealDeadlineAt != nil, occurrence.appeal?.status == nil {
                     Text(Copy.Appeal.provisional)
                         .font(Typo.caption)
@@ -229,6 +233,18 @@ private struct OccurrenceAppealCard: View {
                     SecondaryButton(Copy.Appeal.cta, action: onAppeal)
                 }
             }
+        }
+    }
+
+    private static func chip(for raw: String) -> StatusChip.Kind {
+        switch raw {
+        case "pass": return .pass
+        case "fail": return .fail
+        case "uncertain": return .uncertain
+        case "reviewing", "evidence_submitted": return .reviewing
+        case "void", "cancelled": return .void
+        case "active": return .inProgress
+        default: return .scheduled
         }
     }
 }
