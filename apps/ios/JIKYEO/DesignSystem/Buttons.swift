@@ -21,6 +21,10 @@ public struct PrimaryButton: View {
             ZStack {
                 Text(title)
                     .font(Typo.button)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.75)
+                    .padding(.horizontal, DS.Space.sm)
                     .opacity(isLoading ? 0 : 1)
                 if isLoading {
                     ProgressView().tint(.white)
@@ -52,6 +56,10 @@ public struct SecondaryButton: View {
         Button(action: action) {
             Text(title)
                 .font(Typo.button)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .minimumScaleFactor(0.75)
+                .padding(.horizontal, DS.Space.sm)
                 .foregroundStyle(DS.Color.text)
                 .frame(maxWidth: .infinity, minHeight: 56)
                 .background(
@@ -81,5 +89,24 @@ public struct TertiaryButton: View {
                 .padding(.vertical, DS.Space.sm)
         }
         .buttonStyle(.plain)
+        .frame(minHeight: 44)
+    }
+}
+
+struct ErrorRetryBanner: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: DS.Space.sm) {
+                Text(message)
+                    .font(Typo.body)
+                    .foregroundStyle(DS.Color.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                SecondaryButton(Copy.Errors.retryCTA, action: retry)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }

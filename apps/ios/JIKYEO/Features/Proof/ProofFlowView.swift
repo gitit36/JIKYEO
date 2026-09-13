@@ -25,6 +25,7 @@ struct ProofFlowView: View {
                         } label: {
                             Image(systemName: "xmark").foregroundStyle(DS.Color.text)
                         }
+                        .accessibilityLabel(Copy.Errors.close)
                     }
                 }
         }
@@ -41,7 +42,12 @@ struct ProofFlowView: View {
                 }
             )
         } else {
-            proofScreen
+            VStack(spacing: DS.Space.md) {
+                proofScreen
+                if let errorMessage {
+                    ErrorRetryBanner(message: errorMessage) { self.errorMessage = nil }
+                }
+            }
         }
     }
 

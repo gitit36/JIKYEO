@@ -17,6 +17,7 @@ struct ProofResultView: View {
             Image(systemName: symbol)
                 .font(.system(size: 56, weight: .semibold))
                 .foregroundStyle(tint)
+                .accessibilityHidden(true)
             Text(headline)
                 .font(Typo.display)
                 .foregroundStyle(DS.Color.text)
@@ -49,24 +50,18 @@ struct ProofResultView: View {
         }
         .padding(.horizontal, DS.Space.lg)
         .padding(.vertical, DS.Space.xl)
-        .sheet(isPresented: $showAppeal) {
-            NavigationStack {
-                VStack(alignment: .leading, spacing: DS.Space.md) {
-                    Text(Copy.Appeal.body).font(Typo.body)
-                    PrimaryButton(Copy.Appeal.submit) {
-                        Task {
-                            _ = try? await container.appealAPI.submit(
-                                occurrenceId: occurrence.id,
-                                category: .verification_error,
-                                explanation: "친구 확인 결과에 이의가 있어요."
-                            )
-                            showAppeal = false
-                        }
-                    }
-                }
-                .padding(DS.Space.lg)
-                .navigationTitle(Copy.Appeal.title)
+        .onAppear {
+            switch result.result {
+            case .pass: Analytics.track(.verification_pass, ["method": occurrence.verificationMethod.rawValue])
+            case .uncertain: Analytics.track(.verification_uncertain, ["method": occurrence.verificationMethod.rawValue])
+            case .fail: Analytics.track(.verification_fail, ["method": occurrence.verificationMethod.rawValue])
             }
+        }
+        .sheet(isPresented: $showAppeal) {
+            AppealSubmitSheet(occurrenceId: occurrence.id) {
+                showAppeal = false
+            }
+            .environmentObject(container)
         }
     }
 
@@ -91,7 +86,7 @@ struct ProofResultView: View {
             }
             return Copy.Result.passSelfBody("오늘")
         case .uncertain:
-            return "\(Copy.Result.uncertainBody)\n\(result.userMessage)"
+            return Copy.Result.uncertainBody
         case .fail:
             if result.reasonCode.hasPrefix("FRIEND_VERIFY") {
                 return Copy.Friends.rejected(occurrence.friendVerifyName ?? "친구")

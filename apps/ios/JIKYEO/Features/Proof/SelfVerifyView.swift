@@ -61,17 +61,13 @@ struct SelfVerifyView: View {
                 )
                 await MainActor.run {
                     isSubmitting = false
+                    Analytics.track(.verification_submitted, ["method": "self"])
                     onResult(result)
-                }
-            } catch let e as APIError {
-                await MainActor.run {
-                    isSubmitting = false
-                    errorMessage = e.message
                 }
             } catch {
                 await MainActor.run {
                     isSubmitting = false
-                    errorMessage = "다시 시도해주세요."
+                    errorMessage = UserFacingError.message(error)
                 }
             }
         }

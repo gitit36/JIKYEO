@@ -63,6 +63,7 @@ struct OnboardingRootView: View {
                         } label: {
                             Image(systemName: "chevron.left").foregroundStyle(DS.Color.text)
                         }
+                        .accessibilityLabel(Copy.Wizard.back)
                     }
                 }
             }
@@ -82,10 +83,9 @@ struct OnboardingRootView: View {
                     refreshToken: session.refreshToken,
                     expiresAt: AppClock.shared.now().addingTimeInterval(TimeInterval(session.expiresIn))
                 ))
-            } catch let e as APIError {
-                model.errorMessage = e.message
+                Analytics.track(.onboarding_completed)
             } catch {
-                model.errorMessage = "다시 시도해주세요."
+                model.errorMessage = UserFacingError.message(error)
             }
         }
     }
@@ -135,6 +135,7 @@ private struct GoalPickView: View {
                                     Image(systemName: t.symbol)
                                         .font(.system(size: 24, weight: .semibold))
                                         .foregroundStyle(DS.Color.primary)
+                                        .accessibilityHidden(true)
                                     Text(t.title).font(Typo.bodyStrong).foregroundStyle(DS.Color.text)
                                 }
                                 .padding(DS.Space.md)
@@ -147,6 +148,7 @@ private struct GoalPickView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(t.title)
                         }
                     }
                 }

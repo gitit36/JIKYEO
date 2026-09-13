@@ -370,6 +370,22 @@ public enum Copy {
         public static let deleted = "보관 기간이 지나 삭제된 증거예요."
     }
 
+    public enum Errors {
+        public static let retryCTA     = "다시 시도"
+        public static let session      = "다시 로그인해 주세요."
+        public static let network      = "연결이 불안정해요. 다시 시도해주세요."
+        public static let retry        = "잠시 후 다시 시도해주세요."
+        public static let unavailable  = "이 내용을 볼 수 없어요."
+        public static let gone         = "이미 없거나 끝난 내용이에요."
+        public static let loadFailed   = "불러오지 못했어요. 다시 시도해주세요."
+        public static let submitFailed = "보내지 못했어요. 다시 시도해주세요."
+        public static let alreadyProof = "이미 증명이 등록되어 있어요."
+        public static let alreadyAppeal = "이미 제출한 이의가 있어요."
+        public static let recapEmpty   = "지난주 정리가 아직 없어요."
+        public static let close        = "닫기"
+        public static let signedIn     = "로그인되어 있어요"
+    }
+
     // MARK: - Days
     public static let weekdayShort: [String: String] = [
         "MON": "월", "TUE": "화", "WED": "수", "THU": "목",

@@ -21,19 +21,32 @@ public final class AuthStore: ObservableObject {
         self.session = Self.load(from: defaults, key: key)
     }
 
-    public var currentAccessToken: String? { session?.accessToken }
-    public var isSignedIn: Bool { session != nil }
+    public var currentAccessToken: String? {
+        guard let session, session.expiresAt > AppClock.shared.now() else { return nil }
+        return session.accessToken
+    }
+
+    public var isSignedIn: Bool { currentAccessToken != nil }
 
     public func setSession(_ session: Session) {
+        if self.session?.userId != session.userId {
+            defaults.removeObject(forKey: CreateCommitmentModel.unsignedDefaultsKey)
+        }
         self.session = session
         if let data = try? JSONEncoder.iso8601.encode(session) {
             defaults.set(data, forKey: key)
         }
     }
 
+    public func pruneExpired() {
+        guard let session, session.expiresAt <= AppClock.shared.now() else { return }
+        signOut()
+    }
+
     public func signOut() {
         session = nil
         defaults.removeObject(forKey: key)
+        defaults.removeObject(forKey: CreateCommitmentModel.unsignedDefaultsKey)
     }
 
     private static func load(from defaults: UserDefaults, key: String) -> Session? {

@@ -60,6 +60,8 @@ public final class HomeViewModel: ObservableObject {
     @Published public var moneyCount: Int = 0
     @Published public var items: [TodayOccurrenceModel] = []
     @Published public var errorMessage: String?
+    @Published public var isLoading = false
+    private var loadToken = 0
 
     /// True when Home should show a money hero row. False → we hide the
     /// financial hero completely (no "0원 걸림"). Non-money commitments still
@@ -68,12 +70,27 @@ public final class HomeViewModel: ObservableObject {
 
     public init() {}
 
+    public func reset() {
+        items = []
+        atRiskKrw = 0
+        todayCount = 0
+        moneyCount = 0
+        errorMessage = nil
+        isLoading = false
+    }
+
     public func load(container: AppContainer) async {
+        loadToken += 1
+        let token = loadToken
+        if items.isEmpty { isLoading = true }
+        defer { if token == loadToken { isLoading = false } }
         do {
             let today = try await container.occurrenceAPI.today(timezone: TimeZone.current.identifier)
+            guard token == loadToken else { return }
             self.atRiskKrw = Int64(today.atRiskKrw) ?? 0
             self.todayCount = today.count
             self.moneyCount = today.moneyCount
+            self.errorMessage = nil
             self.items = today.items.map { i in
                 let method = VerificationMethod(rawValue: i.verificationMethod) ?? .self
                 return TodayOccurrenceModel(
@@ -94,7 +111,8 @@ public final class HomeViewModel: ObservableObject {
                 )
             }
         } catch {
-            errorMessage = (error as? APIError)?.message ?? "홈을 불러오지 못했어요."
+            guard token == loadToken else { return }
+            errorMessage = UserFacingError.message(error)
         }
     }
 

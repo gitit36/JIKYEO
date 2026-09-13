@@ -58,5 +58,6 @@ public struct StatusChip: View {
             .background(
                 Capsule().fill(kind.color.opacity(0.12))
             )
+            .accessibilityLabel(kind.label)
     }
 }

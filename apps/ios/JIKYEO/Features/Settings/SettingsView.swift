@@ -7,14 +7,15 @@ struct SettingsView: View {
         deadlineReminder: true, signatureExpiry: true, refund: true, appeal: true, weeklyRecap: true
     )
     @State private var recap: WeeklyRecapResponse?
+    @State private var recapError: String?
     @State private var authorized = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section("계정") {
-                    if let session = auth.session {
-                        Text(session.userId)
+                    if auth.isSignedIn {
+                        Text(Copy.Errors.signedIn)
                             .font(Typo.caption)
                             .foregroundStyle(DS.Color.textSecondary)
                     }
@@ -44,7 +45,10 @@ struct SettingsView: View {
                 }
                 Section(Copy.Recap.nav) {
                     Button(Copy.Notify.recapCta) {
-                        Task { recap = try? await container.recapAPI.latest() }
+                        Task { await loadRecap() }
+                    }
+                    if let recapError {
+                        Text(recapError).font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
                     }
                 }
                 Section("정보") {
@@ -76,6 +80,19 @@ struct SettingsView: View {
     private func loadPrefs() async {
         if let loaded = try? await container.notificationAPI.preferences() {
             prefs = loaded
+        }
+    }
+
+    private func loadRecap() async {
+        recapError = nil
+        do {
+            if let row = try await container.recapAPI.latest() {
+                recap = row
+            } else {
+                recapError = Copy.Errors.recapEmpty
+            }
+        } catch {
+            recapError = UserFacingError.message(error)
         }
     }
 

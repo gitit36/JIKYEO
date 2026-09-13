@@ -811,6 +811,7 @@ export class CommitmentService {
     const rows = await this.prisma.commitment.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      take: 80,
       include: {
         verificationRule: { select: { method: true } },
         stake: { select: { perOccurrenceAmount: true, maxTotalAmount: true, status: true } },

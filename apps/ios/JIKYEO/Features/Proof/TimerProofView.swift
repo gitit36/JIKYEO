@@ -77,22 +77,25 @@ struct TimerProofView: View {
     private func start() async {
         do {
             try await vm.start(occurrenceId: occurrence.id)
-        } catch let e as APIError {
-            errorMessage = e.message
         } catch {
-            errorMessage = "다시 시도해주세요."
+            errorMessage = UserFacingError.message(error)
         }
     }
 
     private func finish(terminated: Bool) {
+        switch vm.state {
+        case .running: break
+        default: return
+        }
         Task {
             do {
                 let result = try await vm.finish(terminated: terminated)
-                await MainActor.run { onResult(result) }
-            } catch let e as APIError {
-                await MainActor.run { errorMessage = e.message }
+                await MainActor.run {
+                    Analytics.track(.verification_submitted, ["method": "timer"])
+                    onResult(result)
+                }
             } catch {
-                await MainActor.run { errorMessage = "다시 시도해주세요." }
+                await MainActor.run { errorMessage = UserFacingError.message(error) }
             }
         }
     }
@@ -153,6 +156,9 @@ final class TimerProofVM: ObservableObject {
 
     func start(occurrenceId: String) async throws {
         guard let c = container else { return }
+        if case .running = state { return }
+        if case .starting = state { return }
+        if case .finishing = state { return }
         state = .starting
         let started = try await c.timerAPI.start(occurrenceId: occurrenceId)
         self.sessionId = started.sessionId

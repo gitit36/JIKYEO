@@ -31,6 +31,7 @@ struct JIKYEOApp: App {
                     container.open(url)
                 }
                 .onAppear {
+                    container.auth.pruneExpired()
                     PushRegistrar.shared.startIfSignedIn()
                     #if DEBUG
                     if let raw = DebugLaunch.deepLink, let url = URL(string: raw) {

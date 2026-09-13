@@ -16,7 +16,14 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.lg) {
                     Hero(count: model.todayCount, moneyCount: model.moneyCount, atRiskKrw: model.atRiskKrw)
-                    if model.items.isEmpty {
+                    if let err = model.errorMessage, !model.items.isEmpty {
+                        ErrorRetryBanner(message: err) { Task { await model.load(container: container) } }
+                    }
+                    if model.isLoading && model.items.isEmpty {
+                        ProgressView().frame(maxWidth: .infinity).padding(.vertical, DS.Space.lg)
+                    } else if let err = model.errorMessage, model.items.isEmpty {
+                        ErrorRetryBanner(message: err) { Task { await model.load(container: container) } }
+                    } else if model.items.isEmpty {
                         EmptyToday(onCreate: { isCreating = true })
                     } else {
                         ForEach(model.items) { item in
@@ -39,8 +46,7 @@ struct HomeView: View {
                 if debugStage == "home-empty" { return }
                 #endif
                 await model.load(container: container)
-                if let items = try? await container.commitmentAPI.listMine(),
-                   items.contains(where: { $0.status == "signature_pending" }) {
+                if CreateCommitmentModel.pendingUnsignedId() != nil {
                     isCreating = true
                 }
             }
@@ -51,6 +57,7 @@ struct HomeView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .accessibilityLabel(Copy.Home.createCTA)
                     .tint(DS.Color.primary)
                 }
             }

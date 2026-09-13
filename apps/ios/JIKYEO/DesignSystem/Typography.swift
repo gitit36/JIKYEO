@@ -4,21 +4,21 @@ import SwiftUI
 /// numbers to make money amounts feel confident and readable.
 public enum Typo {
     /// Big headline used for "이번엔 진짜 지키고 싶은 약속이 있나요?"
-    public static let display     = Font.system(size: 30, weight: .bold, design: .default)
+    public static let display     = Font.largeTitle.weight(.bold)
     /// Page-level title.
-    public static let title       = Font.system(size: 24, weight: .bold, design: .default)
+    public static let title       = Font.title2.weight(.bold)
     /// Section headers, wizard question titles.
-    public static let heading     = Font.system(size: 20, weight: .semibold, design: .default)
+    public static let heading     = Font.title3.weight(.semibold)
     /// Body copy.
-    public static let body        = Font.system(size: 16, weight: .regular, design: .default)
-    public static let bodyStrong  = Font.system(size: 16, weight: .semibold, design: .default)
+    public static let body        = Font.body
+    public static let bodyStrong  = Font.body.weight(.semibold)
     /// Secondary copy / captions.
-    public static let caption     = Font.system(size: 13, weight: .regular, design: .default)
+    public static let caption     = Font.caption
     /// Button label.
-    public static let button      = Font.system(size: 17, weight: .semibold, design: .default)
-    /// Money — large, rounded, mono-ish for that fintech feel.
-    public static let moneyHero   = Font.system(size: 40, weight: .bold, design: .rounded)
-    public static let moneyLarge  = Font.system(size: 28, weight: .bold, design: .rounded)
-    public static let moneyBody   = Font.system(size: 17, weight: .semibold, design: .rounded)
-    public static let moneySmall  = Font.system(size: 14, weight: .semibold, design: .rounded)
+    public static let button      = Font.body.weight(.semibold)
+    /// Money — large, rounded, so amounts stay readable at larger Dynamic Type.
+    public static let moneyHero   = Font.largeTitle.weight(.bold)
+    public static let moneyLarge  = Font.title.weight(.bold)
+    public static let moneyBody   = Font.body.weight(.semibold)
+    public static let moneySmall  = Font.caption.weight(.semibold)
 }

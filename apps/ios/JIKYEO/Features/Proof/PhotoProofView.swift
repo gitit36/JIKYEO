@@ -106,6 +106,7 @@ struct PhotoProofView: View {
     }
 
     private func submit(_ p: PendingCapture) {
+        guard status == .idle else { return }
         status = .uploading
         errorMessage = nil
         Task {
@@ -130,16 +131,14 @@ struct PhotoProofView: View {
                     occurrenceId: occurrence.id,
                     .photo(payload)
                 )
-                await MainActor.run { onResult(result) }
-            } catch let e as APIError {
                 await MainActor.run {
-                    status = .idle
-                    errorMessage = e.message
+                    Analytics.track(.verification_submitted, ["method": "photo"])
+                    onResult(result)
                 }
             } catch {
                 await MainActor.run {
                     status = .idle
-                    errorMessage = "다시 시도해주세요."
+                    errorMessage = UserFacingError.message(error)
                 }
             }
         }

@@ -27,11 +27,14 @@ struct FriendVerifyView: View {
                             await MainActor.run {
                                 waitingName = card.verifierDisplayName ?? occurrence.friendVerifyName ?? "친구"
                                 isSubmitting = false
+                                Analytics.track(.friend_verify_requested)
+                                Analytics.track(.verification_submitted, ["method": "friend"])
                             }
-                        } catch let e as APIError {
-                            await MainActor.run { isSubmitting = false; onError(e.message) }
                         } catch {
-                            await MainActor.run { isSubmitting = false; onError("다시 시도해주세요.") }
+                            await MainActor.run {
+                                isSubmitting = false
+                                onError(UserFacingError.message(error))
+                            }
                         }
                     }
                 }

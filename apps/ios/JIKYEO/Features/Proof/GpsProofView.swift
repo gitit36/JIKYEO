@@ -23,6 +23,7 @@ struct GpsProofView: View {
                 Image(systemName: "location.circle.fill")
                     .font(.system(size: 56))
                     .foregroundStyle(DS.Color.primary)
+                    .accessibilityHidden(true)
                 Text(occurrence.commitmentTitle)
                     .font(Typo.title).foregroundStyle(DS.Color.text)
                     .multilineTextAlignment(.center)
@@ -76,7 +77,7 @@ struct GpsProofView: View {
     }
 
     private func submit() {
-        guard let l = vm.lastLocation else { return }
+        guard let l = vm.lastLocation, !isSubmitting else { return }
         isSubmitting = true
         errorMessage = nil
         Task {
@@ -98,17 +99,13 @@ struct GpsProofView: View {
                 )
                 await MainActor.run {
                     isSubmitting = false
+                    Analytics.track(.verification_submitted, ["method": "gps"])
                     onResult(result)
-                }
-            } catch let e as APIError {
-                await MainActor.run {
-                    isSubmitting = false
-                    errorMessage = e.message
                 }
             } catch {
                 await MainActor.run {
                     isSubmitting = false
-                    errorMessage = "다시 시도해주세요."
+                    errorMessage = UserFacingError.message(error)
                 }
             }
         }

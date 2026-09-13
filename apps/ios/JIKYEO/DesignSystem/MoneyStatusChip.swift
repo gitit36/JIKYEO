@@ -16,6 +16,7 @@ public struct MoneyStatusChip: View {
             .padding(.vertical, DS.Space.xxs)
             .foregroundStyle(color)
             .background(Capsule().fill(color.opacity(0.12)))
+            .accessibilityLabel(status.label)
     }
 
     private var color: Color {

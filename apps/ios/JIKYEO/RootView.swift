@@ -37,12 +37,14 @@ struct RootView: View {
                 OnboardingRootView(debugStage: stage)
             } else if auth.isSignedIn {
                 MainTabView(debugStage: nil)
+                    .id(auth.session?.userId ?? "signed-in")
             } else {
                 OnboardingRootView(debugStage: nil)
             }
             #else
             if auth.isSignedIn {
                 MainTabView(debugStage: nil)
+                    .id(auth.session?.userId ?? "signed-in")
             } else {
                 OnboardingRootView(debugStage: nil)
             }
@@ -119,15 +121,26 @@ struct MainTabView: View {
             selected = .history
         case .recap(let week):
             Task {
-                if let row = try? await container.recapAPI.get(weekStart: week) {
-                    recap = row
-                } else {
+                do {
+                    recap = try await container.recapAPI.get(weekStart: week)
+                } catch {
+                    banner = UserFacingError.message(error)
                     selected = .home
                 }
             }
         case .friends, .friendVerify:
             selected = .friends
-        case .sign, .commitment, .appeal:
+        case .sign(let id), .commitment(let id):
+            Task {
+                do {
+                    _ = try await container.commitmentAPI.getOne(id: id)
+                    selected = .history
+                } catch {
+                    banner = UserFacingError.message(error)
+                    selected = .home
+                }
+            }
+        case .appeal:
             selected = .history
         }
     }

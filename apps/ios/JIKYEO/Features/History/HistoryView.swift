@@ -40,7 +40,7 @@ struct HistoryView: View {
                     }
                     if model.isLoading { ProgressView().frame(maxWidth: .infinity) }
                     if let err = model.errorMessage {
-                        Text(err).font(Typo.caption).foregroundStyle(DS.Color.moneyLost)
+                        ErrorRetryBanner(message: err) { Task { await model.load(container: container) } }
                     }
                 }
                 .padding(.horizontal, DS.Space.lg)
@@ -72,10 +72,8 @@ final class HistoryViewModel: ObservableObject {
         do {
             items = try await container.commitmentAPI.listMine()
             errorMessage = nil
-        } catch let e as APIError {
-            errorMessage = e.message
         } catch {
-            errorMessage = "불러오지 못했어요. 다시 시도해주세요."
+            errorMessage = UserFacingError.message(error)
         }
     }
 
@@ -165,7 +163,7 @@ private struct CommitmentHistoryCard: View {
             return item.cancellationEffectiveAt == nil ? "진행 중" : Copy.Cancel.scheduled
         case "completed":       return "끝난 약속"
         case "cancelled":       return "취소됨"
-        default:                return item.status
+        default:                return "진행 중"
         }
     }
 }

@@ -55,7 +55,7 @@ struct CommitmentHistoryDetailView: View {
                     }
                 }
                 if let err = errorMessage {
-                    Text(err).font(Typo.caption).foregroundStyle(DS.Color.moneyLost)
+                    ErrorRetryBanner(message: err) { Task { await load() } }
                 }
             }
             .padding(.horizontal, DS.Space.lg)
@@ -134,10 +134,8 @@ struct CommitmentHistoryDetailView: View {
         do {
             cancelPreview = try await container.commitmentAPI.cancelPreview(commitmentId: commitmentId)
             confirming = true
-        } catch let e as APIError {
-            errorMessage = e.message
         } catch {
-            errorMessage = "불러오지 못했어요. 다시 시도해주세요."
+            errorMessage = UserFacingError.message(error)
         }
     }
 
@@ -148,10 +146,8 @@ struct CommitmentHistoryDetailView: View {
             cancelResult = try await container.commitmentAPI.cancel(commitmentId: commitmentId)
             await load()
             await refreshCancelBanner()
-        } catch let e as APIError {
-            errorMessage = e.message
         } catch {
-            errorMessage = "불러오지 못했어요. 다시 시도해주세요."
+            errorMessage = UserFacingError.message(error)
         }
     }
 
@@ -166,7 +162,8 @@ struct CommitmentHistoryDetailView: View {
         do {
             detail = try await container.commitmentAPI.getOne(id: commitmentId)
             var deleted = Set<String>()
-            for occ in detail?.occurrences ?? [] {
+            let candidates = (detail?.occurrences ?? []).filter { $0.status == "fail" || $0.appeal != nil }.prefix(8)
+            for occ in candidates {
                 let items = (try? await container.evidenceAPI.list(occurrenceId: occ.id)) ?? []
                 if items.contains(where: { $0.status == "deleted" }) {
                     deleted.insert(occ.id)
@@ -174,10 +171,8 @@ struct CommitmentHistoryDetailView: View {
             }
             deletedEvidence = deleted
             errorMessage = nil
-        } catch let e as APIError {
-            errorMessage = e.message
         } catch {
-            errorMessage = "불러오지 못했어요. 다시 시도해주세요."
+            errorMessage = UserFacingError.message(error)
         }
     }
 }
@@ -238,7 +233,7 @@ private struct OccurrenceAppealCard: View {
     }
 }
 
-private struct AppealSubmitSheet: View {
+struct AppealSubmitSheet: View {
     let occurrenceId: String
     let onDone: () -> Void
     @EnvironmentObject private var container: AppContainer
@@ -286,10 +281,12 @@ private struct AppealSubmitSheet: View {
             .padding(DS.Space.lg)
             .navigationTitle(Copy.Appeal.title)
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear { Analytics.track(.appeal_opened) }
         }
     }
 
     private func submit() async {
+        guard !busy else { return }
         busy = true
         defer { busy = false }
         do {
@@ -299,10 +296,8 @@ private struct AppealSubmitSheet: View {
                 explanation: explanation.trimmingCharacters(in: .whitespacesAndNewlines)
             )
             onDone()
-        } catch let e as APIError {
-            errorMessage = e.message
         } catch {
-            errorMessage = "제출하지 못했어요. 다시 시도해주세요."
+            errorMessage = UserFacingError.message(error)
         }
     }
 }
@@ -321,9 +316,6 @@ enum AppealCopy {
         case .approved:
             return Copy.Appeal.approved(appeal.supplementalRefundStatus)
         case .rejected:
-            if let reason = appeal.rejectReason, !reason.isEmpty {
-                return "\(Copy.Appeal.rejectedPrefix) · \(reason)"
-            }
             return Copy.Appeal.rejectedPrefix
         }
     }

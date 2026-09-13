@@ -91,18 +91,18 @@ public final class CreateCommitmentModel: ObservableObject {
     // MONEY: payment_pending → charge success → signature_pending → /sign → active.
     // Payment success alone must not activate. Persist the unsigned id so
     // relaunch can resume the Signature step.
-    private static let unsignedKey = "jikyeo.unsignedMoneyCommitmentId"
+    public static let unsignedDefaultsKey = "jikyeo.unsignedMoneyCommitmentId"
 
     public static func pendingUnsignedId() -> String? {
-        UserDefaults.standard.string(forKey: unsignedKey)
+        UserDefaults.standard.string(forKey: unsignedDefaultsKey)
     }
 
     public static func persistUnsigned(_ id: String) {
-        UserDefaults.standard.set(id, forKey: unsignedKey)
+        UserDefaults.standard.set(id, forKey: unsignedDefaultsKey)
     }
 
     public static func clearUnsigned() {
-        UserDefaults.standard.removeObject(forKey: unsignedKey)
+        UserDefaults.standard.removeObject(forKey: unsignedDefaultsKey)
     }
     public enum PaymentState: Equatable {
         case idle
@@ -327,10 +327,8 @@ public final class CreateCommitmentModel: ObservableObject {
                 timezone: timezone
             )
             self.quote = try await container.commitmentAPI.quote(req)
-        } catch let e as APIError {
-            errorMessage = e.message
         } catch {
-            errorMessage = "다시 시도해주세요."
+            errorMessage = UserFacingError.message(error)
         }
     }
 
@@ -346,11 +344,11 @@ public final class CreateCommitmentModel: ObservableObject {
             createdCommitmentId = result.commitmentId
             createdEnforcementMode = result.enforcementMode
             createdMaxLossKrw = Int64(result.maxLossKrw ?? "0") ?? 0
+            Analytics.track(.commitment_created, ["mode": result.enforcementMode.rawValue])
+            Analytics.track(.commitment_activated, ["mode": result.enforcementMode.rawValue])
             step = .done
-        } catch let e as APIError {
-            errorMessage = e.message
         } catch {
-            errorMessage = "다시 시도해주세요."
+            errorMessage = UserFacingError.message(error)
         }
     }
 
@@ -358,6 +356,7 @@ public final class CreateCommitmentModel: ObservableObject {
     /// Failure keeps `payment_pending` so the user can retry.
     public func createAndPay(container: AppContainer) async {
         guard enforcementMode == .money else { return }
+        if case .charging = paymentState { return }
         errorMessage = nil
         paymentState = .charging
         do {
@@ -366,6 +365,8 @@ public final class CreateCommitmentModel: ObservableObject {
                 createdCommitmentId = result.commitmentId
                 createdEnforcementMode = result.enforcementMode
                 createdMaxLossKrw = Int64(result.maxLossKrw ?? "0") ?? 0
+                Analytics.track(.commitment_created, ["mode": "money"])
+                if reviewDemo { Analytics.track(.money_demo_contract_created) }
             }
             guard let id = createdCommitmentId else { return }
             let preview = try await container.commitmentAPI.termsPreview(commitmentId: id)
@@ -393,14 +394,12 @@ public final class CreateCommitmentModel: ObservableObject {
                 paymentState = .failed(message: "결제 확인을 기다리고 있어요. 잠시 후 다시 시도해주세요.")
             }
         } catch let e as APIError {
-            paymentState = .failed(message: e.code == "AGE_UNVERIFIED" || e.code == "MONEY_DISABLED"
-                ? Copy.Age.rejected
-                : e.code == "PAYMENT_FAILED"
-                ? "결제가 완료되지 않았어요. 카드 정보를 확인하고 다시 시도해주세요."
-                : e.message)
+            paymentState = .failed(message: e.code == "PAYMENT_FAILED"
+                ? "결제가 완료되지 않았어요. 다시 시도해주세요."
+                : UserFacingError.message(e))
             await refreshMoneyView(container: container)
         } catch {
-            paymentState = .failed(message: "다시 시도해주세요.")
+            paymentState = .failed(message: UserFacingError.message(error))
         }
     }
 
@@ -414,11 +413,10 @@ public final class CreateCommitmentModel: ObservableObject {
             _ = try await container.commitmentAPI.sign(commitmentId: id)
             CreateCommitmentModel.clearUnsigned()
             await refreshMoneyView(container: container)
+            Analytics.track(.commitment_activated, ["mode": "money"])
             step = .done
-        } catch let e as APIError {
-            errorMessage = e.message
         } catch {
-            errorMessage = "다시 시도해주세요."
+            errorMessage = UserFacingError.message(error)
         }
     }
 
@@ -435,11 +433,9 @@ public final class CreateCommitmentModel: ObservableObject {
             createdEnforcementMode = .money
             unsignedCancelled = true
             step = .done
-        } catch let e as APIError {
-            errorMessage = e.message
-            await refreshMoneyView(container: container)
         } catch {
-            errorMessage = "다시 시도해주세요."
+            errorMessage = UserFacingError.message(error)
+            await refreshMoneyView(container: container)
         }
     }
 

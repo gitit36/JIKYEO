@@ -1014,6 +1014,11 @@ private struct ReviewStep: View {
             primaryEnabled: model.enforcementMode != .money || (model.quote != nil && !model.isLoadingQuote),
             onPrimary: onNext
         ) {
+            Color.clear.frame(height: 0).onAppear {
+                if model.enforcementMode == .money {
+                    Analytics.track(.money_review_started)
+                }
+            }
             if model.safety?.decision == "blocked", let err = model.errorMessage {
                 UnsafeGoalCard(message: err)
             }
@@ -1192,8 +1197,9 @@ private struct PaymentFailedCard: View {
             Text(message).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
             Text("약속은 아직 시작되지 않았고, 결제된 금액도 없어요.")
                 .font(Typo.caption).foregroundStyle(DS.Color.textMuted)
-            if let code = failureCode {
-                Text(code).font(Typo.caption).foregroundStyle(DS.Color.textMuted)
+            if failureCode != nil {
+                Text("결제를 완료하지 못했어요. 다시 시도할 수 있어요.")
+                    .font(Typo.caption).foregroundStyle(DS.Color.textMuted)
             }
         }
         .padding(DS.Space.md)

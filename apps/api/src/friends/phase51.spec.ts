@@ -129,6 +129,9 @@ describe('Phase 5.1 — friends / SOCIAL / shared', () => {
     const f = (await ctx.friends.listAccepted(IAN))[0];
     await ctx.friends.block(IAN, f.friendshipId);
     await expect(ctx.shared.socialCommitmentView(MINSU, created.commitmentId)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    const after = await ctx.shared.home(MINSU);
+    expect(after.watching).toEqual([]);
+    expect(after.friends).toEqual([]);
   });
 
   it('only an accepted friend may be SOCIAL partner', async () => {
