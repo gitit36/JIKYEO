@@ -6,8 +6,18 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            #if DEBUG
-            if let stage = DebugLaunch.stage, stage.hasPrefix("wizard-") {
+            if !container.environment.isUsable {
+                ConfigBlockedView()
+            } else {
+                appRoot
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var appRoot: some View {
+        #if DEBUG
+        if let stage = DebugLaunch.stage, stage.hasPrefix("wizard-") {
                 CreateCommitmentWizardView(debugStage: stage).environmentObject(container)
             } else if let stage = DebugLaunch.stage, stage.hasPrefix("friends-") || stage.hasPrefix("friend-verify-inbox") {
                 FriendsView(debugStage: stage).environmentObject(container)
@@ -48,8 +58,23 @@ struct RootView: View {
             } else {
                 OnboardingRootView(debugStage: nil)
             }
-            #endif
+        #endif
+    }
+}
+
+private struct ConfigBlockedView: View {
+    var body: some View {
+        VStack(spacing: DS.Space.lg) {
+            Spacer()
+            Text(Copy.Errors.misconfigured)
+                .font(Typo.body)
+                .foregroundStyle(DS.Color.text)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, DS.Space.lg)
+            Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DS.Color.surfaceBackground.ignoresSafeArea())
     }
 }
 

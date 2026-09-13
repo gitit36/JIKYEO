@@ -1,34 +1,95 @@
 # TestFlight readiness
 
-Verified in Phase 7C code and local builds. Do not treat unchecked items as done.
+Phase 7E. Local working MVP is `00a4f10` and parents. This file separates what is ready in code from what only Apple/ops can finish.
 
-## READY IN CODE
+## READY
 
-- [x] Release MVP path covers onboarding/auth, create Commitment, SELF, SOCIAL, Friends, Shared Commitment, GPS, Focus Timer, Self Verify, Friend Verify, Grace, Appeal, History, Weekly Recap, in-app notification state
-- [x] MONEY real payment gated (`MONEY_DISABLED` / `준비 중` unless explicit review-demo)
-- [x] Photo/AI verification Release-gated (`준비 중` / `METHOD_UNAVAILABLE`)
-- [x] DEBUG fixtures, MockPayment toggle, mock GPS, debug menus compile out of Release
-- [x] Core screens have loading / empty / retryable Korean error states (no raw backend codes)
-- [x] Expired session / 401 returns to auth; logout clears session + unsigned MONEY cache
-- [x] Tab UI remounts per user id so authenticated caches do not cross accounts
-- [x] Unauthorized commitment/recap deep links fail safely
-- [x] Submit CTAs ignore duplicate taps; retries reuse existing server idempotency
-- [x] Dynamic Type on primary type scale; PASS/UNCERTAIN/FAIL and money chips keep text labels
-- [x] History list capped at 80; Home no longer extra-lists commitments on every appear
-- [x] Analytics no-op/debug abstraction; sensitive keys stripped; delivery cannot fail domain
-- [x] Bundle ID `com.jikyeo.app`, version `0.1.0` / build `1`, display name `지켜`
-- [x] Camera / Photo Library / Location When-In-Use usage strings exist and match GPS/photo usage
-- [x] Notification permission path uses system prompt + `PushRegistrar` (no fake simulator token in Release)
-- [x] Evidence delete and friend block/remove visibility remain server-enforced
+### Code / domain
 
-## EXTERNAL / MANUAL BLOCKERS
+- [x] Bundle ID `com.jikyeo.app`, display name `지켜`, version `0.1.0`, build `1`, iOS 17.0
+- [x] Camera / Photo Library / Location When-In-Use usage strings
+- [x] Push entitlements: Debug `aps-environment=development`, Release `production`
+- [x] `ITSAppUsesNonExemptEncryption=false` (HTTPS only)
+- [x] Release API base is `https://api.jikyeo.app/v1` (not localhost). Loopback/http in Release fails closed with Korean copy
+- [x] Release never treats development/review-demo/mock MONEY as live (`moneyMode == production` required)
+- [x] iOS Release Photo is compile-time `준비 중`
+- [x] DEBUG fixtures / mock GPS / mock payment toggle / debug menus compile out of Release
+- [x] Production API default `MONEY_ENABLED=false` (see `apps/api/.env.production.example`)
+- [x] Ordinary production + MockPayment remains fail-closed even if `MONEY_ENABLED=true`
+- [x] Review/demo MONEY is a separate `REVIEW_DEMO_MONEY=true` path, not ordinary TestFlight
+- [x] Simulator E2E recorded in `docs/MVP_E2E_QA.md` (Phase 7D)
 
-- [ ] Apple `DEVELOPMENT_TEAM` / signing certificate / provisioning (project has empty team, `CODE_SIGNING_ALLOWED=NO`)
-- [ ] Physical iPhone install
-- [ ] APNs Auth Key (`.p8`) / Team ID / Key ID / topic
-- [ ] Archive / TestFlight upload
-- [ ] Deployed HTTPS legal/support URLs (public pages exist in code, not deployed)
+### Builds
+
+- [x] iOS Debug simulator build
+- [x] iOS Release simulator build
+- [x] Unsigned Release archive (no Apple team on this Mac)
+
+## BLOCKED / MANUAL
+
+### Signing (blocks signed device + TestFlight upload)
+
+- [ ] Sign in to Xcode with the Apple Developer account
+- [ ] Select the Development Team on target `JIKYEO` (Automatic signing). `DEVELOPMENT_TEAM` is empty on purpose — do not invent a Team ID
+- [ ] Enable Automatic signing (`CODE_SIGNING_ALLOWED=YES`) after a team exists
+- [ ] Create/download the App ID + provisioning profile for `com.jikyeo.app` with Push Notifications
+- [ ] Signed Release archive + Organizer validate/upload
+
+### Physical device
+
+- [ ] Connect a signed iPhone (none was attached during Phase 7E)
+- [ ] Install the signed build and run the device smoke list below
+
+### APNs (does not block a basic TestFlight binary)
+
+- [ ] APNs Auth Key (`.p8`) / Team ID / Key ID / topic — configure **outside the repo**
+- [ ] Production API `PUSH_PROVIDER=apns` with those env vars
+- Live push is **unverified**. The app still registers; missing credentials must not be reported as delivered
+
+### Hosted backend / legal (does not block signing; blocks a usable TestFlight session)
+
+- [ ] Deploy HTTPS API at the Release host (`https://api.jikyeo.app/v1` or change `API_BASE_URL`)
+- [ ] Deploy public legal/support pages to HTTPS URLs
 - [ ] Production support/operator information
-- [ ] External MONEY approvals (KCP, Apple External Purchase, lawyer/tax/telecom, LBS)
 
-See `docs/LAUNCH_GATES.md` for production MONEY and live APNs gates.
+### App Store Connect
+
+- [ ] App record, screenshots, privacy nutrition labels, review notes
+- [ ] Export compliance confirmation (plist already declares non-exempt encryption unused)
+
+### Production MONEY (separate from basic TestFlight)
+
+Do not treat these as TestFlight blockers. They remain launch gates:
+
+- Real KCP + `MONEY_ENABLED` only after `docs/LAUNCH_GATES.md`
+- StoreKit External Purchase
+- Lawyer / tax / telecom / LBS
+
+## Physical-device QA
+
+Simulator results do not count. Device was **not available**.
+
+| # | Flow | Result |
+|---|---|---|
+| 1 | launch/login | FAIL (no signed iPhone) |
+| 2 | create SELF | FAIL (no signed iPhone) |
+| 3 | Today → verify → History | FAIL (no signed iPhone) |
+| 4 | Friend / SOCIAL | FAIL (no signed iPhone) |
+| 5 | Friend Verify | FAIL (no signed iPhone) |
+| 6 | Shared Commitment | FAIL (no signed iPhone) |
+| 7 | relaunch/session restore | FAIL (no signed iPhone) |
+| 8 | GPS permission + verification | FAIL (no signed iPhone) |
+| 9 | Focus Timer | FAIL (no signed iPhone) |
+| 10 | notification permission registration | FAIL (no signed iPhone) |
+| 11 | MONEY remains non-live | FAIL (no signed iPhone) |
+| 12 | Photo remains gated | FAIL (no signed iPhone) |
+
+Device-only paths exist in code (When-In-Use GPS, timer `scenePhase` heartbeats, notification `PushRegistrar`, session remount). They were not exercised on hardware.
+
+## Manual signing steps (when a team exists)
+
+1. Xcode → Settings → Accounts → add the Apple ID
+2. Target JIKYEO → Signing & Capabilities → Team
+3. Confirm Push Notifications capability (Release entitlements already set `aps-environment=production`)
+4. Product → Archive (Release)
+5. Organizer → Validate / Distribute → TestFlight

@@ -8,6 +8,7 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # --- Prisma ---
 apps/api/prisma/dev.db*
@@ -29,7 +30,13 @@ Carthage/
 *.hmap
 *.ipa
 *.dSYM.zip
+*.xcarchive
 build/
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+AuthKey_*.p8
 
 # --- Logs ---
 *.log

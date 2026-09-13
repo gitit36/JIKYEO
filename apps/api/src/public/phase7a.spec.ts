@@ -18,6 +18,12 @@ function cfg(env: Record<string, string>): AppConfig {
 }
 
 describe('Phase 7A — MVP freeze / review readiness', () => {
+  it('production MONEY_ENABLED default is fail-closed until Real KCP', () => {
+    expect(resolveMoneyAccess({ nodeEnv: 'production' }).moneyEnabled).toBe(false);
+    expect(resolveMoneyAccess({ nodeEnv: 'production', moneyEnabledEnv: 'false' }).moneyEnabled).toBe(false);
+    expect(cfg({ NODE_ENV: 'production', MONEY_ENABLED: 'false' }).moneyEnabled).toBe(false);
+  });
+
   it('ordinary production is fail-closed; mock MONEY is not live', () => {
     const ordinary = cfg({ NODE_ENV: 'production', MONEY_ENABLED: 'true', PAYMENT_PROVIDER: 'mock' });
     expect(ordinary.moneyEnabled).toBe(false);

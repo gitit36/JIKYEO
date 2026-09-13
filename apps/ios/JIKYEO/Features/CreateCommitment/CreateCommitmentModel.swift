@@ -212,7 +212,9 @@ public final class CreateCommitmentModel: ObservableObject {
         if let matrix = mvpMatrix { return !matrix.moneyEnabled }
         return false
         #else
-        return !(mvpMatrix?.moneyEnabled ?? false)
+        // Ordinary TestFlight/Release never treats mock/development/review-demo
+        // MONEY as live. Only an explicit production matrix can unlock it.
+        return mvpMatrix?.moneyMode != "production" || mvpMatrix?.moneyEnabled != true
         #endif
     }
 

@@ -384,6 +384,7 @@ public enum Copy {
         public static let recapEmpty   = "지난주 정리가 아직 없어요."
         public static let close        = "닫기"
         public static let signedIn     = "로그인되어 있어요"
+        public static let misconfigured = "앱 설정이 올바르지 않아요. 잠시 후 다시 시도해주세요."
     }
 
     // MARK: - Days

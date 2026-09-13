@@ -9,6 +9,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
+    # Leave empty until an Apple Development Team is selected in Xcode.
+    # Do not invent Team IDs. Unsigned local/simulator builds stay allowed.
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
     CODE_SIGNING_ALLOWED: NO
@@ -51,5 +53,7 @@ targets:
       configs:
         Debug:
           CODE_SIGN_ENTITLEMENTS: JIKYEO.Debug.entitlements
+          API_BASE_URL: http://localhost:3001/v1
         Release:
           CODE_SIGN_ENTITLEMENTS: JIKYEO.Release.entitlements
+          API_BASE_URL: https://api.jikyeo.app/v1
