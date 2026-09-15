@@ -52,7 +52,7 @@ struct GpsProofView: View {
                         .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
                 }
             case .notDetermined:
-                PrimaryButton(Copy.Proof.gpsPermCTA) { vm.request() }
+                PrimaryButton(Copy.Proof.gpsPermAllow) { vm.request() }
                 Text(Copy.Proof.gpsPermBody).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
                     .multilineTextAlignment(.center)
             default:
@@ -72,6 +72,7 @@ struct GpsProofView: View {
         }
         .padding(.horizontal, DS.Space.lg)
         .padding(.vertical, DS.Space.lg)
+        .accessibilityIdentifier("proof.gps")
         .onAppear { vm.start() }
         .onDisappear { vm.stop() }
     }

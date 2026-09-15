@@ -46,7 +46,7 @@ struct PhotoProofView: View {
                     PermissionCard(
                         title: Copy.Proof.photoPermTitle,
                         message: Copy.Proof.photoPermBody,
-                        cta: Copy.Proof.photoPermCTA
+                        cta: camera.authorization == .notDetermined ? Copy.Proof.photoPermAllow : Copy.Proof.photoPermCTA
                     ) {
                         if camera.authorization == .notDetermined {
                             camera.requestAccess()
@@ -63,8 +63,11 @@ struct PhotoProofView: View {
             .padding(.horizontal, DS.Space.md)
 
             VStack(spacing: DS.Space.sm) {
-                Text(occurrence.commitmentTitle)
+                Text(Copy.Proof.photoTitle)
                     .font(Typo.heading).foregroundStyle(DS.Color.text)
+                    .multilineTextAlignment(.center)
+                Text(occurrence.commitmentTitle)
+                    .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
                 Text(Copy.Proof.photoHint)
                     .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
                     .multilineTextAlignment(.center)
@@ -99,6 +102,7 @@ struct PhotoProofView: View {
             .padding(.horizontal, DS.Space.lg)
             .padding(.vertical, DS.Space.md)
         }
+        .accessibilityIdentifier("proof.photo")
         .onAppear {
             if camera.authorization == .authorized { camera.start() }
         }

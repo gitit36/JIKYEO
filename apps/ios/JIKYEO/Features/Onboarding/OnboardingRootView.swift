@@ -50,18 +50,21 @@ struct OnboardingRootView: View {
                     model.step = .signIn
                     model.name = "김지켜"
                     model.email = "jikyeo@example.com"
+                case "signin-empty":
+                    model.step = .signIn
                 default: break
                 }
                 #endif
             }
             .background(DS.Color.surfaceBackground.ignoresSafeArea())
+            .tint(DS.Color.primary)
+            .toolbarBackground(DS.Color.surfaceBackground, for: .navigationBar)
+            .navigationBarBackButtonHidden(true)
             .toolbar {
                 if model.step != .hero {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button {
+                        NavBarButton("chevron.left") {
                             model.step = OnboardingStep(rawValue: model.step.rawValue - 1) ?? .hero
-                        } label: {
-                            Image(systemName: "chevron.left").foregroundStyle(DS.Color.text)
                         }
                         .accessibilityLabel(Copy.Wizard.back)
                     }
@@ -142,7 +145,7 @@ private struct GoalPickView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(
                                     RoundedRectangle(cornerRadius: DS.Radius.md)
-                                        .stroke(model.pickedGoal.id == t.id ? DS.Color.primary : DS.Color.divider,
+                                        .stroke(model.pickedGoal.id == t.id ? DS.Color.primary : DS.Color.border,
                                                 lineWidth: model.pickedGoal.id == t.id ? 2 : 1)
                                         .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.surface))
                                 )

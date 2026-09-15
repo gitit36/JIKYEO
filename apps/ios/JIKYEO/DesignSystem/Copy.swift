@@ -45,10 +45,13 @@ public enum Copy {
         public static let moneyIndependent = "친구의 성공/실패는 내 약속금에 영향을 주지 않아요."
         public static let withFriend = "친구와 같이 할래요"
         public static let pickFriend = "누구에게 보여줄까요?"
-        public static let socialMeaning = "이 약속의 진행과 결과를 친구 한 명에게 보여줘요."
+        public static let socialMeaning = "이 약속의 진행과 결과만 친구 한 명에게 보여줘요. 친구가 대신 확인하지는 않아요."
         public static let pickVerifier = "누가 확인해줄까요?"
+        public static let verifierMeaning = "선택한 친구가 이번 약속을 지켰는지 직접 확인해줘요."
+        public static let verifierHint = "친구가 직접 판정해요. 실패금을 받지는 않아요."
         public static let reviewInbox = "확인할 약속"
         public static let request = "친구에게 확인 요청"
+        public static let requestBody = "친구가 약속을 지켰는지 확인해줘요. 내가 직접 판정하지 않아요."
         public static func waiting(_ name: String) -> String { "\(name)님의 확인을 기다리고 있어요" }
         public static func approved(_ name: String) -> String { "\(name)님이 약속 완료를 확인했어요" }
         public static func rejected(_ name: String) -> String { "\(name)님이 약속을 지키지 못한 것으로 확인했어요" }
@@ -88,7 +91,7 @@ public enum Copy {
         public static let enforceSelfTitle = "나만 확인할게요"
         public static let enforceSelfSub   = "증명은 남기되, 돈은 걸지 않아요."
         public static let enforceSocialTitle = "친구에게 결과를 알려주세요"
-        public static let enforceSocialSub   = "혼자만 아는 약속보다 더 지키기 쉬워져요."
+        public static let enforceSocialSub   = "진행과 결과를 공유해요. 친구가 대신 확인하지는 않아요."
         public static let enforceMoneyTitle  = "돈까지 걸고 확실히 할게요"
         public static let enforceMoneySub    = "못 지키면 실제 약속금을 돌려받지 못해요."
         // Money step (only MONEY mode)
@@ -116,7 +119,7 @@ public enum Copy {
         public static let step7CTA         = "이대로 약속할게요"
         public static let step7MoneyReviewHint = "성공하면 약속금 전액을 돌려받아요."
         public static let step7SelfReviewHint  = "돈은 걸지 않고 내 기록으로 확인할게요."
-        public static let step7SocialReviewHint = "친구에게도 결과가 전달돼요."
+        public static let step7SocialReviewHint = "진행과 결과가 친구에게 전달돼요. 친구가 대신 확인하지는 않아요."
         /// MONEY review CTA: "15,000원 걸고 약속할게요"
         public static func step7MoneyCTA(_ amount: String) -> String { "\(amount) 걸고 약속할게요" }
         public static let step8Title       = "약속금을 걸어요"
@@ -134,7 +137,9 @@ public enum Copy {
         public static let strictFlexible = "조금 여유롭게"
         public static let strictFlexibleHint = "몇 번의 실수는 괜찮아요."
         public static func graceUsed(_ n: Int) -> String { "\(n)번의 여유를 사용했어요." }
-        public static func stillKeep(_ amount: String) -> String { "아직 약속금 \(amount)원을 모두 지킬 수 있어요." }
+        public static func stillKeep(_ amount: String) -> String {
+            "이번 실패는 횟수에 포함돼요. 최종 성공 조건을 채우면 약속금 \(amount)원 전액을 돌려받을 수 있어요."
+        }
         public static func reviewStake(_ amount: String) -> String { "이번 약속에 \(amount)원을 걸어요." }
         public static func reviewNeed(_ need: Int, _ total: Int) -> String { "총 \(total)번 중 \(need)번 이상 지키면 성공이에요." }
         public static func reviewGrace(_ n: Int) -> String { "\(n)번까지는 놓쳐도 괜찮아요." }
@@ -172,7 +177,7 @@ public enum Copy {
         public static let methodGps       = "장소로 증명"
         public static let methodTimer     = "집중 타이머"
         public static let methodSelf      = "내가 직접 확인"
-        public static let methodFriend    = "친구가 확인"
+        public static let methodFriend    = "친구가 직접 확인"
 
         public static func timesPerWeek(_ n: Int) -> String { "주 \(n)회" }
         public static let windowStartLabel      = "약속 시작 시간"
@@ -188,8 +193,23 @@ public enum Copy {
         public static let comingSoon      = "준비 중"
         public static let reviewDemoNotice = "검토/데모 환경이에요. 실제 결제가 아니에요."
         public static let moneyGated      = "실제 약속금 결제는 아직 열려 있지 않아요."
-        public static let comingSoonSocial = "친구 초대는 곧 열려요. 지금은 나만 확인이나 약속금으로 지켜봐요."
+        public static let comingSoonSocial = "결과 공유는 곧 열려요. 지금은 나만 확인이나 약속금으로 지켜봐요."
         public static let comingSoonFriend = "친구와 함께 지키는 기능은 곧 열려요."
+        public static func proofRulePhoto(_ deadline: String) -> String {
+            "\(deadline)까지 사진을 찍어 증명해요."
+        }
+        public static func proofRuleGps(_ deadline: String, _ radius: Int) -> String {
+            "\(deadline)까지 지정한 장소 \(radius)m 안에 들어오면 돼요."
+        }
+        public static func proofRuleTimer(_ deadline: String, _ minutes: Int) -> String {
+            "\(deadline)까지 앱 타이머로 \(minutes)분을 채워요."
+        }
+        public static func proofRuleSelf(_ deadline: String) -> String {
+            "\(deadline)까지 내가 직접 확인해요. 다른 사람이 승인하지 않아요."
+        }
+        public static func proofRuleFriend(_ deadline: String) -> String {
+            "\(deadline)까지 친구가 약속을 지켰는지 확인해줘요."
+        }
         public static let gpsPickPlaceholder = "장소가 아직 선택되지 않았어요."
         public static let gpsPickCTA      = "장소 선택하기"
         public static let gpsDebugMock    = "테스트용 위치 넣기"
@@ -207,6 +227,7 @@ public enum Copy {
         public static let photoReviewing   = "확인 중이에요"
         public static let photoPermTitle   = "카메라 접근이 필요해요"
         public static let photoPermBody    = "약속을 사진으로 증명하려면 카메라 사용을 허용해주세요."
+        public static let photoPermAllow   = "카메라 허용하기"
         public static let photoPermCTA     = "설정에서 허용하기"
         // GPS
         public static let gpsTitle         = "지정한 장소에 도착했나요?"
@@ -214,6 +235,7 @@ public enum Copy {
         public static let gpsSubmit        = "여기서 증명하기"
         public static let gpsPermTitle     = "위치 접근이 필요해요"
         public static let gpsPermBody      = "약속 장소에 도착했는지 확인하려면 위치 사용을 허용해주세요."
+        public static let gpsPermAllow     = "위치 허용하기"
         public static let gpsPermCTA       = "설정에서 허용하기"
         public static func gpsRadiusHint(_ label: String?, _ radiusM: Int) -> String {
             let name = (label?.isEmpty == false) ? label! : "지정한 장소"
@@ -227,6 +249,7 @@ public enum Copy {
         public static let pickerRadiusLabel = "도착 반경"
         // Timer
         public static let timerTitle       = "집중 타이머"
+        public static let timerReviewing   = "집중 시간을 확인하고 있어요"
         public static let timerStart       = "시작하기"
         public static let timerPause       = "잠깐 멈추기"
         public static let timerResume      = "계속하기"
@@ -255,7 +278,9 @@ public enum Copy {
         public static let uncertainCTA     = "다시 증명하기"
         // FAIL
         public static let failTitle        = "약속을 놓쳤어요."
-        public static func failMoneyBody(_ krw: Int64) -> String { "아직 약속금 \(MoneyText.format(krw))을 모두 지킬 수 있어요." }
+        public static func failMoneyBody(_ krw: Int64) -> String {
+            "이번 실패는 횟수에 포함돼요. 최종 성공 조건을 채우면 약속금 \(MoneyText.format(krw)) 전액을 돌려받을 수 있어요."
+        }
         public static let failSelfBody     = "다음 약속은 이어가볼까요?"
         // Shared
         public static let backHome         = "홈으로"
@@ -266,7 +291,7 @@ public enum Copy {
     public enum Appeal {
         public static let cta = "결과에 이의 제기하기"
         public static let title = "결과에 이의 제기하기"
-        public static let body = "이미 제출한 증명과 판정 내용만 다시 살펴봐요. 새 사진은 받지 않아요."
+        public static let body = "추가 증빙은 받지 않아요. 기존 기록을 기준으로 다시 검토해요."
         public static let reasonLabel = "어떤 부분이 잘못된 것 같나요?"
         public static let reasonVerification = "판정이 잘못된 것 같아요"
         public static let reasonEvidence = "증거가 잘못 읽힌 것 같아요"

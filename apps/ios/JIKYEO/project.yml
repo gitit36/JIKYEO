@@ -54,7 +54,32 @@ targets:
         Debug:
           CODE_SIGN_ENTITLEMENTS: JIKYEO.Debug.entitlements
           API_BASE_URL: http://localhost:3001/v1
-          DEBUG_DEVICE_API_BASE_URL: http://192.168.35.139:3001/v1
+          DEBUG_DEVICE_API_BASE_URL: https://opposed-advert-aqua-involves.trycloudflare.com/v1
         Release:
           CODE_SIGN_ENTITLEMENTS: JIKYEO.Release.entitlements
           API_BASE_URL: https://api.jikyeo.app/v1
+  JIKYEOUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: UITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jikyeo.app.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: JIKYEO
+        CODE_SIGN_STYLE: Automatic
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    dependencies:
+      - target: JIKYEO
+
+schemes:
+  JIKYEO:
+    build:
+      targets:
+        JIKYEO: all
+        JIKYEOUITests: [test]
+    test:
+      targets:
+        - JIKYEOUITests

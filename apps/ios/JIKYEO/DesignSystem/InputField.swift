@@ -13,16 +13,14 @@ public struct InputField: View {
     }
 
     public var body: some View {
-        TextField(placeholder, text: $text)
+        TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(DS.Color.textMuted))
             .font(Typo.body)
             .foregroundStyle(DS.Color.text)
+            .tint(DS.Color.primary)
             .keyboardType(keyboard)
             .padding(.horizontal, DS.Space.md)
             .frame(minHeight: 56)
-            .background(
-                RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .fill(DS.Color.surfaceMuted)
-            )
+            .background(ControlChrome())
     }
 }
 
@@ -37,15 +35,13 @@ public struct MoneyField: View {
     }
 
     public var body: some View {
-        TextField(placeholder, value: $amount, format: .number)
+        TextField("", value: $amount, format: .number, prompt: Text(placeholder).foregroundStyle(DS.Color.textMuted))
             .font(Typo.moneyBody)
             .foregroundStyle(DS.Color.text)
+            .tint(DS.Color.primary)
             .keyboardType(.numberPad)
             .padding(.horizontal, DS.Space.md)
             .frame(minHeight: 56)
-            .background(
-                RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .fill(DS.Color.surfaceMuted)
-            )
+            .background(ControlChrome())
     }
 }

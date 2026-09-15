@@ -18,14 +18,13 @@ struct ProofFlowView: View {
         NavigationStack {
             content
                 .background(DS.Color.surfaceBackground.ignoresSafeArea())
+                .tint(DS.Color.primary)
+                .toolbarBackground(DS.Color.surfaceBackground, for: .navigationBar)
+                .navigationBarBackButtonHidden(true)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark").foregroundStyle(DS.Color.text)
-                        }
-                        .accessibilityLabel(Copy.Errors.close)
+                        NavBarButton("xmark") { dismiss() }
+                            .accessibilityLabel(Copy.Errors.close)
                     }
                 }
         }

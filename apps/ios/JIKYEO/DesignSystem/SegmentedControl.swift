@@ -41,6 +41,13 @@ public struct SegmentedControl<Value: Hashable>: View {
             }
         }
         .padding(DS.Space.xxs)
-        .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.surfaceMuted))
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.md)
+                .fill(DS.Color.surfaceMuted)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.md)
+                        .strokeBorder(DS.Color.border, lineWidth: 1)
+                )
+        )
     }
 }

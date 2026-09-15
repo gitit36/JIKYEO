@@ -47,6 +47,7 @@ struct SelfVerifyView: View {
         }
         .padding(.horizontal, DS.Space.lg)
         .padding(.vertical, DS.Space.lg)
+        .accessibilityIdentifier("proof.self")
     }
 
     private func submit(answer: SelfEvidencePayload.Answer) {

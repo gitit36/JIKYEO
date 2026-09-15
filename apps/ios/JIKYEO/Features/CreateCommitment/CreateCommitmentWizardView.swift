@@ -91,15 +91,25 @@ struct CreateCommitmentWizardView: View {
                 if debugStage == "wizard-schedule"     { model.step = .schedule }
                 if debugStage == "wizard-verification" || debugStage == "wizard-release-gates" { model.step = .verification }
                 if debugStage == "wizard-proof"        { model.step = .proofRule }
+                if debugStage == "wizard-proof-photo"  { model.verificationMethod = .photo; model.step = .proofRule }
+                if debugStage == "wizard-proof-gps"    { model.verificationMethod = .gps; model.step = .proofRule }
+                if debugStage == "wizard-proof-timer"  {
+                    let study = CommitmentTemplates.all.first(where: { $0.id == "study" })!
+                    model.adoptTemplate(study)
+                    model.verificationMethod = .timer
+                    model.step = .proofRule
+                }
+                if debugStage == "wizard-proof-self"   { model.verificationMethod = .self; model.step = .proofRule }
+                if debugStage == "wizard-proof-friend" { model.verificationMethod = .friend; model.step = .proofRule }
                 if debugStage == "wizard-enforcement" || debugStage == "wizard-release-enforcement" { model.step = .enforcement }
                 if debugStage == "wizard-review-demo" {
                     model.enforcementMode = .money
                     model.stakePerOccurrenceKrw = 5_000
                     model.step = .payment
                     model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 3,
-                        stakePerOccurrence: "15000", maxLoss: "15000",
+                        stakePerOccurrence: "5000", maxLoss: "5000",
                         currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600),
-                        stakeTotal: "15000", contractStrictness: "realistic", allowedFailCount: 1)
+                        stakeTotal: "5000", contractStrictness: "realistic", allowedFailCount: 1)
                 }
                 if debugStage == "wizard-stake"        {
                     model.enforcementMode = .money
@@ -123,9 +133,9 @@ struct CreateCommitmentWizardView: View {
                     model.stakePerOccurrenceKrw = 10_000
                     model.step = .review
                     model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 10,
-                        stakePerOccurrence: "30000", maxLoss: "30000",
+                        stakePerOccurrence: "10000", maxLoss: "10000",
                         currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600),
-                        stakeTotal: "30000", contractStrictness: "realistic", allowedFailCount: 1)
+                        stakeTotal: "10000", contractStrictness: "realistic", allowedFailCount: 1)
                     model.safety = SafetyResponse(decision: "safe", reasonCode: "OK", userMessage: "")
                 }
                 if debugStage == "wizard-review-self" {
@@ -140,13 +150,13 @@ struct CreateCommitmentWizardView: View {
                     model.stakePerOccurrenceKrw = 5_000
                     model.step = .payment
                     model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 3,
-                        stakePerOccurrence: "15000", maxLoss: "15000",
+                        stakePerOccurrence: "5000", maxLoss: "5000",
                         currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600),
-                        stakeTotal: "15000", contractStrictness: "realistic", allowedFailCount: 0)
+                        stakeTotal: "5000", contractStrictness: "realistic", allowedFailCount: 0)
                     if debugStage == "wizard-payment-failed" {
                         model.paymentState = .failed(message: "결제가 완료되지 않았어요. 카드 정보를 확인하고 다시 시도해주세요.")
                         model.lastPayment = PaymentView(paymentId: "pay_demo", commitmentId: "c_demo", type: "charge",
-                            status: "failed", amountKrw: "15000", provider: "mock", failureCode: "MOCK_CARD_DECLINED", attempt: 1)
+                            status: "failed", amountKrw: "5000", provider: "mock", failureCode: "MOCK_CARD_DECLINED", attempt: 1)
                     }
                 }
                 if debugStage == "wizard-payment-live" || debugStage == "wizard-payment-live-fail" {
@@ -174,11 +184,11 @@ struct CreateCommitmentWizardView: View {
                     model.step = .signature
                     model.paymentState = .succeeded
                     model.quote = QuoteResponse(quoteId: "qt_demo", occurrenceCount: 3,
-                        stakePerOccurrence: "15000", maxLoss: "15000",
+                        stakePerOccurrence: "5000", maxLoss: "5000",
                         currency: "KRW", quoteExpiresAt: Date().addingTimeInterval(600),
-                        stakeTotal: "15000", contractStrictness: "realistic", allowedFailCount: 0)
-                    model.moneyView = MoneyView(status: .funded, label: "약속금 걸림", perOccurrenceKrw: "15000", upfrontKrw: "15000",
-                        refundableKrw: "0", forfeitedKrw: "0", refundPaidKrw: "0", depositKrw: "15000")
+                        stakeTotal: "5000", contractStrictness: "realistic", allowedFailCount: 0)
+                    model.moneyView = MoneyView(status: .funded, label: "약속금 걸림", perOccurrenceKrw: "5000", upfrontKrw: "5000",
+                        refundableKrw: "0", forfeitedKrw: "0", refundPaidKrw: "0", depositKrw: "5000")
                 }
                 if debugStage == "wizard-done-money"   {
                     model.enforcementMode = .money
@@ -198,17 +208,18 @@ struct CreateCommitmentWizardView: View {
                     Task { await model.resumeUnsignedIfNeeded(container: container) }
                 }
             }
-            .background(DS.Color.surfaceBackground.ignoresSafeArea())
+            .background(DS.Color.surfaceBackground)
+            .tint(DS.Color.primary)
+            .toolbarBackground(DS.Color.surfaceBackground, for: .navigationBar)
+            .navigationBarBackButtonHidden(true)
             .toolbar {
                 if model.step != .done {
                     if model.canGoBack {
                         ToolbarItem(placement: .topBarLeading) {
-                            Button {
+                            NavBarButton(model.step == .goal ? "xmark" : "chevron.left") {
                                 if model.step == .goal { dismiss() } else { model.goBack() }
-                            } label: {
-                                Image(systemName: model.step == .goal ? "xmark" : "chevron.left")
-                                    .foregroundStyle(DS.Color.text)
                             }
+                            .accessibilityLabel(model.step == .goal ? Copy.Errors.close : Copy.Wizard.back)
                         }
                     }
                     ToolbarItem(placement: .principal) {
@@ -303,7 +314,7 @@ private struct GoalStep: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
                             RoundedRectangle(cornerRadius: DS.Radius.md)
-                                .stroke(selectedId == t.id ? DS.Color.primary : DS.Color.divider, lineWidth: selectedId == t.id ? 2 : 1)
+                                .stroke(selectedId == t.id ? DS.Color.primary : DS.Color.border, lineWidth: selectedId == t.id ? 2 : 1)
                                 .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.surface))
                         )
                     }
@@ -501,12 +512,15 @@ private struct MethodRow: View {
             .padding(DS.Space.md)
             .background(
                 RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .stroke(isSelected ? DS.Color.primary : DS.Color.divider, lineWidth: isSelected ? 2 : 1)
+                    .stroke(isSelected ? DS.Color.primary : DS.Color.border, lineWidth: isSelected ? 2 : 1)
                     .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.surface))
             )
         }
         .buttonStyle(.plain)
         .disabled(isComingSoon)
+        .accessibilityLabel(isComingSoon ? "\(method.label), \(Copy.Wizard.comingSoon)" : method.label)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("wizard.method.\(method.rawValue)")
     }
     private var symbol: String {
         switch method {
@@ -570,11 +584,15 @@ private struct ProofRuleStep: View {
         }
     }
     private var explanation: String {
-        model.template.defaultProofExplanationTemplate
-            .replacingOccurrences(of: "{windowStart}", with: model.windowStartLocalTime)
-            .replacingOccurrences(of: "{deadline}", with: model.deadlineLocalTime)
-            .replacingOccurrences(of: "{minutes}", with: "\(model.timerMinutes)")
-            .replacingOccurrences(of: "{radius}", with: "\(model.gpsRadiusM)")
+        let deadline = model.deadlineLocalTime
+        switch model.verificationMethod {
+        case .photo:  return Copy.Wizard.proofRulePhoto(deadline)
+        case .gps:    return Copy.Wizard.proofRuleGps(deadline, model.gpsRadiusM)
+        case .timer:  return Copy.Wizard.proofRuleTimer(deadline, model.timerMinutes)
+        case .self:   return Copy.Wizard.proofRuleSelf(deadline)
+        case .friend: return Copy.Wizard.proofRuleFriend(deadline)
+        default:      return Copy.Wizard.proofRulePhoto(deadline)
+        }
     }
 }
 
@@ -718,7 +736,7 @@ private struct EnforcementCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: DS.Radius.lg)
-                    .stroke(isSelected ? iconTint : DS.Color.divider, lineWidth: isSelected ? 2 : 1)
+                    .stroke(isSelected ? iconTint : DS.Color.border, lineWidth: isSelected ? 2 : 1)
                     .background(RoundedRectangle(cornerRadius: DS.Radius.lg).fill(DS.Color.surface))
             )
         }
@@ -831,7 +849,7 @@ private struct StakeChoice: View {
             .frame(maxWidth: .infinity, minHeight: 56)
             .background(
                 RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .stroke(isSelected ? DS.Color.primary : DS.Color.divider, lineWidth: isSelected ? 2 : 1)
+                    .stroke(isSelected ? DS.Color.primary : DS.Color.border, lineWidth: isSelected ? 2 : 1)
                     .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.surface))
             )
         }
@@ -859,7 +877,7 @@ private struct CustomStakeChoice: View {
             .frame(maxWidth: .infinity, minHeight: 56)
             .background(
                 RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .stroke(isActive ? DS.Color.primary : DS.Color.divider, lineWidth: isActive ? 2 : 1)
+                    .stroke(isActive ? DS.Color.primary : DS.Color.border, lineWidth: isActive ? 2 : 1)
                     .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.surface))
             )
         }
@@ -932,7 +950,7 @@ private struct StrictnessRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .stroke(isSelected ? DS.Color.primary : DS.Color.divider, lineWidth: isSelected ? 2 : 1)
+                    .stroke(isSelected ? DS.Color.primary : DS.Color.border, lineWidth: isSelected ? 2 : 1)
                     .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.surface))
             )
         }
@@ -953,7 +971,11 @@ private struct ObserverStep: View {
             primaryEnabled: model.selectedFriendUserId != nil,
             onPrimary: onNext
         ) {
-            Text(Copy.Friends.socialMeaning).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+            Text(model.verificationMethod == .friend
+                 ? Copy.Friends.verifierMeaning
+                 : Copy.Friends.socialMeaning)
+                .font(Typo.body)
+                .foregroundStyle(DS.Color.textSecondary)
             ForEach(friends) { f in
                 ObserverRow(
                     title: f.displayName, symbol: "person.fill",
@@ -961,7 +983,11 @@ private struct ObserverStep: View {
                     isComingSoon: false
                 ) { model.selectedFriendUserId = f.friendUserId }
             }
-            Text(Copy.Wizard.step6FriendHint).font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
+            Text(model.verificationMethod == .friend
+                 ? Copy.Friends.verifierHint
+                 : Copy.Wizard.step6FriendHint)
+                .font(Typo.caption)
+                .foregroundStyle(DS.Color.textSecondary)
         }
         .task {
             friends = (try? await container.friendsAPI.home())?.friends ?? []
@@ -997,7 +1023,7 @@ private struct ObserverRow: View {
             .padding(DS.Space.md)
             .background(
                 RoundedRectangle(cornerRadius: DS.Radius.md)
-                    .stroke(isSelected ? DS.Color.primary : DS.Color.divider, lineWidth: isSelected ? 2 : 1)
+                    .stroke(isSelected ? DS.Color.primary : DS.Color.border, lineWidth: isSelected ? 2 : 1)
                     .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.surface))
             )
         }
@@ -1014,7 +1040,7 @@ private struct ReviewStep: View {
         WizardContainer(
             title: Copy.Wizard.step7Title,
             primaryTitle: model.enforcementMode == .money
-                ? Copy.Wizard.step7MoneyCTA(MoneyText.format(model.upfrontKrw))
+                ? Copy.Wizard.step7MoneyCTA(MoneyText.format(model.upfrontKrw > 0 ? model.upfrontKrw : Int64(model.stakeTotalKrw)))
                 : Copy.Wizard.step7CTA,
             primaryEnabled: model.enforcementMode != .money || (model.quote != nil && !model.isLoadingQuote),
             onPrimary: onNext
@@ -1087,7 +1113,7 @@ private struct ReviewStep: View {
             case .photo: return "사진으로 증명해요."
             case .timer: return "집중 타이머로 \(model.timerMinutes)분을 채워요."
             case .self:  return "직접 확인해요."
-            case .friend: return "친구가 확인해요."
+            case .friend: return "친구가 직접 확인해요."
             default: return ""
             }
         }()
@@ -1121,18 +1147,29 @@ private struct MoneyBreakdownCard: View {
     var body: some View {
         Card {
             VStack(spacing: DS.Space.xxs) {
-                CardRow(Copy.Wizard.step8RowPerOccurrence, value: MoneyText.format(Int64(model.stakeTotalKrw)))
+                CardRow(Copy.Wizard.step8RowPerOccurrence, value: MoneyText.format(stakeKrw))
                 CardRow(Copy.Wizard.step8RowCount, value: "\(model.occurrenceCount ?? model.estimatedOccurrences)번")
-                CardRow(Copy.Wizard.step8RowMaxLoss, value: MoneyText.format(model.upfrontKrw))
+                CardRow(Copy.Wizard.step8RowMaxLoss, value: MoneyText.format(stakeKrw))
                 Divider().padding(.vertical, DS.Space.xxs)
                 HStack(alignment: .firstTextBaseline) {
                     Text(Copy.Wizard.step8RowUpfront)
                         .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
                     Spacer()
-                    MoneyText(model.upfrontKrw, intent: .atRisk, size: .large)
+                    MoneyText(stakeKrw, intent: .atRisk, size: .large)
                 }
             }
         }
+    }
+
+    /// V1: one commitment-level Stake. Quote is authoritative when present;
+    /// otherwise the amount the user selected. Occurrence count does not multiply.
+    private var stakeKrw: Int64 {
+        if let q = model.quote {
+            if let n = Int64(q.maxLoss), n > 0 { return n }
+            if let n = Int64(q.stakeTotal), n > 0 { return n }
+            if let n = Int64(q.stakePerOccurrence), n > 0 { return n }
+        }
+        return Int64(model.stakeTotalKrw)
     }
 }
 
@@ -1149,16 +1186,6 @@ private struct PaymentStep: View {
             onPrimary: { Task { await model.createAndPay(container: container) } }
         ) {
             MoneyBreakdownCard(model: model)
-            Text(Copy.Terms.title).font(Typo.bodyStrong)
-            Text(Copy.Terms.body)
-                .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
-            Text(Copy.Wizard.step8Explain)
-                .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
-            if model.reviewDemo {
-                Text(Copy.Wizard.reviewDemoNotice)
-                    .font(Typo.caption).foregroundStyle(DS.Color.textMuted)
-            }
-
             switch model.paymentState {
             case .charging:
                 HStack(spacing: DS.Space.sm) {
@@ -1171,6 +1198,15 @@ private struct PaymentStep: View {
                 MoneyStatusChip(.funded)
             case .idle:
                 EmptyView()
+            }
+            Text(Copy.Terms.title).font(Typo.bodyStrong)
+            Text(Copy.Terms.body)
+                .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+            Text(Copy.Wizard.step8Explain)
+                .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
+            if model.reviewDemo {
+                Text(Copy.Wizard.reviewDemoNotice)
+                    .font(Typo.caption).foregroundStyle(DS.Color.textMuted)
             }
 
             #if DEBUG
@@ -1247,9 +1283,9 @@ private struct SignatureStep: View {
             Text(Copy.Wizard.step9Hint)
                 .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
             SignatureCanvas(strokes: $strokes)
-                .frame(height: 240)
+                .frame(height: 180)
                 .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.surface))
-                .overlay(RoundedRectangle(cornerRadius: DS.Radius.md).stroke(DS.Color.divider))
+                .overlay(RoundedRectangle(cornerRadius: DS.Radius.md).strokeBorder(DS.Color.border, lineWidth: 1))
             HStack {
                 Spacer()
                 Button(Copy.Wizard.step9Clear) { strokes.removeAll() }
@@ -1355,18 +1391,18 @@ struct WizardContainer<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: DS.Space.lg) {
-                    Text(title)
-                        .font(Typo.title)
-                        .foregroundStyle(DS.Color.text)
-                    content()
-                }
-                .padding(.horizontal, DS.Space.lg)
-                .padding(.top, DS.Space.md)
-                .padding(.bottom, DS.Space.xl)
+        ScrollView {
+            VStack(alignment: .leading, spacing: DS.Space.lg) {
+                Text(title)
+                    .font(Typo.title)
+                    .foregroundStyle(DS.Color.text)
+                content()
+                Color.clear.frame(height: footerReserve)
             }
+            .padding(.horizontal, DS.Space.lg)
+            .padding(.top, DS.Space.md)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: DS.Space.sm) {
                 PrimaryButton(primaryTitle, isLoading: primaryLoading, isDisabled: !primaryEnabled, action: onPrimary)
                 if let secondaryTitle, let onSecondary {
@@ -1374,7 +1410,15 @@ struct WizardContainer<Content: View>: View {
                 }
             }
             .padding(.horizontal, DS.Space.lg)
+            .padding(.top, DS.Space.sm)
             .padding(.bottom, DS.Space.md)
+            .frame(maxWidth: .infinity)
+            .background(DS.Color.surfaceBackground)
         }
+    }
+
+    private var footerReserve: CGFloat {
+        let buttons: CGFloat = secondaryTitle == nil ? 56 : 124
+        return buttons + DS.Space.sm + DS.Space.md
     }
 }

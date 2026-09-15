@@ -121,7 +121,6 @@ public final class HomeViewModel: ObservableObject {
     /// only MONEY items contribute to `atRiskKrw`.
     public func mockLoaded() {
         atRiskKrw = 15_000
-        todayCount = 3
         moneyCount = 2
         items = [
             TodayOccurrenceModel(
@@ -148,7 +147,29 @@ public final class HomeViewModel: ObservableObject {
                 stakeKrw: 10_000, chipKind: .scheduled, showsProofCTA: true,
                 friendVerifyStatus: nil, friendVerifyName: nil
             ),
+            TodayOccurrenceModel(
+                id: "d4", commitmentId: "c4", commitmentTitle: "아침 인증",
+                verificationMethod: .photo, methodLabel: Copy.Wizard.methodPhoto,
+                enforcementMode: .self, status: "scheduled",
+                deadlineAt: Date().addingTimeInterval(3600 * 4),
+                stakeKrw: 0, chipKind: .scheduled, showsProofCTA: true
+            ),
+            TodayOccurrenceModel(
+                id: "d5", commitmentId: "c5", commitmentTitle: "사용시간 확인",
+                verificationMethod: .self, methodLabel: Copy.Wizard.methodSelf,
+                enforcementMode: .self, status: "scheduled",
+                deadlineAt: Date().addingTimeInterval(3600 * 5),
+                stakeKrw: 0, chipKind: .scheduled, showsProofCTA: true
+            ),
+            TodayOccurrenceModel(
+                id: "d6", commitmentId: "c6", commitmentTitle: "야식 안 먹기",
+                verificationMethod: .friend, methodLabel: Copy.Wizard.methodFriend,
+                enforcementMode: .self, status: "scheduled",
+                deadlineAt: Date().addingTimeInterval(3600 * 7),
+                stakeKrw: 0, chipKind: .scheduled, showsProofCTA: true
+            ),
         ]
+        todayCount = items.count
     }
     #endif
 

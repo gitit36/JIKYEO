@@ -62,10 +62,7 @@ public struct SecondaryButton: View {
                 .padding(.horizontal, DS.Space.sm)
                 .foregroundStyle(DS.Color.text)
                 .frame(maxWidth: .infinity, minHeight: 56)
-                .background(
-                    RoundedRectangle(cornerRadius: DS.Radius.md)
-                        .fill(DS.Color.surfaceMuted)
-                )
+                .background(ControlChrome())
         }
         .buttonStyle(.plain)
     }
@@ -90,6 +87,36 @@ public struct TertiaryButton: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: 44)
+    }
+}
+
+/// Toolbar back / close. Gray icon in a circled chip — readable on white,
+/// never the jet-black system glyph.
+public struct NavBarButton: View {
+    private let systemName: String
+    private let action: () -> Void
+
+    public init(_ systemName: String, action: @escaping () -> Void) {
+        self.systemName = systemName
+        self.action = action
+    }
+
+    public var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(DS.Color.icon)
+                .symbolRenderingMode(.monochrome)
+                .frame(width: 32, height: 32)
+                .background(
+                    Circle()
+                        .fill(DS.Color.surface)
+                        .overlay(Circle().strokeBorder(DS.Color.border, lineWidth: 1))
+                )
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -22,6 +22,8 @@ struct TimerProofView: View {
         VStack(spacing: DS.Space.lg) {
             Spacer()
             VStack(spacing: DS.Space.sm) {
+                Text(Copy.Proof.timerTitle)
+                    .font(Typo.heading).foregroundStyle(DS.Color.text)
                 Text(occurrence.commitmentTitle)
                     .font(Typo.title).foregroundStyle(DS.Color.text)
                     .multilineTextAlignment(.center)
@@ -33,7 +35,7 @@ struct TimerProofView: View {
                         .font(Typo.display).foregroundStyle(DS.Color.text)
                     Text(Copy.Proof.timerGoalMinutes(planned / 60))
                         .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
-                } else {
+                } else if case .starting = vm.state {
                     ProgressView()
                 }
                 Text(Copy.Proof.timerKeepScreenOn)
@@ -52,7 +54,7 @@ struct TimerProofView: View {
                     }
                 }
             case .finishing:
-                HStack { ProgressView(); Text(Copy.Proof.photoReviewing) }
+                HStack { ProgressView(); Text(Copy.Proof.timerReviewing) }
                     .font(Typo.body).foregroundStyle(DS.Color.textSecondary)
             case .idle:
                 PrimaryButton(Copy.Proof.timerStart) { Task { await start() } }
@@ -66,18 +68,23 @@ struct TimerProofView: View {
         }
         .padding(.horizontal, DS.Space.lg)
         .padding(.vertical, DS.Space.lg)
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = true; vm.container = container }
+        .accessibilityIdentifier("proof.timer")
+        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false; vm.tick.invalidate(); vm.heartbeatTimer?.invalidate() }
         .onChange(of: scenePhase) { _, phase in
             vm.handleScenePhase(phase)
         }
-        .task { await start() }
+        .task {
+            vm.container = container
+            await start()
+        }
     }
 
     private func start() async {
         do {
             try await vm.start(occurrenceId: occurrence.id)
         } catch {
+            if case .failed = vm.state { return }
             errorMessage = UserFacingError.message(error)
         }
     }
@@ -160,13 +167,18 @@ final class TimerProofVM: ObservableObject {
         if case .starting = state { return }
         if case .finishing = state { return }
         state = .starting
-        let started = try await c.timerAPI.start(occurrenceId: occurrenceId)
-        self.sessionId = started.sessionId
-        self.startedAt = started.serverStartedAt
-        self.plannedSeconds = started.plannedDurationSeconds
-        state = .running
-        startTicker()
-        startHeartbeats()
+        do {
+            let started = try await c.timerAPI.start(occurrenceId: occurrenceId)
+            self.sessionId = started.sessionId
+            self.startedAt = started.serverStartedAt
+            self.plannedSeconds = started.plannedDurationSeconds
+            state = .running
+            startTicker()
+            startHeartbeats()
+        } catch {
+            state = .failed(UserFacingError.message(error))
+            throw error
+        }
     }
 
     func finish(terminated: Bool) async throws -> VerificationResultResponse {
@@ -176,8 +188,12 @@ final class TimerProofVM: ObservableObject {
         state = .finishing
         heartbeatTimer?.invalidate()
         tick.invalidate()
-        let r = try await c.timerAPI.finish(sessionId: sid, terminated: terminated)
-        return r
+        do {
+            return try await c.timerAPI.finish(sessionId: sid, terminated: terminated)
+        } catch {
+            state = .failed(UserFacingError.message(error))
+            throw error
+        }
     }
 
     private func startTicker() {

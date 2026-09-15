@@ -43,7 +43,7 @@ struct RootView: View {
                 CancelDebugView(stage: stage)
             } else if let stage = DebugLaunch.stage, stage == "maintenance-retry" {
                 MaintenanceRetryDebugView()
-            } else if let stage = DebugLaunch.stage, ["hero","goal","how","notify","signin"].contains(stage) {
+            } else if let stage = DebugLaunch.stage, ["hero","goal","how","notify","signin","signin-empty"].contains(stage) {
                 OnboardingRootView(debugStage: stage)
             } else if auth.isSignedIn {
                 MainTabView(debugStage: nil)
@@ -108,6 +108,8 @@ struct MainTabView: View {
                 .tag(Tab.settings)
         }
         .tint(DS.Color.primary)
+        .toolbarBackground(DS.Color.surfaceBackground, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .overlay(alignment: .top) {
             if let banner {
                 Text(banner)
@@ -188,14 +190,15 @@ struct ProofDebugView: View {
             case "proof-gps":   return .gps
             case "proof-timer": return .timer
             case "proof-self":  return .self
+            case "proof-friend": return .friend
             default: return .photo
             }
         }()
-        let mode: EnforcementMode = (method == .timer || method == .self) ? .self : .money
+        let mode: EnforcementMode = (method == .timer || method == .self || method == .friend) ? .self : .money
         return TodayOccurrenceModel(
             id: "debug-occ",
             commitmentId: "debug-c",
-            commitmentTitle: method == .timer ? "60분 공부하기" : "헬스장 가기",
+            commitmentTitle: method == .timer ? "60분 공부하기" : (method == .friend ? "야식 먹지 않기" : "헬스장 가기"),
             verificationMethod: method,
             methodLabel: method.label,
             enforcementMode: mode,

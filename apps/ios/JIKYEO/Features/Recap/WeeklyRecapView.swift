@@ -37,6 +37,7 @@ struct WeeklyRecapView: View {
             .padding(.vertical, DS.Space.lg)
         }
         .background(DS.Color.surfaceBackground.ignoresSafeArea())
+        .tint(DS.Color.icon)
         .navigationTitle(Copy.Recap.nav)
         .navigationBarTitleDisplayMode(.inline)
     }

@@ -7,7 +7,7 @@ import SwiftUI
 /// Release.
 ///
 /// Supported stages:
-///   Onboarding    — hero, goal, how, notify, signin
+///   Onboarding    — hero, goal, how, notify, signin, signin-empty
 ///   Home          — home-empty, home-loaded
 ///   Wizard        — wizard-goal, wizard-schedule, wizard-verification,
 ///                    wizard-proof, wizard-enforcement, wizard-stake,
@@ -23,9 +23,11 @@ import SwiftUI
 ///                    v1-grace-alive, v1-grace-exceeded, v1-cancel-pre, v1-cancel-post, v1-makeup
 ///   Notify        — notify-deeplink, notify-deeplink-friends, notify-deeplink-friend-verify
 ///   Money status  — history-money (기록 tab with every MoneyStatus)
-///   Proof + Result — proof-photo, proof-gps, proof-timer, proof-self,
+///   Proof + Result — proof-photo, proof-gps, proof-timer, proof-self, proof-friend,
 ///                    result-pass-money, result-pass-self,
 ///                    result-uncertain, result-fail-money, result-fail-self
+///   Wizard proof rule — wizard-proof-photo, wizard-proof-gps, wizard-proof-timer,
+///                        wizard-proof-self, wizard-proof-friend
 ///
 /// Args:
 ///   `-jikyeoDebugStage <stage>`

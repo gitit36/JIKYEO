@@ -91,6 +91,9 @@ struct ProofResultView: View {
             if result.reasonCode.hasPrefix("FRIEND_VERIFY") {
                 return Copy.Friends.rejected(occurrence.friendVerifyName ?? "친구")
             }
+            if result.isMoneyCommitment && amount > 0 {
+                return Copy.Result.failMoneyBody(amount)
+            }
             return Copy.Result.failSelfBody
         }
     }

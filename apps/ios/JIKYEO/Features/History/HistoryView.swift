@@ -42,11 +42,16 @@ struct HistoryView: View {
                     if let err = model.errorMessage {
                         ErrorRetryBanner(message: err) { Task { await model.load(container: container) } }
                     }
+                    Color.clear.frame(height: DS.Space.xxl)
                 }
                 .padding(.horizontal, DS.Space.lg)
                 .padding(.vertical, DS.Space.lg)
+                .padding(.bottom, DS.Space.xxl + DS.Space.xl)
             }
+            .contentMargins(.bottom, DS.Space.xxl + DS.Space.xl, for: .scrollContent)
             .background(DS.Color.surfaceBackground.ignoresSafeArea())
+            .tint(DS.Color.icon)
+            .toolbarBackground(DS.Color.surfaceBackground, for: .navigationBar)
             .navigationTitle("기록")
             .navigationBarTitleDisplayMode(.inline)
             .refreshable { await model.load(container: container) }

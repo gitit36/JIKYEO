@@ -22,22 +22,23 @@ struct FriendsView: View {
                     if let code = home?.invite.inviteCode {
                         Text("\(Copy.Friends.codeHint)  \(code)").font(Typo.bodyStrong)
                     }
-                    HStack {
-                        TextField(Copy.Friends.enterCode, text: $code)
-                            .textInputAutocapitalization(.characters)
-                        Button(Copy.Friends.inviteCTA) {
-                            Task { await invite() }
-                        }
-                        .disabled(inviting || code.trimmingCharacters(in: .whitespaces).isEmpty)
+                    InputField(Copy.Friends.enterCode, text: $code)
+                    SecondaryButton(Copy.Friends.inviteCTA) {
+                        Task { await invite() }
                     }
-                    Button(Copy.Friends.createShared) { showShared = true }
-                        .font(Typo.bodyStrong)
-                        .frame(minHeight: 44)
+                    .disabled(inviting || code.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .opacity(code.trimmingCharacters(in: .whitespaces).isEmpty ? 0.45 : 1)
+                    PrimaryButton(Copy.Friends.createShared) { showShared = true }
                     if let error, home != nil { Text(error).font(Typo.body).foregroundStyle(DS.Color.textSecondary) }
                 }
                 .padding(DS.Space.lg)
+                .padding(.bottom, DS.Space.xxl + DS.Space.xl)
             }
+            .contentMargins(.bottom, DS.Space.xxl + DS.Space.xl, for: .scrollContent)
+            .safeAreaPadding(.bottom, DS.Space.md)
             .background(DS.Color.surfaceBackground.ignoresSafeArea())
+            .tint(DS.Color.icon)
+            .toolbarBackground(DS.Color.surfaceBackground, for: .navigationBar)
             .navigationTitle(Copy.Friends.title)
             .navigationBarTitleDisplayMode(.inline)
             .refreshable { await load() }
@@ -274,15 +275,17 @@ private struct FriendVerifyInboxCard: View {
             Text("확인 마감 \(Self.dateLine(card.reviewDeadlineAt))").font(Typo.caption).foregroundStyle(DS.Color.textSecondary)
             Text(card.question).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
             if let error { Text(error).font(Typo.body).foregroundStyle(DS.Color.textSecondary) }
-            HStack {
-                Button(Copy.Friends.kept) { Task { await decide(approve: true) } }
-                    .disabled(busy)
-                    .frame(minHeight: 44)
-                Button(Copy.Friends.missed) { confirmReject = true }
-                    .disabled(busy)
-                    .frame(minHeight: 44)
+            VStack(spacing: DS.Space.sm) {
+                PrimaryButton(Copy.Friends.kept, isLoading: busy, isDisabled: busy) {
+                    Task { await decide(approve: true) }
+                }
+                .accessibilityIdentifier("friends.inbox.kept")
+                SecondaryButton(Copy.Friends.missed) {
+                    confirmReject = true
+                }
+                .disabled(busy)
+                .accessibilityIdentifier("friends.inbox.missed")
             }
-            .font(Typo.bodyStrong)
         }
         .confirmationDialog(Copy.Friends.confirmReject, isPresented: $confirmReject, titleVisibility: .visible) {
             Button(Copy.Friends.missed, role: .destructive) {

@@ -24,11 +24,16 @@ public enum DS {
         public static let text          = SwiftUI.Color(hex: 0x111111)
         public static let textSecondary = SwiftUI.Color(hex: 0x5A5F66)
         public static let textMuted     = SwiftUI.Color(hex: 0x9095A0)
+        /// Toolbar / nav icons. Dark enough to tap, never jet-black on white.
+        public static let icon          = textSecondary
 
         public static let surface       = SwiftUI.Color(hex: 0xFFFFFF)
-        public static let surfaceMuted  = SwiftUI.Color(hex: 0xF6F7F9)
+        /// Control / chip fill. Must read against both `surface` and `surfaceBackground`.
+        public static let surfaceMuted  = SwiftUI.Color(hex: 0xECEEF2)
         public static let surfaceBackground = SwiftUI.Color(hex: 0xFAFAFB)
-        public static let divider       = SwiftUI.Color(hex: 0xE7E9EC)
+        public static let divider       = SwiftUI.Color(hex: 0xE1E4E8)
+        /// Outline for inputs and secondary buttons on a near-white canvas.
+        public static let border        = SwiftUI.Color(hex: 0xC5CAD1)
 
         public static let statusPass       = primary
         public static let statusUncertain  = SwiftUI.Color(hex: 0xC46A11)
@@ -64,9 +69,24 @@ public enum DS {
         public let y: CGFloat
     }
     public static let cardShadow = Shadow(
-        color: SwiftUI.Color.black.opacity(0.04),
+        color: SwiftUI.Color.black.opacity(0.06),
         radius: 12, x: 0, y: 2
     )
+}
+
+/// White fill + visible gray outline. Shared by inputs and secondary CTAs so
+/// they do not disappear on `surfaceBackground`.
+struct ControlChrome: View {
+    var radius: CGFloat = DS.Radius.md
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: radius)
+            .fill(DS.Color.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: radius)
+                    .strokeBorder(DS.Color.border, lineWidth: 1)
+            )
+    }
 }
 
 extension SwiftUI.Color {

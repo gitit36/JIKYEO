@@ -247,9 +247,11 @@ public struct TermsAcceptRequest: Codable {
 
 public struct TermsSnapshotDTO: Codable {
     public let documentVersion: String
-    public let perOccurrenceKrw: String
+    public let totalStakeKrw: String
     public let occurrenceCount: Int
-    public let maxChargeKrw: String
+    public let contractStrictness: String
+    public let allowedFailCount: Int
+    public let successCondition: String
     public let appealDays: Int
     public let refundHandling: String
 }

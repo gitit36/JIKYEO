@@ -279,9 +279,11 @@ struct AppealSubmitSheet: View {
                     }
                 }
                 Text(Copy.Appeal.explanationLabel).font(Typo.bodyStrong)
-                TextField(Copy.Appeal.explanationHint, text: $explanation, axis: .vertical)
+                TextField("", text: $explanation, prompt: Text(Copy.Appeal.explanationHint).foregroundStyle(DS.Color.textMuted), axis: .vertical)
                     .lineLimit(3...6)
-                    .textFieldStyle(.roundedBorder)
+                    .padding(DS.Space.md)
+                    .background(ControlChrome())
+                    .tint(DS.Color.primary)
                 if let err = errorMessage {
                     Text(err).font(Typo.caption).foregroundStyle(DS.Color.moneyLost)
                 }
@@ -295,6 +297,7 @@ struct AppealSubmitSheet: View {
                 Spacer()
             }
             .padding(DS.Space.lg)
+            .tint(DS.Color.icon)
             .navigationTitle(Copy.Appeal.title)
             .navigationBarTitleDisplayMode(.inline)
             .onAppear { Analytics.track(.appeal_opened) }

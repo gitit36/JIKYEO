@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>FormatVersion</key>
+	<integer>1</integer>
+	<key>Store</key>
+	<dict>
+		<key>JIKYEOUITests</key>
+		<dict>
+			<key>FriendsHistoryQATests</key>
+			<dict>
+				<key>testHistoryEmptyAndMoney</key>
+				<dict>
+					<key>mrnet</key>
+					<real>12.110472083091736</real>
+				</dict>
+			</dict>
+			<key>ProofConsistencyQATests</key>
+			<dict>
+				<key>testHomeProofCTAsMatchMethod</key>
+				<dict>
+					<key>mrnet</key>
+					<real>7.4535650014877319</real>
+				</dict>
+				<key>testTimerProofScreen</key>
+				<dict>
+					<key>mrnet</key>
+					<real>4.8637089729309082</real>
+				</dict>
+			</dict>
+			<key>WizardJourneyQATests</key>
+			<dict>
+				<key>testMoneyReviewAndMockPaymentCopy</key>
+				<dict>
+					<key>mrnet</key>
+					<real>14.192119002342224</real>
+				</dict>
+				<key>testMoneySignatureCancelIsNotADeadEnd</key>
+				<dict>
+					<key>mrnet</key>
+					<real>6.8827619552612305</real>
+				</dict>
+			</dict>
+		</dict>
+	</dict>
+</dict>
+</plist>

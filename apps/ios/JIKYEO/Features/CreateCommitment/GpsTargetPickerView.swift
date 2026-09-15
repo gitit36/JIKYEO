@@ -41,10 +41,15 @@ struct GpsTargetPickerView: View {
                             vm.requestLocation()
                         } label: {
                             Image(systemName: "location.fill")
+                                .foregroundStyle(DS.Color.primary)
                                 .padding(DS.Space.sm)
-                                .background(Circle().fill(DS.Color.surface))
-                                .shadow(radius: 2)
+                                .background(
+                                    Circle()
+                                        .fill(DS.Color.surface)
+                                        .overlay(Circle().strokeBorder(DS.Color.border, lineWidth: 1))
+                                )
                         }
+                        .buttonStyle(.plain)
                         .padding(DS.Space.md)
                     }
                     .onChange(of: vm.lastLocation) { _, newValue in
@@ -114,9 +119,14 @@ struct GpsTargetPickerView: View {
             }
             .navigationTitle(Copy.Proof.pickerTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .tint(DS.Color.primary)
+            .toolbarBackground(DS.Color.surfaceBackground, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("취소") { dismiss() }.foregroundStyle(DS.Color.text)
+                    Button("취소") { dismiss() }
+                        .font(Typo.body)
+                        .foregroundStyle(DS.Color.icon)
+                        .buttonStyle(.plain)
                 }
             }
         }
@@ -204,12 +214,13 @@ private struct SearchBar: View {
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass").foregroundStyle(DS.Color.textSecondary)
-            TextField(Copy.Proof.pickerSearchHint, text: $text)
+            TextField("", text: $text, prompt: Text(Copy.Proof.pickerSearchHint).foregroundStyle(DS.Color.textMuted))
+                .tint(DS.Color.primary)
                 .onSubmit(onSubmit)
                 .submitLabel(.search)
         }
         .padding(DS.Space.sm)
-        .background(RoundedRectangle(cornerRadius: DS.Radius.md).fill(DS.Color.surface))
+        .background(ControlChrome())
         .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
     }
 }

@@ -16,6 +16,10 @@ struct FriendVerifyView: View {
                 Text(Copy.Friends.waiting(name)).font(Typo.body).foregroundStyle(DS.Color.textSecondary)
             } else {
                 Text(Copy.Friends.request).font(Typo.heading)
+                Text(Copy.Friends.requestBody)
+                    .font(Typo.body)
+                    .foregroundStyle(DS.Color.textSecondary)
+                    .multilineTextAlignment(.center)
             }
             Spacer()
             if waitingName == nil && occurrence.friendVerifyStatus != "pending" {
@@ -41,5 +45,6 @@ struct FriendVerifyView: View {
             }
         }
         .padding(DS.Space.lg)
+        .accessibilityIdentifier("proof.friend")
     }
 }

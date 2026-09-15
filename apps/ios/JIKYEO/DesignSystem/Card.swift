@@ -12,14 +12,22 @@ public struct Card<Content: View>: View {
     }
 
     public var body: some View {
-        content
-            .padding(padding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: DS.Radius.lg)
-                    .fill(DS.Color.surface)
-            )
-            .shadow(color: DS.cardShadow.color, radius: DS.cardShadow.radius, x: DS.cardShadow.x, y: DS.cardShadow.y)
+        // Wrap in a stack so padding/background apply once. A bare ViewBuilder
+        // TupleView would paint a separate card behind every child.
+        VStack(alignment: .leading, spacing: DS.Space.sm) {
+            content
+        }
+        .padding(padding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.lg)
+                .fill(DS.Color.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.lg)
+                        .strokeBorder(DS.Color.divider, lineWidth: 1)
+                )
+        )
+        .shadow(color: DS.cardShadow.color, radius: DS.cardShadow.radius, x: DS.cardShadow.x, y: DS.cardShadow.y)
     }
 }
 

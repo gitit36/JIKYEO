@@ -59,6 +59,7 @@ struct SettingsView: View {
                         .foregroundStyle(DS.Color.textSecondary)
                 }
             }
+            .tint(DS.Color.icon)
             .navigationTitle("설정")
             .task { await loadPrefs() }
             .sheet(item: $recap) { row in

@@ -32,11 +32,16 @@ struct HomeView: View {
                             }
                         }
                     }
+                    Color.clear.frame(height: DS.Space.xxl)
                 }
                 .padding(.horizontal, DS.Space.lg)
                 .padding(.vertical, DS.Space.lg)
+                .padding(.bottom, DS.Space.xxl + DS.Space.xl)
             }
+            .contentMargins(.bottom, DS.Space.xxl + DS.Space.xl, for: .scrollContent)
             .background(DS.Color.surfaceBackground.ignoresSafeArea())
+            .tint(DS.Color.icon)
+            .toolbarBackground(DS.Color.surfaceBackground, for: .navigationBar)
             .navigationTitle("지켜")
             .navigationBarTitleDisplayMode(.inline)
             .refreshable { await model.load(container: container) }
@@ -56,9 +61,11 @@ struct HomeView: View {
                         isCreating = true
                     } label: {
                         Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(DS.Color.primary)
                     }
                     .accessibilityLabel(Copy.Home.createCTA)
-                    .tint(DS.Color.primary)
+                    .buttonStyle(.plain)
                 }
             }
             .sheet(isPresented: $isCreating, onDismiss: { Task { await model.load(container: container) } }) {
